@@ -2825,6 +2825,8 @@ impl DocBase {
     /// `sees_images`), the signature of the search of similar documents,
     /// and the type. Each document is read once, as what it is. What failed
     /// or waits for a person is not waited for: it is read as it is.
+    /// What waits before its reading: the same rule as
+    /// `waiting_before_reading_in`, which the count of the step uses.
     fn waiting_before_reading(&self, sees_images: bool) -> Result<BTreeSet<i64>, String> {
         let mut waiting = self.waiting_for_cut()?;
         waiting.extend(self.waiting_for_cut_answers(sees_images)?);
@@ -3429,4 +3431,17 @@ mod tests {
         let types = &schema(&vocabulary)["properties"]["menciones"]["items"]["properties"]["tipo"]["enum"];
         assert!(["asunto", "persona", "organizacion"].iter().all(|t| types.as_array().unwrap().iter().any(|x| x == t)));
     }
+}
+
+/// The documents whose reading waits for a step before (`DocBase::
+/// waiting_before_reading`): their cut, the answers of their cut, their
+/// signature and their type. Over a connection, and read-only: the count
+/// of the step of the reading says what its operation leaves waiting
+/// (arreglo 1 of the small test of 2 nov).
+pub(crate) fn waiting_before_reading_in(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    let mut waiting = crate::docbase::cut::waiting_for_cut_in(conn)?;
+    waiting.extend(crate::docbase::cut::waiting_for_cut_answers_in(conn)?);
+    waiting.extend(crate::docbase::similar::store::waiting_for_similar_in(conn)?);
+    waiting.extend(crate::docbase::similar::classify::types_left(conn, None)?.waiting);
+    Ok(waiting)
 }

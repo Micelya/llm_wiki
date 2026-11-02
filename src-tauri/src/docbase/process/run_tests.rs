@@ -112,7 +112,7 @@ fn with_files(dir: &TempDir, files: &[(&str, Vec<Page>)]) -> (DocBase, String) {
 
 /// One turn of the loop with a step: what has no step of its own (the
 /// pages of a scan to count, a text of an older extraction) goes before.
-fn turn(base: &DocBase, model: &Model) -> Turn {
+fn turn(base: &DocBase, model: &dyn DocumentAsker) -> Turn {
     for _ in 0..20 {
         let done = base.process_turn(Some(model)).unwrap();
         if done.step.is_some() || !done.worked {
@@ -122,8 +122,9 @@ fn turn(base: &DocBase, model: &Model) -> Turn {
     panic!("only work without a step")
 }
 
-/// Turns of the loop until it does nothing.
-fn until_idle(base: &DocBase, model: &Model) -> Vec<Turn> {
+/// Turns of the loop until it does nothing, without looking at how it
+/// stopped.
+fn until_stopped(base: &DocBase, model: &dyn DocumentAsker) -> Vec<Turn> {
     let mut turns = Vec::new();
     for _ in 0..600 {
         let done = turn(base, model);
@@ -133,6 +134,34 @@ fn until_idle(base: &DocBase, model: &Model) -> Vec<Turn> {
         turns.push(done);
     }
     panic!("the loop never stopped: {:?}", turns.iter().rev().take(5).collect::<Vec<_>>());
+}
+
+/// Turns of the loop until it does nothing, and then no step may count
+/// work: a step that counts work left while the loop has nothing to do
+/// counts what its operation does not take, an error of the program (the
+/// small test of 2 nov stopped so in the identity, with 96). Every test
+/// that runs the loop until it stops checks it, for every step. Only what
+/// waits for a person by the round past its cap may stay counted.
+fn until_idle(base: &DocBase, model: &dyn DocumentAsker) -> Vec<Turn> {
+    let turns = until_stopped(base, model);
+    nothing_counted_that_is_not_taken(base);
+    turns
+}
+
+fn nothing_counted_that_is_not_taken(base: &DocBase) {
+    let status = base.process_status();
+    if status.state == "waiting-person" {
+        return;
+    }
+    let state = base.process_state(&Scope::All, false).unwrap();
+    let counted: Vec<(u8, usize)> =
+        state.steps.iter().filter(|s| s.count.pending > 0).map(|s| (s.about.number, s.count.pending)).collect();
+    assert!(counted.is_empty(), "the loop stopped and these steps count work left (step, pending): {counted:?}; it waits for {:?}", status.waiting_for);
+    let notices: i64 = base
+        .conn()
+        .query_row("SELECT count(*) FROM failure WHERE item_kind = 'thread' AND item LIKE 'process/%' AND state <> 'resolved'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(notices, 0, "a step was set aside for counting work its operation did not take");
 }
 
 /// The first incomplete step the loop sees now (with what it set aside).
@@ -563,33 +592,169 @@ fn a_transient_failure_of_a_type_question_waits_for_its_next_attempt() {
 }
 
 #[test]
-fn an_element_that_goes_back_three_times_is_set_aside_for_a_person() {
+fn going_back_with_new_key_data_each_time_is_the_process_going_on_and_never_sets_it_aside() {
+    // The small test of 2 nov: a document goes back to the similar
+    // documents after its reading, and again after each answer of the
+    // identity that touches its parties. That is the process going on (the
+    // questions never repeat), not a circle: it is never set aside for it.
     let dir = TempDir::new();
     let (base, _) = with_files(&dir, &[("uno.pdf", vec![prose("una hoja de un acuerdo")])]);
     reading_on(&base);
     let model = Model::default();
     until_idle(&base, &model);
     let version = versions(&base)[0];
-    for time in 1..=BACK_LIMIT + 1 {
-        // An answer changes its parties: it goes back to the similar
-        // documents.
+    for time in 1..=BACK_LIMIT as usize + 3 {
         names_a_party(&base, version, &format!("Sociedad Inventada {time}"));
+        let next = turn(&base, &model);
+        assert_eq!(next.step, Some(Step::Similar), "time {time}: it goes back and is measured again");
         until_idle(&base, &model);
-        let open: i64 = base
-            .conn()
-            .query_row("SELECT count(*) FROM failure WHERE stage = ?1 AND state <> 'resolved'", [failures::BACK_STAGE], |r| r.get(0))
-            .unwrap();
-        assert_eq!(open, i64::from(time > BACK_LIMIT), "after {time} times");
     }
-    let (item, class): (String, String) = base
+    let open: i64 = base
         .conn()
-        .query_row("SELECT item, class FROM failure WHERE stage = ?1", [failures::BACK_STAGE], |r| Ok((r.get(0)?, r.get(1)?)))
+        .query_row("SELECT count(*) FROM failure WHERE stage = ?1 AND state <> 'resolved'", [failures::BACK_STAGE], |r| r.get(0))
+        .unwrap();
+    assert_eq!(open, 0, "new key data each time: never set aside");
+    let similar = base.process_state(&Scope::All, false).unwrap().step(Step::Similar).unwrap().count;
+    assert_eq!((similar.pending, similar.set_aside), (0, 0));
+}
+
+/// A reading that no longer names `who` in the document.
+fn forgets_a_party(base: &DocBase, version: i64, who: &str) {
+    base.conn().execute("DELETE FROM knowledge_mention WHERE version_id = ?1 AND ref = ?2", params![version, who]).unwrap();
+}
+
+#[test]
+fn an_element_that_goes_back_in_a_circle_more_than_twice_is_set_aside_for_a_person() {
+    let dir = TempDir::new();
+    let (base, _) = with_files(&dir, &[("uno.pdf", vec![prose("una hoja de un acuerdo")])]);
+    reading_on(&base);
+    let model = Model::default();
+    until_idle(&base, &model);
+    let version = versions(&base)[0];
+    let open = || -> i64 {
+        base.conn()
+            .query_row("SELECT count(*) FROM failure WHERE stage = ?1 AND state <> 'resolved'", [failures::BACK_STAGE], |r| r.get(0))
+            .unwrap()
+    };
+    // Its key data go and come back: named, not named, named, not named.
+    // The first is new; each one after is what it already had.
+    let who = "Sociedad Inventada Circulo";
+    for time in 0..=BACK_LIMIT {
+        if time % 2 == 0 {
+            names_a_party(&base, version, who);
+        } else {
+            forgets_a_party(&base, version, who);
+        }
+        until_idle(&base, &model);
+        assert_eq!(open(), 0, "after {} changes, {time} of them in a circle", time + 1);
+    }
+    if BACK_LIMIT % 2 == 0 {
+        forgets_a_party(&base, version, who);
+    } else {
+        names_a_party(&base, version, who);
+    }
+    until_idle(&base, &model);
+    assert_eq!(open(), 1, "the third time in a circle it is set aside");
+    let (item, class, message): (String, String, String) = base
+        .conn()
+        .query_row("SELECT item, class, message FROM failure WHERE stage = ?1", [failures::BACK_STAGE], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
         .unwrap();
     assert_eq!((item, class.as_str()), (version.to_string(), "unknown"), "over the document, waiting for a person");
+    assert!(message.contains("círculo"), "{message}");
     // Once more: it no longer goes back, it waits.
     names_a_party(&base, version, "Sociedad Inventada Otra");
     let similar = base.process_state(&Scope::All, false).unwrap().step(Step::Similar).unwrap().count;
     assert_eq!((similar.pending, similar.set_aside), (0, 1));
+}
+
+// ---- Arreglo 1 of the small test of 2 nov: a step that counts work its
+// operation does not take ----
+
+/// The model of the identity tests (invented documents), that fails every
+/// question of identity for good: too large for the service, a permanent
+/// failure over its document that holds the question.
+struct IdentityFails {
+    inner: super::super::knowledge::tests::FakeModel,
+    identity: AtomicUsize,
+}
+
+impl DocumentAsker for IdentityFails {
+    fn engine_id(&self) -> String {
+        self.inner.engine_id()
+    }
+
+    fn ask(&self, prompt: &str, schema: &serde_json::Value) -> Result<String, String> {
+        if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
+            self.identity.fetch_add(1, Ordering::SeqCst);
+            return Err("413 request too large for the service".into());
+        }
+        self.inner.ask(prompt, schema)
+    }
+}
+
+#[test]
+fn a_question_of_the_identity_a_failure_holds_is_set_aside_and_the_pages_go_on() {
+    // The small test of 2 nov: the identity counted 96 and its operation
+    // took none, because the questions left were held over their
+    // documents; the pages (108) never came. Here every question of
+    // identity fails for good, and is then held.
+    let (_dir, base) = super::super::knowledge::tests::base_with(super::super::knowledge::tests_identity::FILES);
+    reading_on(&base);
+    let model = IdentityFails { inner: super::super::knowledge::tests_identity::model(), identity: AtomicUsize::new(0) };
+    // `until_idle` checks that no step counts work when the loop stops.
+    until_idle(&base, &model);
+    assert!(model.identity.load(Ordering::SeqCst) > 0, "a question of identity was asked, and failed");
+    let state = base.process_state(&Scope::All, false).unwrap();
+    let identity = state.step(Step::Identity).unwrap().count;
+    assert_eq!(identity.pending, 0, "the identity counts nothing its operation cannot take");
+    assert!(identity.set_aside > 0 && identity.person == identity.set_aside, "the questions held are set aside, for a person: {identity:?}");
+    assert_eq!(state.pending(Step::Pages), 0, "the pages went on");
+    let pages: i64 = base.conn().query_row("SELECT count(*) FROM knowledge_page", [], |r| r.get(0)).unwrap();
+    assert!(pages > 0, "the pages were written");
+    // When a person resolves the failures, the questions come back to the
+    // step and are asked again.
+    base.conn().execute("UPDATE failure SET state = 'resolved' WHERE stage = 'resolve'", []).unwrap();
+    base.process_woken();
+    let asked = model.identity.load(Ordering::SeqCst);
+    let state = base.process_state(&Scope::All, false).unwrap();
+    assert!(state.pending(Step::Identity) > 0, "free again, they are pending");
+    until_idle(&base, &model);
+    assert!(model.identity.load(Ordering::SeqCst) > asked, "asked again");
+}
+
+#[test]
+fn a_step_of_questions_that_counts_work_its_operation_does_not_take_says_so_in_atencion_and_en_curso() {
+    // Whatever the step and its class: the loop sets it aside so it does
+    // not spin, and it is never silent.
+    let dir = TempDir::new();
+    let (base, _) = with_files(&dir, &[("uno.pdf", vec![prose("una hoja de un acuerdo")])]);
+    reading_on(&base);
+    let model = Model::default();
+    until_idle(&base, &model);
+    // A mark of the identity that no resolution takes away (from a clock
+    // ahead): the step counts 1 and its operation does not take it.
+    let ahead = crate::docbase::now_ms() + 86_400_000;
+    base.conn().execute("INSERT INTO knowledge_dirty (scope, ref, since) VALUES ('resolve', 'adelantada', ?1)", [ahead]).unwrap();
+    base.process_woken();
+    until_stopped(&base, &model);
+    let (message, cause): (String, String) = base
+        .conn()
+        .query_row(
+            "SELECT message, cause FROM failure WHERE item_kind = 'thread' AND item = 'process/identity' AND state <> 'resolved'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .expect("told in Atención");
+    assert_eq!(cause, "program-error");
+    assert!(message.contains("17") && message.contains("counts 1"), "{message}");
+    let status = base.process_status();
+    let waiting = status.waiting_for.unwrap_or_default();
+    assert!(waiting.contains("paso 17") && waiting.contains("cuenta 1 pendientes"), "«En curso» says the step and how many: {waiting}");
+    assert_eq!(status.state, "waiting");
+    let view = base.process_view().unwrap();
+    assert!(view.aside.get(&17).is_some_and(|why| why.contains("error del programa")), "{:?}", view.aside);
+    // The loop does not spin.
+    assert!(!turn(&base, &model).worked);
 }
 
 #[test]

@@ -995,7 +995,7 @@ fn inherited_rows(catalog: &Catalog, unit: &Unit, docs: &BTreeMap<i64, DocInfo>,
 
 /// What the step of the type has left (the process, A1 of 2 nov). Reads
 /// only.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct TypesLeft {
     /// Units (a family, or a document alone) whose type is not decided on
     /// what they are now (`unit_basis`).
@@ -1011,6 +1011,11 @@ pub(crate) struct TypesLeft {
     /// Units whose question a failure holds (P-533): set aside, not counted
     /// in `units`.
     pub held: usize,
+    /// The documents of the whole base whose type is still to come from a
+    /// question (asked or not yet, held or waiting for its vector): the
+    /// reading waits for them (`contents_waiting_for_type`), and its step
+    /// counts them so (arreglo 1 of the small test of 2 nov).
+    pub waiting: BTreeSet<i64>,
 }
 
 /// `TypesLeft` over the units with a document in `only` (all, without it).
@@ -1056,6 +1061,7 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
         if signals.as_ref().is_some_and(|s| s.waits(unit.principal)) {
             // It waits for its vector: set aside.
             let all: Vec<i64> = std::iter::once(unit.principal).chain(unit.members.iter().map(|(m, _)| *m)).collect();
+            left.waiting.extend(all.iter().copied());
             if in_scope(&all) {
                 left.held += 1;
             }
@@ -1066,17 +1072,20 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
     for (units, group) in plan_asks(asks, signals.as_ref(), &held) {
         let all: Vec<i64> =
             units.iter().flat_map(|(u, _)| std::iter::once(u.principal).chain(u.members.iter().map(|(m, _)| *m))).collect();
-        if !in_scope(&all) {
-            continue;
-        }
         let first = units[0].0.principal;
         // With the vectors a question reads the vectors and the texts: it is
         // built only when an answer about its document may be kept.
         let may_be_kept = signals.is_none() || type_answer_kept_for(conn, first)?;
-        if may_be_kept
+        let answered = may_be_kept
             && cached_answer(conn, &ask_question(conn, catalog, &decisions, &units, group, &docs, signals.as_ref())?.key, engine.as_deref())?
-                .is_some()
-        {
+                .is_some();
+        if !answered {
+            left.waiting.extend(all.iter().copied());
+        }
+        if !in_scope(&all) {
+            continue;
+        }
+        if answered {
             left.by_answer += 1;
         } else if held.contains(&first) {
             left.held += 1;

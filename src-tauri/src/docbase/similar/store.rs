@@ -371,6 +371,14 @@ fn key_data_now(conn: &Connection) -> Result<String, String> {
 /// answer changes them (A1 of 2 nov; it closes the gap, E4).
 /// `now` is `key_data_now`: when it is the one of the last check, none.
 pub(crate) fn stale_by_key_data(conn: &Connection, now: &str) -> Result<Vec<i64>, String> {
+    Ok(stale_with_prints(conn, now)?.into_iter().map(|(content_id, _, _)| content_id).collect())
+}
+
+/// The same, each with the print of the key data it was measured with and
+/// the one it has now: the loop tells a document that goes back with key
+/// data it never had (the process going on: a reading, an answer) from one
+/// that goes back with key data it already had (a circle, D-774, point 2).
+pub(crate) fn stale_with_prints(conn: &Connection, now: &str) -> Result<Vec<(i64, String, String)>, String> {
     let then: Option<String> = conn
         .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [KEY_DATA_SETTING], |row| row.get(0))
         .optional()
@@ -399,14 +407,21 @@ pub(crate) fn stale_by_key_data(conn: &Connection, now: &str) -> Result<Vec<i64>
     let empty = KeyData::default().print();
     Ok(measured
         .into_iter()
-        .filter(|(content_id, print)| &current.get(content_id).map(KeyData::print).unwrap_or_else(|| empty.clone()) != print)
-        .map(|(content_id, _)| content_id)
+        .filter_map(|(content_id, was)| {
+            let now = current.get(&content_id).map(KeyData::print).unwrap_or_else(|| empty.clone());
+            (now != was).then_some((content_id, was, now))
+        })
         .collect())
 }
 
 /// `stale_by_key_data` with what the base knows now.
 pub(crate) fn stale_by_key_data_now(conn: &Connection) -> Result<Vec<i64>, String> {
     stale_by_key_data(conn, &key_data_now(conn)?)
+}
+
+/// `stale_with_prints` with what the base knows now.
+pub(crate) fn stale_with_prints_now(conn: &Connection) -> Result<Vec<(i64, String, String)>, String> {
+    stale_with_prints(conn, &key_data_now(conn)?)
 }
 
 impl DocBase {
@@ -521,11 +536,7 @@ impl DocBase {
     /// which needs it (D-666). One whose signature failed waits too
     /// (D-717): it is not read without it. Asks nothing.
     pub(crate) fn waiting_for_similar(&self) -> Result<BTreeSet<i64>, String> {
-        let conn = self.conn();
-        let mut statement =
-            conn.prepare(&format!("SELECT c.id FROM {UNSIGNED_FROM} WHERE {}", unsigned_or_failed_where())).map_err(sql_err)?;
-        let rows = statement.query_map(params![engine_id()], |row| row.get(0)).map_err(sql_err)?;
-        rows.collect::<Result<_, _>>().map_err(sql_err)
+        waiting_for_similar_in(&self.conn())
     }
 
     /// Signs up to `limit` contents whose signature is missing or stale.
@@ -1946,4 +1957,14 @@ mod tests {
             pending.pairs, pending.same_document_pairs, pending.groups
         );
     }
+}
+
+/// `DocBase::waiting_for_similar`, over a connection: read-only, for the
+/// count of the step of the reading too (arreglo 1 of the small test of 2
+/// nov).
+pub(crate) fn waiting_for_similar_in(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    let mut statement =
+        conn.prepare(&format!("SELECT c.id FROM {UNSIGNED_FROM} WHERE {}", unsigned_or_failed_where())).map_err(sql_err)?;
+    let rows = statement.query_map(params![engine_id()], |row| row.get(0)).map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
 }

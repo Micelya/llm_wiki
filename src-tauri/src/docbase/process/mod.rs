@@ -24,6 +24,8 @@
 pub mod run;
 pub mod steps;
 #[cfg(test)]
+mod check_stuck;
+#[cfg(test)]
 mod run_tests;
 #[cfg(test)]
 mod scan_tests;
@@ -132,6 +134,15 @@ impl DocBase {
         for step in STEPS {
             let class = steps::class_now(&conn, step)?;
             let mut count = steps::count_step(&conn, step, scope)?;
+            // Every step before is complete: what its operation leaves
+            // waiting for one of them waits for something set aside there,
+            // and is set aside too (the reading of a document whose type a
+            // failure holds; arreglo 1 of the small test of 2 nov).
+            if count.waiting > 0 && state.first_incomplete.is_none() {
+                let moved = count.waiting.min(count.pending);
+                count.pending -= moved;
+                count.set_aside += moved;
+            }
             let mut step_held = match class {
                 // The scans with a reader in the cloud do not ask «Preguntar
                 // al modelo»: they wait only for the automatic reading

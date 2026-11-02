@@ -219,6 +219,11 @@ pub struct ProjectReport {
     pub asked: usize,
     pub failed: usize,
     pub left: usize,
+    /// Questions a failure holds now (P-533): not left for another run but
+    /// set aside until the failure does not hold them, each as
+    /// `{content_id}:{key}` (arreglo 1 of the small test of 2 nov).
+    pub held: usize,
+    pub held_questions: BTreeSet<String>,
     /// Sentences of the syntheses in the pages, and thrown away by the check.
     pub sentences: usize,
     pub discarded: usize,
@@ -2784,8 +2789,9 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
     let (mut record, language, basis_before, dirty) = {
         let conn = base.conn();
         let record = load(&conn, &identities)?;
-        let dirty: i64 =
-            conn.query_row("SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'", [], |row| row.get(0)).map_err(sql_err)?;
+        // The marks, and the questions set aside whose failure no longer
+        // holds them: the same the step of the process counts.
+        let dirty = pages_left(&conn)?.pending;
         (record, wiki_language(&conn)?, setting(&conn, BASIS_SETTING)?, dirty)
     };
     // What the pages are computed on, besides the record: the documents,
@@ -2885,8 +2891,10 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
                         collect.push(question);
                     } else if asking.asker.is_some() && base.question_held(question.task, question.content_id, &question.key) {
                         // Its failure holds: it waits for its next attempt,
-                        // or for a person (P-533).
-                        report.left += 1;
+                        // or for a person (P-533), set aside; the next
+                        // operation could not take it either.
+                        report.held += 1;
+                        report.held_questions.insert(format!("{}:{}", question.content_id, question.key));
                     } else if let (Some(asker), true) = (asking.asker, asking.budget > 0) {
                         asking.budget -= 1;
                         report.asked += 1;
@@ -3051,11 +3059,63 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
 
     if report.left == 0 && report.failed == 0 {
         base.conn().execute("DELETE FROM knowledge_dirty WHERE scope = 'project' AND since <= ?1", [started]).map_err(sql_err)?;
+        // The questions a failure holds stay set aside until it does not
+        // hold them (`pages_left`): they do not leave the step counting
+        // what its operation cannot take.
+        let held: Vec<&str> = report.held_questions.iter().map(String::as_str).collect();
+        set_setting(&base.conn(), HELD_SETTING, &held.join("
+"))?;
         // What the next projection compares with.
         let basis = basis_of(base, vocabulary, language.as_deref(), &documents_digest)?;
         set_setting(&base.conn(), BASIS_SETTING, &basis)?;
     }
     Ok(())
+}
+
+/// The questions of the pages a failure held at the last complete
+/// projection, one `{content_id}:{key}` per line.
+const HELD_SETTING: &str = "pages:held-questions";
+
+/// What the pages have left, as the step of the process counts it and as
+/// its operation takes it (the same rule in both, arreglo 1 of the small
+/// test of 2 nov).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct PagesLeft {
+    /// The marks of what changed, and the questions set aside whose
+    /// failure no longer holds them: a projection takes them.
+    pub pending: usize,
+    /// The questions a failure still holds: set aside.
+    pub held: usize,
+    /// Of those, the ones that wait for a person (no next attempt).
+    pub person: usize,
+}
+
+pub(crate) fn pages_left(conn: &Connection) -> Result<PagesLeft, String> {
+    let marked: i64 =
+        conn.query_row("SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'", [], |row| row.get(0)).map_err(sql_err)?;
+    let mut left = PagesLeft { pending: marked.max(0) as usize, ..PagesLeft::default() };
+    let kept = setting(conn, HELD_SETTING)?.unwrap_or_default();
+    for line in kept.lines().filter(|l| !l.trim().is_empty()) {
+        let Some((content, key)) = line.split_once(':') else { continue };
+        let content_id: i64 = content.parse().unwrap_or(0);
+        let about = crate::docbase::failures::question_about(content_id, key);
+        let stage = crate::docbase::failures::question_stage("pages");
+        if crate::docbase::failures::holds(conn, stage, &about)? {
+            left.held += 1;
+            let next: bool = conn
+                .query_row(
+                    "SELECT EXISTS (SELECT 1 FROM failure WHERE state <> 'resolved' AND item_kind = ?1 AND item = ?2 AND next_at IS NOT NULL
+                       AND (stage = ?3 OR stage = ?4))",
+                    params![about.kind(), about.item(), stage, crate::docbase::failures::BACK_STAGE],
+                    |row| row.get(0),
+                )
+                .map_err(sql_err)?;
+            left.person += usize::from(!next);
+        } else {
+            left.pending += 1;
+        }
+    }
+    Ok(left)
 }
 
 #[cfg(test)]

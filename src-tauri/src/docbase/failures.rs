@@ -331,7 +331,7 @@ pub enum About {
 }
 
 impl About {
-    fn kind(&self) -> &'static str {
+    pub(crate) fn kind(&self) -> &'static str {
         match self {
             About::File(_) => "file",
             About::Version(_) => "version",
@@ -343,7 +343,7 @@ impl About {
         }
     }
 
-    fn item(&self) -> String {
+    pub(crate) fn item(&self) -> String {
         match self {
             About::File(hash) => hash.clone(),
             About::Version(id) => id.to_string(),

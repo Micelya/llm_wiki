@@ -37,8 +37,16 @@
 //!   question to it, and the steps without AI go on.
 //! - **Going back is counted** (D-774, point 2): a document whose key data
 //!   change again after it was measured, or a file whose parts are made
-//!   again, goes back to an earlier step; past two times it is set aside
-//!   for a person, with its failure (`failures::BACK_STAGE`).
+//!   again, goes back to an earlier step. Going back with something new (a
+//!   reading, an answer of the identity) is the process going on, and the
+//!   questions never repeat: it has no limit. Going back with what it was
+//!   already made with is a circle: past two times it is set aside for a
+//!   person, with its failure (`failures::BACK_STAGE`; arreglo 1 of the
+//!   small test of 2 nov, D-812).
+//! - **A step that counts work its operation does not take** is an error of
+//!   the program: it is set aside for now, so the loop does not spin, and
+//!   told in Atención and in «En curso» with the step and how many it
+//!   counts, whatever its class (`set_aside`).
 //! - **It sleeps** until a wake: a person, a change of the settings, the
 //!   sweep of backup, or the next attempt of a failure or of a paused
 //!   engine.
@@ -78,8 +86,9 @@ const NOTIFY_EVERY: Duration = Duration::from_millis(800);
 const AFTER_ERROR: Duration = Duration::from_secs(30);
 /// When the scans of this computer try again after their engine stopped.
 const RECOGNITION_RETRY: Duration = Duration::from_secs(5 * 60);
-/// How many times an element may go back to an earlier step; one more and
-/// it is set aside for a person (D-774, point 2).
+/// How many times an element may go back to an earlier step with what it
+/// was already made with (a circle); one more and it is set aside for a
+/// person (D-774, point 2; D-812).
 pub const BACK_LIMIT: u32 = 2;
 /// The asks of a person kept in the base (`docbase_setting`), one row each.
 const ASK_PREFIX: &str = "process:ask:";
@@ -217,8 +226,12 @@ pub(crate) struct Memory {
     /// Steps set aside as a whole now, with why: the round past its cap,
     /// or a step whose operation could not go on.
     aside: BTreeMap<Step, String>,
-    /// How many times each element went back to an earlier step.
+    /// How many times each element went back to an earlier step with what
+    /// it was already made with (a circle).
     back: BTreeMap<String, u32>,
+    /// What each element that went back was made with each time (its seal:
+    /// the print of its key data, the basis of its parts).
+    seals: BTreeMap<String, BTreeSet<String>>,
     /// The pass over the steps that know what they have left only by going
     /// over them (identities, matters, summaries, D-452): the next one to go
     /// over, and whether a whole pass did nothing.
@@ -252,6 +265,15 @@ impl Done {
     fn when(worked: bool) -> Done {
         Done { worked, pages: false }
     }
+}
+
+/// An element going back to an earlier step: what it is in the record of
+/// failures, the seal it was made with (none: not known) and the one it is
+/// to be made with now.
+struct Back {
+    about: About,
+    was: Option<String>,
+    now: String,
 }
 
 /// The steps that know what they have left only by going over them.
@@ -405,7 +427,8 @@ impl DocBase {
             }
             // It could not go on: set aside for now, and the steps after go
             // on (what it waits for is in «En curso»).
-            self.set_aside(step, state.first_incomplete == Some(step));
+            let counted = (state.first_incomplete == Some(step)).then(|| state.pending(step));
+            self.set_aside(step, counted, asker.is_none());
         }
         self.nothing_left()
     }
@@ -430,33 +453,46 @@ impl DocBase {
     }
 
     /// A step did nothing: in the pass, the pass goes to the next step; a
-    /// counted step is set aside for now (the round may have set it aside
-    /// already, waiting for a person).
-    fn set_aside(&self, step: Step, counted: bool) {
+    /// counted step (`counted`: how many it counts pending) is set aside
+    /// for now (the round may have set it aside already, waiting for a
+    /// person). `no_asker`: the turn had no engine to ask with.
+    fn set_aside(&self, step: Step, counted: Option<usize>, no_asker: bool) {
         let mut memory = self.memory();
-        if !counted {
+        let Some(pending) = counted else {
             memory.pass = PASSES.iter().position(|s| *s == step).map(|p| p + 1).unwrap_or(PASSES.len());
             if memory.pass >= PASSES.len() {
                 memory.settled = true;
             }
             return;
-        }
+        };
         if memory.aside.contains_key(&step) {
             return;
         }
-        memory.aside.insert(step, "no pudo seguir por ahora".into());
+        // A step that counts work left and does not take it is an error of
+        // the program, whatever its class: the count and the operation do
+        // not say the same. It is set aside so the loop does not spin, and
+        // it is never silent: «En curso» and Atención say the step and how
+        // many it counts; the rest goes on. A step of questions in a turn
+        // without an engine to ask with says that instead.
+        let asks = super::steps::class_now(&self.conn(), step).unwrap_or(step.about().class) == Class::Asks;
+        let (why, message, cause) = if asks && no_asker {
+            (
+                format!("el paso {} ({}) cuenta {pending} pendientes y no hay con qué preguntar: el motor de Ajustes no se pudo abrir", step.number(), step.about().name.to_lowercase()),
+                format!("The step {} ({}) counts {pending} left and there is no engine to ask with: the engine of Ajustes could not be opened.", step.number(), step.about().key),
+                "unknown",
+            )
+        } else {
+            (
+                format!("el paso {} ({}) cuenta {pending} pendientes y su operación no tomó ninguno: error del programa, en Atención", step.number(), step.about().name.to_lowercase()),
+                format!("The step {} ({}) counts {pending} left that its operation does not take: the count and the operation do not say the same.", step.number(), step.about().key),
+                "program-error",
+            )
+        };
+        memory.aside.insert(step, why);
         drop(memory);
-        if step.about().class == Class::Local {
-            // A step without AI that counts something left and cannot do
-            // it: told in Atención, it does not stop the rest.
-            let mut failure = Failure::new(
-                "thread",
-                About::Thread(format!("process/{}", step.about().key)),
-                "A step without AI counts work left that its operation does not take.",
-            );
-            failure.cause = failures::cause("program-error");
-            failures::note_once(&self.conn(), &failure).unwrap_or_else(|error| eprintln!("[docbase] {error}"));
-        }
+        let mut failure = Failure::new("thread", About::Thread(format!("process/{}", step.about().key)), &message);
+        failure.cause = failures::cause(cause);
+        failures::note_once(&self.conn(), &failure).unwrap_or_else(|error| eprintln!("[docbase] {error}"));
     }
 
     /// Nothing more can be done now: the round of questions is over when
@@ -525,51 +561,78 @@ impl DocBase {
     }
 
     /// The elements that go back to `step` now, by what they are in the
-    /// record of failures: the documents measured whose key data changed
-    /// since (the similar documents), and the files whose parts were made
-    /// and are to be made again.
-    fn going_back(&self, step: Step) -> Result<Vec<About>, String> {
+    /// record of failures, each with the seal it was made with and the one
+    /// it is to be made with now: the documents measured whose key data
+    /// changed since (the similar documents, by the print of their key
+    /// data), and the files whose parts were made and are to be made again
+    /// (by the basis of their parts).
+    fn going_back(&self, step: Step) -> Result<Vec<Back>, String> {
         Ok(match step {
-            Step::Similar => crate::docbase::similar::store::stale_by_key_data_now(&self.conn())?.into_iter().map(About::Version).collect(),
+            Step::Similar => crate::docbase::similar::store::stale_with_prints_now(&self.conn())?
+                .into_iter()
+                .map(|(version, was, now)| Back { about: About::Version(version), was: Some(was), now })
+                .collect(),
             Step::Parts => {
                 let conn = self.conn();
                 let mut statement = conn
                     .prepare(&format!(
-                        "SELECT f.hash FROM {} WHERE {} AND EXISTS (SELECT 1 FROM cut_applied ca WHERE ca.resource_hash = f.hash)",
+                        "SELECT f.hash, ({basis}), (SELECT ca.basis FROM cut_applied ca WHERE ca.resource_hash = f.hash) FROM {} WHERE {}
+                           AND EXISTS (SELECT 1 FROM cut_applied ca WHERE ca.resource_hash = f.hash)",
                         crate::docbase::cut::parts::PARTS_FROM,
-                        crate::docbase::cut::parts::parts_pending_sql()
+                        crate::docbase::cut::parts::parts_pending_sql(),
+                        basis = crate::docbase::cut::parts::BASIS_SQL
                     ))
                     .map_err(sql_err)?;
-                let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(sql_err)?;
-                rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)?.into_iter().map(About::File).collect()
+                let rows = statement
+                    .query_map([], |row| {
+                        Ok(Back {
+                            about: About::File(row.get(0)?),
+                            now: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                            was: row.get(2)?,
+                        })
+                    })
+                    .map_err(sql_err)?;
+                rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)?
             }
             _ => Vec::new(),
         })
     }
 
     /// Counts the elements that went back to `step` with this operation
-    /// (they were going back before it and are not after): past
-    /// `BACK_LIMIT` times, each is set aside for a person, with its failure.
-    fn count_back(&self, step: Step, before: Vec<About>) -> Result<(), String> {
+    /// (they were going back before it and are not after). Made again with
+    /// a seal it never had, it is the process going on (a reading, an
+    /// answer: the questions never repeat), and it is not limited. Made
+    /// again with a seal it already had, it turns in a circle: past
+    /// `BACK_LIMIT` such times it is set aside for a person, with its
+    /// failure (D-774, point 2; D-812).
+    fn count_back(&self, step: Step, before: Vec<Back>) -> Result<(), String> {
         if before.is_empty() {
             return Ok(());
         }
-        let after = self.going_back(step)?;
-        for element in before.into_iter().filter(|e| !after.contains(e)) {
-            let key = format!("{}:{element:?}", step.about().key);
+        let after: Vec<About> = self.going_back(step)?.into_iter().map(|back| back.about).collect();
+        for back in before.into_iter().filter(|b| !after.contains(&b.about)) {
+            let key = format!("{}:{:?}", step.about().key, back.about);
             let times = {
                 let mut memory = self.memory();
+                let seals = memory.seals.entry(key.clone()).or_default();
+                if let Some(was) = back.was {
+                    seals.insert(was);
+                }
+                let again = !seals.insert(back.now);
                 let times = memory.back.entry(key).or_default();
+                if !again {
+                    continue;
+                }
                 *times += 1;
                 *times
             };
             if times > BACK_LIMIT {
                 let message = format!(
-                    "Volvió {times} veces al paso {} ({}): se aparta para que lo mire una persona.",
+                    "Volvió {times} veces al paso {} ({}) con lo que ya había tenido: da vueltas en círculo; se aparta para que lo mire una persona.",
                     step.number(),
                     step.about().name.to_lowercase()
                 );
-                let mut failure = Failure::new(failures::BACK_STAGE, element, &message);
+                let mut failure = Failure::new(failures::BACK_STAGE, back.about, &message);
                 failure.cause = failures::cause("goes-back");
                 failures::note_once(&self.conn(), &failure)?;
             }
@@ -588,8 +651,8 @@ impl DocBase {
         // The marks of the steps that close by taking them away, before the
         // round counts (its count may take them away too).
         let marked = match step {
-            Step::Identity => self.marks("scope IN ('resolve', 'retire')")?,
-            Step::Pages => self.marks("scope = 'project'")?,
+            Step::Identity => crate::docbase::knowledge::resolve::identity_left(&self.conn())?.pending as i64,
+            Step::Pages => crate::docbase::knowledge::pages::pages_left(&self.conn())?.pending as i64,
             _ => 0,
         };
         let done = match step {
@@ -671,9 +734,11 @@ impl DocBase {
                 let report = self.knowledge_resolve(asker, 1)?;
                 state.ran("resolve", report.left);
                 state.auto_asked(report.asked);
-                // A resolution that left nothing takes its marks away: the
-                // step is complete, that is work too.
-                Done::when(report.asked + report.changed + report.failed > 0 || self.marks("scope IN ('resolve', 'retire')")? < marked)
+                // A resolution that left nothing to ask takes its marks
+                // away, and sets aside the questions a failure holds: the
+                // step is complete or set aside, that is work too.
+                let left = crate::docbase::knowledge::resolve::identity_left(&self.conn())?.pending as i64;
+                Done::when(report.asked + report.changed + report.failed > 0 || left < marked)
             }
             Step::Matters => {
                 state.at_stage(Some("matters"));
@@ -693,7 +758,7 @@ impl DocBase {
                     state.ran("pages", report.left);
                 }
                 state.auto_asked(report.asked);
-                let cleared = self.marks("scope = 'project'")? < marked;
+                let cleared = (crate::docbase::knowledge::pages::pages_left(&self.conn())?.pending as i64) < marked;
                 Done { worked: report.wrote() || report.asked + report.failed > 0 || cleared, pages: report.wrote() }
             }
         };
@@ -718,12 +783,6 @@ impl DocBase {
             memory.aside.insert(Step::Pages, why);
         }
         Ok(false)
-    }
-
-    /// How many marks of the knowledge layer of `which` (an SQL condition)
-    /// wait (`knowledge_dirty`).
-    fn marks(&self, which: &str) -> Result<i64, String> {
-        self.conn().query_row(&format!("SELECT count(*) FROM knowledge_dirty WHERE {which}"), [], |row| row.get(0)).map_err(sql_err)
     }
 
     /// The files of a scope, by their hash.

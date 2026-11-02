@@ -48,7 +48,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -110,6 +110,11 @@ pub struct ResolveReport {
     pub failed: usize,
     /// Questions left for another run (the limit, or the provider stopped).
     pub left: usize,
+    /// Questions a failure holds now (P-533, D-774): not left for another
+    /// run but set aside, each over its document, until the failure does
+    /// not hold it (arreglo 1 of the small test of 2 nov).
+    pub held: usize,
+    pub held_documents: BTreeSet<i64>,
     /// Groups of mentions of one document, and the entities they make.
     pub groups: usize,
     pub entities: usize,
@@ -2314,9 +2319,13 @@ fn ask_question(
         Some(asker) => {
             let cached = cached_answer(&base.conn(), &question.key, Some(&asker.engine_id()))?;
             // A question whose failure holds waits for its next attempt, or
-            // for a person (P-533): it is left for another run.
+            // for a person (P-533): it is set aside over its document, not
+            // left for the next operation, which could not take it either
+            // (arreglo 1 of the small test of 2 nov: the step counted 96
+            // and its operation took none).
             if cached.is_none() && base.question_held(question.task, question.content_id, &question.key) {
-                report.left += 1;
+                report.held += 1;
+                report.held_documents.insert(question.content_id);
                 return Ok(None);
             }
             if cached.is_none() {
@@ -2745,10 +2754,9 @@ impl DocBase {
         // resolution starts so that finishing it clears the mark.
         changes::notice_left_out(&self.conn())?;
         let started = now_ms();
-        let dirty: i64 = self
-            .conn()
-            .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get(0))
-            .map_err(sql_err)?;
+        // The marks, and the questions set aside whose failure no longer
+        // holds them: the same the step of the process counts.
+        let dirty = identity_left(&self.conn())?.pending as i64;
         // Other rules (a new version of the program's or of the
         // vocabulary's) are work to do too: the record is computed again
         // from the readings and the verdicts kept, without asking more.
@@ -2776,13 +2784,78 @@ impl DocBase {
         let outcome = resolve(self, &mut asking, &mut report)?;
         write(self, &outcome, &mut report)?;
         if report.left == 0 {
-            self.conn()
-                .execute("DELETE FROM knowledge_dirty WHERE scope IN ('resolve', 'retire') AND since <= ?1", [started])
+            let conn = self.conn();
+            conn.execute("DELETE FROM knowledge_dirty WHERE scope IN ('resolve', 'retire') AND since <= ?1", [started])
                 .map_err(sql_err)?;
-            self.conn()
-                .execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![RESOLUTION_SETTING, basis])
+            // Nothing left that can be asked now: the resolution is complete
+            // but for the questions a failure holds, set aside each over its
+            // document. They come back to the step when the failure no
+            // longer holds them (`identity_left`), and do not hold the
+            // matters nor the pages.
+            let held: Vec<String> = report.held_documents.iter().map(i64::to_string).collect();
+            conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![HELD_SETTING, held.join(",")])
+                .map_err(sql_err)?;
+            conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![RESOLUTION_SETTING, basis])
                 .map_err(sql_err)?;
         }
         Ok(report)
     }
+}
+
+/// The documents whose question of identity a failure held at the last
+/// complete resolution, separated by commas.
+pub(crate) const HELD_SETTING: &str = "identity:held-documents";
+
+/// What the identity has left, as the step of the process counts it and as
+/// its operation takes it (the same rule in both, arreglo 1 of the small
+/// test of 2 nov).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct IdentityLeft {
+    /// The marks of what changed (readings, decisions, a document left
+    /// out), and the questions set aside whose failure no longer holds them:
+    /// a resolution takes them.
+    pub pending: usize,
+    /// The questions a failure still holds, by their document: set aside.
+    pub held: usize,
+    /// Of those, the ones that wait for a person (no next attempt).
+    pub person: usize,
+}
+
+pub(crate) fn identity_left(conn: &Connection) -> Result<IdentityLeft, String> {
+    let marked: i64 = conn
+        .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get(0))
+        .map_err(sql_err)?;
+    let set_aside: BTreeSet<i64> = conn
+        .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [HELD_SETTING], |row| row.get::<_, String>(0))
+        .optional()
+        .map_err(sql_err)?
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|d| d.trim().parse().ok())
+        .collect();
+    let mut left = IdentityLeft { pending: marked.max(0) as usize, ..IdentityLeft::default() };
+    if set_aside.is_empty() {
+        return Ok(left);
+    }
+    let stage = crate::docbase::failures::question_stage("identity");
+    let holding = crate::docbase::failures::held_versions(conn, stage)?;
+    let for_a_person: BTreeSet<i64> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT DISTINCT CAST(item AS INTEGER) FROM failure WHERE state <> 'resolved' AND item_kind = 'version'
+                   AND (stage = ?1 OR (stage = ?2 AND next_at IS NULL))",
+            )
+            .map_err(sql_err)?;
+        let rows = statement.query_map(params![crate::docbase::failures::BACK_STAGE, stage], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    for document in set_aside {
+        if holding.contains(&document) {
+            left.held += 1;
+            left.person += usize::from(for_a_person.contains(&document));
+        } else {
+            left.pending += 1;
+        }
+    }
+    Ok(left)
 }

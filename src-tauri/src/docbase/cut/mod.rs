@@ -545,32 +545,7 @@ impl DocBase {
     /// is not read whole. A file the cutter does not take is not waited
     /// for: a PDF of one page, an image, any other file. Asks nothing.
     pub(crate) fn waiting_for_cut(&self) -> Result<BTreeSet<i64>, String> {
-        let conn = self.conn();
-        let mut statement = conn
-            .prepare(&format!(
-                "SELECT f.version_id FROM {CUTTABLE_FROM}
-                 LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
-                 WHERE {cuttable} AND NOT {settled}
-                   AND coalesce(json_array_length(z.body), json_array_length(d.body, '$.pages'),
-                                (SELECT count(DISTINCT t.page_no) FROM resource_text t WHERE t.resource_hash = f.hash)) >= 2
-                 UNION
-                 SELECT f.version_id FROM {parts_from} WHERE {parts}
-                 UNION
-                 SELECT f.version_id FROM file f WHERE {file_waits}
-                 UNION
-                 SELECT a.version_id FROM appearance a WHERE {part_waits}",
-                cuttable = cuttable_where(),
-                settled = cut_settled_sql("?3"),
-                parts_from = parts::PARTS_FROM,
-                parts = parts::parts_pending_sql(),
-                file_waits = failures::file_waits_sql("f.hash"),
-                part_waits = failures::file_waits_sql("a.resource_hash"),
-            ))
-            .map_err(sql_err)?;
-        let rows = statement
-            .query_map(params![SHAPES_KIND, SHAPES_ENGINE, rules_version()], |row| row.get(0))
-            .map_err(sql_err)?;
-        rows.collect::<Result<_, _>>().map_err(sql_err)
+        waiting_for_cut_in(&self.conn())
     }
 
     /// The versions of the files whose doubtful steps the thread that asks
@@ -583,19 +558,7 @@ impl DocBase {
     /// person asks, `cut_ask_file`). The answer may make their parts again:
     /// they are read after it, once. `_sees_images` no longer matters.
     pub(crate) fn waiting_for_cut_answers(&self, _sees_images: bool) -> Result<BTreeSet<i64>, String> {
-        let conn = self.conn();
-        let mut statement = conn
-            .prepare(&format!(
-                "SELECT DISTINCT a.version_id FROM appearance a
-                 WHERE (EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = a.resource_hash AND {WITHOUT_ANSWER} AND {ASKED_BY_ITSELF})
-                        OR EXISTS (SELECT 1 FROM cut_window w WHERE w.resource_hash = a.resource_hash AND {window_without}))
-                   AND EXISTS (SELECT 1 FROM location l WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {excluded})",
-                excluded = super::excluded_sql!(),
-                window_without = by_zones::WINDOW_WITHOUT_ANSWER,
-            ))
-            .map_err(sql_err)?;
-        let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
-        rows.collect::<Result<_, _>>().map_err(sql_err)
+        waiting_for_cut_answers_in(&self.conn())
     }
 
     /// What the cutter says of each step of a file, in order (the start of
@@ -883,4 +846,51 @@ fn ask_one(
         Ok(parsed) => Ok((text, parsed)),
         Err(message) => Err(AskFailed { message, cause: failures::cause("bad-answer"), answer: Some(text) }),
     }
+}
+
+/// `DocBase::waiting_for_cut`, over a connection: read-only, for the count
+/// of the step of the reading too (arreglo 1 of the small test of 2 nov).
+pub(crate) fn waiting_for_cut_in(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT f.version_id FROM {CUTTABLE_FROM}
+             LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
+             WHERE {cuttable} AND NOT {settled}
+               AND coalesce(json_array_length(z.body), json_array_length(d.body, '$.pages'),
+                            (SELECT count(DISTINCT t.page_no) FROM resource_text t WHERE t.resource_hash = f.hash)) >= 2
+             UNION
+             SELECT f.version_id FROM {parts_from} WHERE {parts}
+             UNION
+             SELECT f.version_id FROM file f WHERE {file_waits}
+             UNION
+             SELECT a.version_id FROM appearance a WHERE {part_waits}",
+            cuttable = cuttable_where(),
+            settled = cut_settled_sql("?3"),
+            parts_from = parts::PARTS_FROM,
+            parts = parts::parts_pending_sql(),
+            file_waits = failures::file_waits_sql("f.hash"),
+            part_waits = failures::file_waits_sql("a.resource_hash"),
+        ))
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map(params![SHAPES_KIND, SHAPES_ENGINE, rules_version()], |row| row.get(0))
+        .map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
+}
+
+/// The versions of the files whose doubtful steps are still to be asked by
+/// themselves (`DocBase::waiting_for_cut_answers`), over a connection.
+pub(crate) fn waiting_for_cut_answers_in(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT DISTINCT a.version_id FROM appearance a
+             WHERE (EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = a.resource_hash AND {WITHOUT_ANSWER} AND {ASKED_BY_ITSELF})
+                    OR EXISTS (SELECT 1 FROM cut_window w WHERE w.resource_hash = a.resource_hash AND {window_without}))
+               AND EXISTS (SELECT 1 FROM location l WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {excluded})",
+            excluded = super::excluded_sql!(),
+            window_without = by_zones::WINDOW_WITHOUT_ANSWER,
+        ))
+        .map_err(sql_err)?;
+    let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
 }

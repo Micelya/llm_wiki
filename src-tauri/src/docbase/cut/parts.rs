@@ -237,7 +237,7 @@ pub(crate) fn only_uncertain_sql(column: &str) -> String {
 /// What the parts of a file are made from: its version and the time of
 /// its text, its steps and the model's answers, and a person's word (both
 /// tables are read in the order of their key).
-const BASIS_SQL: &str = "c.id || ':' || d.created_at
+pub(crate) const BASIS_SQL: &str = "c.id || ':' || d.created_at
     || ':' || (SELECT max(s.created_at) FROM cut_step s WHERE s.resource_hash = f.hash)
     || ':' || coalesce((SELECT group_concat(s.after_page || '=' || coalesce(s.model_says, '') || '/' || coalesce(s.model_confidence, ''), ',') FROM cut_step s
                         WHERE s.resource_hash = f.hash AND (s.verdict = 'doubtful' OR s.rule = 'uniform')), '')

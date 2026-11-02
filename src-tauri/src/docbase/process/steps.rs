@@ -464,6 +464,12 @@ pub struct Count {
     /// Of the pending, those the step closes without asking (the marks
     /// or the inheritance of the type, the check of a reading kept).
     pub without_asking: usize,
+    /// Of the pending, those its operation leaves waiting for a step
+    /// before (the reading waits for the cut, the signature and the type of
+    /// its document). When every step before is complete, what they wait
+    /// for is set aside there, and so are they (`process_state_looking`;
+    /// arreglo 1 of the small test of 2 nov).
+    pub waiting: usize,
     /// Whether the base can count the step by itself. The identities, the
     /// matters and the syntheses of the pages know what they have left only
     /// once a pass goes through them (D-452): when nothing they mark is
@@ -473,7 +479,7 @@ pub struct Count {
 
 impl Count {
     fn of(pending: usize, set_aside: usize) -> Count {
-        Count { pending, set_aside, person: 0, low: 0, without_asking: 0, known: true }
+        Count { pending, set_aside, person: 0, low: 0, without_asking: 0, waiting: 0, known: true }
     }
 }
 
@@ -774,8 +780,16 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
             // or for a person (P-533): set aside. One of low confidence is
             // read like the others (E6 of 2 nov).
             let held = super::super::failures::held_versions(conn, "reading")?;
-            let (mut pending, mut checks, mut set_aside) = (0, 0, 0);
+            let (mut pending, mut checks, mut set_aside, mut waiting) = (0, 0, 0, 0);
             let standings = super::super::knowledge::extract::standings(conn, &super::super::Visible::All, None)?;
+            // What the operation leaves waiting for a step before
+            // (`knowledge_pending`), only when something is to read.
+            let mut before: Option<BTreeSet<i64>> = None;
+            // A copy takes the reading of its original (`reading_run`): while
+            // the reading of its original is held, it waits with it.
+            let copies = super::super::knowledge::extract::copy_originals(conn)?;
+            let read: BTreeSet<i64> =
+                standings.iter().filter(|s| s.reading.as_ref().is_some_and(|r| r.current)).map(|s| s.content_id).collect();
             for standing in standings {
                 if only.as_ref().is_some_and(|o| !o.contains(&standing.content_id)) {
                     continue;
@@ -787,23 +801,38 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
                 }
                 // What a person asked to read again is never held.
                 let asked_again = reading.is_some_and(|r| r.reread);
-                if !to_check && !asked_again && held.contains(&standing.content_id) {
+                let original_held =
+                    copies.get(&standing.content_id).is_some_and(|original| held.contains(original) && !read.contains(original));
+                if !to_check && !asked_again && (held.contains(&standing.content_id) || original_held) {
                     set_aside += 1;
                 } else {
                     pending += 1;
                     checks += usize::from(to_check);
+                    if !to_check {
+                        if before.is_none() {
+                            before = Some(super::super::knowledge::extract::waiting_before_reading_in(conn)?);
+                        }
+                        waiting += usize::from(before.as_ref().is_some_and(|b| b.contains(&standing.content_id)));
+                    }
                 }
             }
-            Count { without_asking: checks, ..Count::of(pending, set_aside) }
+            Count { without_asking: checks, waiting, ..Count::of(pending, set_aside) }
         }
         Step::Identity => {
-            let marked = count(conn, "SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')")?;
-            Count { known: marked > 0, ..Count::of(marked, 0) }
+            // The same rule its operation takes (`knowledge_resolve`): the
+            // marks, and the questions set aside whose failure no longer
+            // holds them; those a failure still holds are set aside, and do
+            // not hold the matters nor the pages (arreglo 1 of the small
+            // test of 2 nov: it counted 96 and its operation took none).
+            let left = super::super::knowledge::resolve::identity_left(conn)?;
+            Count { known: left.pending + left.held > 0, person: left.person, ..Count::of(left.pending, left.held) }
         }
         Step::Matters => Count { known: false, ..Count::default() },
         Step::Pages => {
-            let marked = count(conn, "SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'")?;
-            Count { known: marked > 0, ..Count::of(marked, 0) }
+            // The same rule its operation takes (`knowledge_project`): a
+            // question a failure holds is set aside.
+            let left = super::super::knowledge::pages::pages_left(conn)?;
+            Count { known: left.pending + left.held > 0, person: left.person, ..Count::of(left.pending, left.held) }
         }
     })
 }
