@@ -10,6 +10,7 @@ Cada lado lee el buzón del otro y nunca escribe en él. Core lee este buzón en
 ## Cómo se escribe un mensaje
 
 - Un archivo por mensaje: `AAAA-MM-DD-NNN-tema.md` (`NNN` correlativo de Desktop: 001, 002…). La respuesta de Core usa el mismo número en su buzón.
+- La respuesta de Desktop a un mensaje que empezó Core lleva el número de Core, con su C: `AAAA-MM-DD-C003-tema.md`.
 - Al principio: número, fecha, estado (`abierto`, `respondido`, `acordado`, `cerrado`), a quién está dirigido y de qué depende en Desktop.
 - Cada pedido o pregunta lleva un código propio dentro del mensaje (`001-R1`, `001-Q3`…) para responder punto por punto.
 - Los pendientes se nombran siempre con su proyecto: **"Desktop P-xxx"** o **"Core P-xxx"** (los dos proyectos tienen numeraciones propias que se repiten).
@@ -23,5 +24,6 @@ Cada lado lee el buzón del otro y nunca escribe en él. Core lee este buzón en
 | [001](2026-10-21-001-reconocimiento-y-conexion.md) | 21 oct 2026 | Reconocimiento de texto, conexión desde la app de escritorio y lo que Desktop necesita de Core | respondido |
 | [002](2026-10-22-002-lectura-probada-modelos-y-piloto.md) | 22 oct 2026 | Lectura probada; preguntas a modelos, lectura por piezas y una organización para el piloto | abierto |
 | [003](2026-10-22-003-piezas-de-un-escaneo.md) | 22 oct 2026 | Partir un escaneo en piezas y decir qué es cada una | abierto |
-| [004](2026-10-27-004-vectores.md) | 27 oct 2026 | Un servicio de vectores para la búsqueda por significado de Desktop | abierto |
+| [004](2026-10-27-004-vectores.md) | 27 oct 2026 | Un servicio de vectores para la búsqueda por significado de Desktop | respondido |
 | [005](2026-10-29-005-lectura-con-analisis.md) | 29 oct 2026 | Lo que le falta a la lectura con análisis para los formularios y los escaneos | abierto |
+| [C003](2026-11-01-C003-respuesta-modelos-para-diagnostico.md) | 1 nov 2026 | Respuesta al mensaje C003 de Core: los modelos para diagnosticar fallas | respondido; con dos preguntas (C003-Q1 y C003-Q2) |

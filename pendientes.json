@@ -1735,11 +1735,11 @@
       "estado": "en-espera",
       "prioridad": 3,
       "tema": "búsqueda",
-      "detalle": "El LLM-Wiki partía sus páginas en pedazos y los convertía en vectores para buscar por significado (embeddings y LanceDB); se retiró con el wiki (commit 6ce32a9) y hoy la búsqueda es solo por palabras, en la base y en el chat. Reimplementarla sobre el texto de la base: con las bases documentales de Core (preguntado en el mensaje 002, Q2) o con un modelo de vectores local. Confirmado por el dueño el 22 oct. 2026-10-22 (tarde): el dueño pidió revisarlo con Core o evaluar un modelo de vectores local, si es viable en computadoras de escritorio como las de un abogado (sin placa de video): medir tiempo y memoria con la base real antes de elegir. 2026-10-27: D-557: los vectores se difieren y se piden a Core, en AWS (mensaje 004, pedido #77). Desktop no los calcula en la PC; sin proveedor, la búsqueda sigue por palabras.",
+      "detalle": "El LLM-Wiki partía sus páginas en pedazos y los convertía en vectores para buscar por significado (embeddings y LanceDB); se retiró con el wiki (commit 6ce32a9) y hoy la búsqueda es solo por palabras, en la base y en el chat. Reimplementarla sobre el texto de la base: con las bases documentales de Core (preguntado en el mensaje 002, Q2) o con un modelo de vectores local. Confirmado por el dueño el 22 oct. 2026-10-22 (tarde): el dueño pidió revisarlo con Core o evaluar un modelo de vectores local, si es viable en computadoras de escritorio como las de un abogado (sin placa de video): medir tiempo y memoria con la base real antes de elegir. 2026-10-27: D-557: los vectores se difieren y se piden a Core, en AWS (mensaje 004, pedido #77). Desktop no los calcula en la PC; sin proveedor, la búsqueda sigue por palabras. 2026-11-01: Los vectores entran a la app (D-767), pedidos a Micelya Core y encendidos por omisión; primero se usan como señal del tipo. La búsqueda por significado los puede usar, pero no entra en la tanda del 2 nov.",
       "depende_de": [],
       "referencia": "mensaje 002 a Core (Q2); servicios-de-ia-propuesta.md (tabla 2.1)",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-27"
+      "actualizado": "2026-11-01"
     },
     {
       "id": "P-290",
@@ -2726,16 +2726,16 @@
       "titulo": "Medir si los ejemplos en el catálogo agregan valor",
       "tipo": "verificacion",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "prioridad": 2,
       "tema": "replanteo",
-      "detalle": "Correr la lectura con y sin ejemplos contra la hoja de respuestas, con los documentos que dan ejemplos separados de los que miden. Si no agregan valor, se evita anonimizar y distribuir ejemplos. Usa cupo de Codex: avisar al dueño antes.",
+      "detalle": "Correr la lectura con y sin ejemplos contra la hoja de respuestas, con los documentos que dan ejemplos separados de los que miden. Si no agregan valor, se evita anonimizar y distribuir ejemplos. Usa cupo de Codex: avisar al dueño antes. 2026-11-01: Por ahora no van ejemplos (D-770): esta medición queda para cuando exista el modo entrenamiento (P-577).",
       "depende_de": [
         "P-360"
       ],
       "referencia": "D-544",
       "creado": "2026-10-26",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-11-01"
     },
     {
       "id": "P-362",
@@ -2791,13 +2791,13 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "replanteo",
-      "detalle": "Mismo motor y misma interfaz, un indicador que redirige a una base propia de entrenamiento; salidas: entradas del catálogo general, ejemplos anonimizados y entradas de la hoja de respuestas.",
+      "detalle": "Mismo motor y misma interfaz, un indicador que redirige a una base propia de entrenamiento; salidas: entradas del catálogo general, ejemplos anonimizados y entradas de la hoja de respuestas. 2026-11-01: El plan del entrenamiento que recordaba el dueño no apareció: se arma de nuevo (D-770, P-576).",
       "depende_de": [
         "P-360"
       ],
       "referencia": "D-545",
       "creado": "2026-10-26",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-11-01"
     },
     {
       "id": "P-366",
@@ -4740,10 +4740,10 @@
       "titulo": "Que Ajustes ofrezca solo el lector del equipo para «Reconocer escaneos»",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 1,
       "tema": "reconocimiento",
-      "detalle": "Desde la etapa 2b del 1 nov la base nunca lee un escaneo en la nube: lo lee el lector del equipo, también lo que pide una persona (D-721). Pero el catálogo de motores sigue ofreciendo Codex y Micelya Core para «Reconocer escaneos», y «En curso» puede nombrar al elegido. Falta sacarlos de esa elección (catálogo, pantalla y sus pruebas) y que la base tome siempre el lector del equipo; el mecanismo de la cola de pedidos de recognize.rs todavía conserva el camino a la nube para el motor que se le pase.",
+      "detalle": "Desde la etapa 2b del 1 nov la base nunca lee un escaneo en la nube: lo lee el lector del equipo, también lo que pide una persona (D-721). Pero el catálogo de motores sigue ofreciendo Codex y Micelya Core para «Reconocer escaneos», y «En curso» puede nombrar al elegido. Falta sacarlos de esa elección (catálogo, pantalla y sus pruebas) y que la base tome siempre el lector del equipo; el mecanismo de la cola de pedidos de recognize.rs todavía conserva el camino a la nube para el motor que se le pase. 2026-11-01: Anulado por el dueño (D-764): Codex y Micelya Core siguen como opciones para «Reconocer escaneos», y el de esta computadora es el valor por omisión. Queda «hecho» porque la lista de estados no tiene «anulado»; lo que hay que hacer ahora está en P-578.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
     },
@@ -4767,7 +4767,7 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "reconocimiento",
-      "detalle": "D-721 lo mantiene (D-670, D-705). Hoy la app no tiene un camino propio: se hacía eligiendo otro motor de escaneo, y eso se sacó. Falta una acción en el documento, conducida por una persona, que lea con el motor de «Preguntar al modelo», y que espere la barrera. Llega con «no legible», cuando la lectura por franjas entre a la app.",
+      "detalle": "D-721 lo mantiene (D-670, D-705). Hoy la app no tiene un camino propio: se hacía eligiendo otro motor de escaneo, y eso se sacó. Falta una acción en el documento, conducida por una persona, que lea con el motor de «Preguntar al modelo», y que espere la barrera. Llega con «no legible», cuando la lectura por franjas entre a la app. 2026-11-01: Es una acción propia del documento, distinta del lector de escaneos (D-764), y una de las excepciones del proceso único (D-765): ya no espera la barrera, que se retira.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
     },
@@ -4839,7 +4839,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "La clave de los parecidos incluye las entidades, los tipos y las identidades. Cuando llega una respuesta que los cambia, el hilo sin IA marca documentos para volver a medir en su paso siguiente, de 0,1 a 3,3 segundos después. En ese hueco, la barrera da 0 y sale la pregunta siguiente. En la corrida de control salieron así 13 preguntas en la carpeta (4 de tipo, 8 de identidad y 1 de páginas) y 5 de identidad en el examen; ninguna de lectura de entidades. Arreglo posible: que la barrera mire también si la clave de los parecidos cambió, o que el hilo que pregunta la revise antes de mirar la barrera. Además, el volcado de la corrida de control tiene que usar la hora de salida de cada pregunta (D-762). Consultas de producción por documento (D-672): 0, o alguna menos si un tipo sale por familia.",
+      "detalle": "La clave de los parecidos incluye las entidades, los tipos y las identidades. Cuando llega una respuesta que los cambia, el hilo sin IA marca documentos para volver a medir en su paso siguiente, de 0,1 a 3,3 segundos después. En ese hueco, la barrera da 0 y sale la pregunta siguiente. En la corrida de control salieron así 13 preguntas en la carpeta (4 de tipo, 8 de identidad y 1 de páginas) y 5 de identidad en el examen; ninguna de lectura de entidades. Arreglo posible: que la barrera mire también si la clave de los parecidos cambió, o que el hilo que pregunta la revise antes de mirar la barrera. Además, el volcado de la corrida de control tiene que usar la hora de salida de cada pregunta (D-762). Consultas de producción por documento (D-672): 0, o alguna menos si un tipo sale por familia. 2026-11-01: El proceso único (D-765) reemplaza a la barrera y cierra el hueco por construcción: volver a medir los parecidos es parte de la condición de su paso y se calcula antes de elegir cada operación. Lo hacen las etapas A1 y A2 de la tanda del 2 nov, y se mide en el registro de operaciones.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
     },
@@ -4851,7 +4851,7 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "En la corrida de control quedaron sin tipo 13 de 297 documentos de la carpeta. Diez son partidas escaneadas de un mismo archivo, con 52 a 193 palabras de texto pero 0 en la firma; otros dos son una constancia de firma cuyas páginas saltea su marca. La app no pregunta el tipo por debajo de 10 palabras en la firma (MIN_TYPE_WORDS). Lo probable, sin comprobar, es que todo su texto sea aproximado y la firma no lo cuente. Hay que comprobarlo y decidir si el tipo debe usar otra cuenta, o la marca cuando ya dice el tipo. Consultas de producción por documento (D-672): hasta +0,04 si esos documentos se preguntan.",
+      "detalle": "En la corrida de control quedaron sin tipo 13 de 297 documentos de la carpeta. Diez son partidas escaneadas de un mismo archivo, con 52 a 193 palabras de texto pero 0 en la firma; otros dos son una constancia de firma cuyas páginas saltea su marca. La app no pregunta el tipo por debajo de 10 palabras en la firma (MIN_TYPE_WORDS). Lo probable, sin comprobar, es que todo su texto sea aproximado y la firma no lo cuente. Hay que comprobarlo y decidir si el tipo debe usar otra cuenta, o la marca cuando ya dice el tipo. Consultas de producción por documento (D-672): hasta +0,04 si esos documentos se preguntan. 2026-11-01: La causa real, vista en el código y en la base de la corrida de control, sin la IA: en 10 de los 13, el bloque de campos de formulario se traga el texto escaneado que sigue en la página (`docbase/similar/text.rs:52`), así que la firma cuenta 0 palabras aunque tienen entre 10 y 64 palabras seguras, y el mismo error los deja sin compararse con nada. Los otros 3: una página casi ilegible (3 palabras seguras de 137), una constancia de firma cuya página se saltea a propósito en la firma de parecidos, y una página que sale de un corte errado. Lo que se hace: arreglar el error y recalcular las firmas en el equipo; guardar la proporción de palabras seguras de cada documento; sacar el número fijo, para que se pregunte todo documento con al menos una palabra; y la marca «tipo de confianza baja», de la que no sale nada para ningún proceso (D-769, D-775).",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
     },
@@ -4888,6 +4888,112 @@
       "prioridad": 2,
       "tema": "base",
       "detalle": "Al abrir la app con la base de la corrida de control de la carpeta, «En curso» dice «Copias, versiones y plantillas: 101 de 136, faltan 35», y no avanza nunca. Los 35 son las versiones de los archivos enteros que tienen 2 documentos o más: los lugares de tipo «archivo» de la estructura. Con los dos niveles (D-734 a D-737), un archivo entero nunca pasa por los parecidos, así que nunca van a tener su firma. El error está en la cuenta de la pantalla: `progress.rs`, en `similar_members`, toma toda versión con texto, sin mirar si es un documento de la estructura. Hay que contar solo los documentos, con la misma regla que la firma de parecidos. La base original de la corrida da lo mismo, así que no es trabajo pendiente de verdad. Consultas de producción por documento (D-672): 0.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-574",
+      "titulo": "Que la app no vuelva a preguntar los saltos que ya decidió una persona",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Hoy la condición de «salto sin respuesta» no mira las decisiones de una persona (`docbase/cut/mod.rs:167`), así que un salto que ya decidió alguien puede volver a preguntarse. Estaba en el plan del 1 nov, sin número y sin código. Es técnico y va con el corte (la etapa 3b de la tanda del 2 nov). Consultas de producción por documento (D-672): resta, en los saltos que ya decidió una persona.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-575",
+      "titulo": "Responder a Core su mensaje C002 sobre los vectores, con lo que mida la etapa C0",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "core",
+      "detalle": "Core avisó en su mensaje C002 que los vectores están desplegados (Cohere Embed V4) y pidió que midamos el modelo con nuestra prueba. La respuesta va en un mensaje aparte del buzón, después de la medición de C0, sin datos reales, y viaja con el pedido de integración 84, como la respuesta a C003 (D-771). Consultas de producción por documento (D-672): 0.",
+      "referencia": "D-767",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-576",
+      "titulo": "Armar de nuevo el plan del entrenamiento",
+      "tipo": "decision",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "El dueño recordaba un plan del entrenamiento más completo que el del modo entrenamiento (P-365), y no aparece escrito. Lo más cercano: las decisiones del replanteo del 26 y 27 oct (D-541 a D-553), los documentos de diseño del modelo de conocimiento (sección 8) y de la base de destino (sección 7), y el plan del programa chico que aprendía a cortar con ejemplos de saltos (`docs/design/clasificador-de-cortes-propuesta.md`), que es otra cosa. Se arma de nuevo desde ahí, sin seguir buscando (D-770), y se le propone al dueño. Consultas de producción por documento (D-672): 0 por armar el plan.",
+      "referencia": "D-770",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-577",
+      "titulo": "Los ejemplos anonimizados, para más adelante",
+      "tipo": "decision",
+      "responsable": "claude",
+      "estado": "en-espera",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "Por ahora no van ejemplos (D-770). Si algún día se quieren, primero se mide si agregan valor (P-361), cuando exista el modo entrenamiento (P-365, D-545); si agregan, van anonimizados y separados de lo que se usa para medir (D-544). No se empieza antes.",
+      "depende_de": [
+        "P-361",
+        "P-365"
+      ],
+      "referencia": "D-770",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-578",
+      "titulo": "Que la base lea los escaneos con el lector elegido en Ajustes (revertir lo de la etapa 2b)",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "D-764: lee de fondo el lector elegido, con el de esta computadora por omisión y Codex y Micelya Core como opciones. Hoy el hilo que pregunta ya no lee escaneos (`docbase/worker.rs:165`), el hilo del equipo lee todo con su lector (`docbase/worker.rs:521-574`), y sin sus modelos cada escaneo queda con una falla aunque se haya elegido Core (`docbase/recognize.rs:212`). Hay que devolver la lectura al elegido, en unos 9 lugares del código y de la pantalla, con lo asumido en D-775: la nube, solo con la lectura automática prendida o a pedido; sin modelos, el escaneo espera; las bases con Codex guardado vuelven una vez al de esta computadora, con un aviso. La lectura por zonas sigue con el lector de esta computadora. Consultas de producción por documento (D-672): 0 con el de esta computadora; con Codex, una por página escaneada.",
+      "referencia": "D-764",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-579",
+      "titulo": "Recuperar el vigilante del historial de git y adaptarlo a la base de documentos y al proceso único",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "D-773. El vigilante viejo (`file_sync.rs` y `source_volume/watch.rs`, con la dependencia `notify`) se retiró con la wiki el 21 oct, en el commit 0a43023f. Se parte de ese código, se lo ajusta a la base de documentos y al proceso único (D-765), del que es un disparador más, con el recorrido de resguardo (D-774), y se explica qué se tomó y qué se cambió. Hoy un archivo nuevo tarda hasta 5 minutos en verse. Consultas de producción por documento (D-672): 0.",
+      "referencia": "D-773",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-580",
+      "titulo": "Decidir si «Calcular vectores» queda encendido, con los números de la etapa C0",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "tema": "servicios de IA",
+      "detalle": "D-767: «Calcular vectores» viene encendido por omisión, con Micelya Core. Con los números de C0 se le pregunta al dueño si queda encendido. Si no contesta, o si la pregunta llega después de que avisó que se fue a dormir, queda encendido, y este pendiente sigue abierto hasta que lo vea. Junto con eso, la nota de dónde guardarlos (D-768). Consultas de producción por documento (D-672): a Core, unas 0,013 llamadas por documento.",
+      "referencia": "D-767",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-581",
+      "titulo": "Medir el umbral del tipo de confianza baja (30 % provisorio) con la hoja de tipos",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "D-769 deja el umbral en 30 % por una pista: por debajo, la IA está menos segura del tipo que da. No es todavía una medida de acierto: hace falta la hoja de tipos en castellano (la provisoria de la etapa G1 y, después, una revisada). Hay que medir con ella qué umbral separa los tipos errados sin dejar afuera los buenos, y proponerle el valor al dueño. Consultas de producción por documento (D-672): 0; medir no cambia producción.",
+      "referencia": "D-769",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
     }
