@@ -5432,6 +5432,30 @@
       "detalle": "La pantalla «Calidad de la lectura» (decisión D-790) se probó con una base nueva de tres archivos chicos y sin consultas, que no tiene documentos debajo de los umbrales. Con la base de la prueba chica (el de 93 páginas, el de las partidas, uno digital y una carta documento), mirar: cuántos documentos y páginas quedan debajo de cada valor; abrir los que quedan cerca de «no legible» (50 %) y del tipo de confianza baja (30 %) y decidir si se leen; elegir los dos valores en Ajustes → Umbrales, que dice antes de guardar qué documentos cambian de lado y cuántas páginas de la wiki se vuelven a escribir. Mirar también la página de un archivo compuesto con sus partes y los tipos con su nombre en las tablas de una persona.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-612",
+      "titulo": "La etapa de la pista: con la pista encendida, el tipo de un documento espera a su vector, y los de confianza baja no son ejemplo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "La etapa C1 del 2 nov (D-796 y D-797) guarda un vector por documento, pero nada los usa todavía, así que el tipo no espera a ellos. La etapa C2 los usa como pista del tipo y tiene que: 1) con la pista encendida, que el tipo de un documento espere a su vector cuando el paso de vectores está apartado por una falla de Core (la opción a del entendido de la etapa C: la IA nunca se saltea); con la pista apagada, que no espere; 2) no tomar como ejemplo a los documentos de tipo de confianza baja (tienen vector, para consultas), con el filtro de `low_confidence`; 3) leer los vectores de la base en cada búsqueda (`vectors::vector_of` lee uno; falta leerlos todos de una vez para buscar vecinos), y tenerlos en memoria recién pasados unos 5.000 documentos (P-611).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-613",
+      "titulo": "Una falla de Core que no es pasajera solo se va cambiando el motor en Ajustes; y medir el paso de vectores en la corrida larga",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Dos cosas que deja la etapa C1 del 2 nov (D-796). 1) Si Core rechaza la credencial, la falla del paso de vectores no se reintenta sola y espera a una persona; hoy se va solo eligiendo otro motor en «Calcular vectores». Falta que guardar de nuevo la conexión de Core en Ajustes → Conexiones también la saque (lo mismo pasa con los escaneos leídos con Core). Sin la conexión cargada la falla es pasajera y se reintenta sola. 2) La prueba real de C1 fue con dos textos inventados; falta medir en la corrida de control larga (A5) cuántas llamadas hace el paso, cuánto tarda y si alguna falla, con la carpeta entera y desde cero.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
     }
   ]
 }
