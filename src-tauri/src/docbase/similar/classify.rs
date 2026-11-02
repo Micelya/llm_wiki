@@ -157,6 +157,12 @@ pub struct RunReport {
     /// stopped answering).
     pub left: usize,
     pub errors: Vec<String>,
+    /// Questions not asked because a failure holds them (P-533).
+    #[serde(skip)]
+    pub held: usize,
+    /// The run was asked for, and the process does it: a person's ask is
+    /// one more start of the process (change B of 2 nov).
+    pub requested: bool,
 }
 
 impl RunReport {
@@ -843,6 +849,9 @@ pub(crate) struct TypesLeft {
     /// Of them, those a document new to a family already asked closes,
     /// without asking (decision 3 of 2 nov).
     pub by_inheritance: usize,
+    /// Units whose question a failure holds (P-533): set aside, not counted
+    /// in `units`.
+    pub held: usize,
 }
 
 /// `TypesLeft` over the units with a document in `only` (all, without it).
@@ -851,6 +860,7 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
     let docs = load_docs(conn)?;
     let units = load_units(conn, catalog, &docs)?;
     let kept = kept_types(conn)?;
+    let held = crate::docbase::failures::held_versions(conn, "types")?;
     let mut left = TypesLeft::default();
     for unit in units {
         let all: Vec<i64> = std::iter::once(unit.principal).chain(unit.members.iter().map(|(m, _)| *m)).collect();
@@ -861,12 +871,15 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
         if all.iter().all(|id| kept.get(id).is_some_and(|k| k.basis == basis)) {
             continue;
         }
-        left.units += 1;
         if rows_by_marks(catalog, &unit, &docs).is_some() {
             left.by_marks += 1;
         } else if inherited_rows(catalog, &unit, &docs, &kept).is_some() {
             left.by_inheritance += 1;
+        } else if held.contains(&unit.principal) {
+            left.held += 1;
+            continue;
         }
+        left.units += 1;
     }
     Ok(left)
 }
@@ -874,7 +887,8 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
 /// How many typed documents (of `only`, or all) still have their data to
 /// find (the step of the data of the type, A1 of 2 nov): found over
 /// another basis, or waiting for the answer to their question. Reads only.
-pub(crate) fn data_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Result<usize, String> {
+pub(crate) fn data_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Result<(usize, usize), String> {
+    let held = crate::docbase::failures::held_versions(conn, "data")?;
     let catalog = types::catalog();
     let engine = answering_engine(conn)?;
     let docs = load_docs(conn)?;
@@ -892,22 +906,28 @@ pub(crate) fn data_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Resu
             .map_err(sql_err)?;
         rows
     };
-    let mut left = 0;
+    let (mut left, mut set_aside) = (0, 0);
     for (content_id, doc_type, kept, question) in rows {
         if only.is_some_and(|o| !o.contains(&content_id)) {
             continue;
         }
         let Some(doc) = docs.get(&content_id) else { continue };
         let basis = fingerprint(&[DATA_PROMPT, &catalog.digest, &doc_type, &doc.text_at.to_string(), &doc.marks_json]);
-        if kept.as_deref() != Some(basis.as_str()) {
-            left += 1;
+        let pending = if kept.as_deref() != Some(basis.as_str()) {
+            true
         } else if let Some(key) = question {
-            if cached_answer(conn, &key, engine.as_deref())?.is_none() {
-                left += 1;
-            }
+            cached_answer(conn, &key, engine.as_deref())?.is_none()
+        } else {
+            false
+        };
+        // Its question held by a failure (P-533): set aside.
+        if pending && held.contains(&content_id) {
+            set_aside += 1;
+        } else if pending {
+            left += 1;
         }
     }
-    Ok(left)
+    Ok((left, set_aside))
 }
 
 fn write_type_rows(conn: &Connection, rows: &[TypeRow], basis: &str) -> Result<usize, String> {
@@ -1473,6 +1493,12 @@ impl DocBase {
             if std::iter::once(item.unit.principal).chain(item.unit.members.iter().map(|(m, _)| *m)).any(|id| to_cut.contains(&id)) {
                 continue;
             }
+            // A unit whose question failed waits for its next attempt, or
+            // for a person: it takes no place in the run (P-533).
+            if self.question_held(item.question.task, item.question.content_id, &item.question.key) {
+                report.held += 1;
+                continue;
+            }
             if budget == 0 || stopped {
                 report.left += 1;
                 continue;
@@ -1490,6 +1516,11 @@ impl DocBase {
                     match rows_from_answer(catalog, &decisions, &item.unit, &docs, &answer, &item.question.key) {
                         Ok(rows) => report.typed += write_type_rows(&conn, &rows, &item.basis)?,
                         Err(error) => {
+                            drop(conn);
+                            // An answer that cannot be applied: of another
+                            // shape, over the unit, counted like the others.
+                            let q = &item.question;
+                            self.question_failed(q.task, q.content_id, &q.key, &asker.engine_id(), &error, Some(&answer));
                             report.failed += 1;
                             report.errors.push(error);
                         }
@@ -1507,6 +1538,10 @@ impl DocBase {
         let mut asked_keys: BTreeSet<String> = BTreeSet::new();
         for item in pending {
             if asked_keys.contains(&item.question.key) {
+                continue;
+            }
+            if self.question_held(item.question.task, item.question.content_id, &item.question.key) {
+                report.held += 1;
                 continue;
             }
             if budget == 0 || stopped {
@@ -1606,6 +1641,7 @@ impl DocBase {
 
     /// The engine to ask with in the background: only while the reading in
     /// the background is on and someone said which one.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn background_ask_engine(&self) -> Result<Option<AskConfig>, String> {
         if !self.background_reading()? {
             return Ok(None);
@@ -1625,9 +1661,15 @@ pub(crate) fn ask_and_keep(base: &DocBase, asker: &dyn DocumentAsker, question: 
     base.engine_state().asking(question.task, question.content_id);
     let answer = asker.ask(&question.prompt, &question.schema);
     base.engine_state().asked(answer.is_ok());
-    let answer = answer?;
-    parse_json::<serde_json::Value>(&answer)?;
+    // A failure stays over its document, with its class and its waits
+    // (P-533, D-714); one of the whole engine pauses the engine.
+    let answer = answer.inspect_err(|error| base.question_failed(question.task, question.content_id, &question.key, &engine, error, None))?;
+    if let Err(error) = parse_json::<serde_json::Value>(&answer) {
+        base.question_failed(question.task, question.content_id, &question.key, &engine, &error, Some(&answer));
+        return Err(error);
+    }
     keep_answer(&base.conn(), question, &engine, &answer)?;
+    base.question_answered(question.task, question.content_id, &question.key, &engine);
     Ok(answer)
 }
 

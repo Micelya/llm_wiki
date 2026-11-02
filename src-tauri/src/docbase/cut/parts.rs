@@ -203,7 +203,7 @@ pub(crate) fn parts_pending_sql() -> String {
 }
 
 /// How many cut files still have their parts to make, `free` (an SQL
-/// condition over the version `c`) saying they hold the barrier.
+/// condition over the version `c`) saying which count (`process::steps::free_sql`).
 pub(crate) fn parts_left(conn: &rusqlite::Connection, free: &str) -> Result<usize, String> {
     conn.query_row(&format!("SELECT count(*) FROM {PARTS_FROM} WHERE {} AND {free}", parts_pending_sql()), [], |row| row.get::<_, i64>(0))
         .map(|n| n as usize)

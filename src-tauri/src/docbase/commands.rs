@@ -11,13 +11,11 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use super::bridge;
-use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
+use super::knowledge::extract::KnowledgePlan;
 use super::knowledge::articles::{KnowledgeArticle, KnowledgeNote, KnowledgeOverview, PageObject, SavedQuery};
 use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
-use super::knowledge::pages::ProjectReport;
 use super::knowledge::research::{Research, ResearchSource};
-use super::knowledge::resolve::ResolveReport;
 use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
 use super::knowledge::extract::{RereadPlan, RereadTarget};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
@@ -34,7 +32,8 @@ use super::services::{AiServices, AiServicesView};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
 use super::questions::{AskedQuestion, ModelQuestion};
 use super::tree::FolderListing;
-use super::worker::{self, Wake};
+use super::process::run::{self as process_run, Ask, Wake};
+use super::process::Scope as ProcessScope;
 use super::upgrade;
 use super::{DocBase, Visible};
 
@@ -44,9 +43,8 @@ pub const CHANGED_EVENT: &str = "docbase://changed";
 /// The base of the private space, or why it could not be opened.
 pub struct DocBaseState {
     base: Result<Arc<DocBase>, String>,
+    /// Wakes the loop of the process up: the only thread of the work.
     wake: Arc<Wake>,
-    /// Ends the wait of the questions to the model (a scan to recognize).
-    ask_wake: Arc<Wake>,
     /// The app's data folder, where the base and its backups are.
     data_dir: Option<PathBuf>,
     /// What the app found and did when it opened the base (backups, D-496).
@@ -73,10 +71,10 @@ impl DocBaseState {
         self.wake.request_sweep();
     }
 
-    /// Ends the wait of the questions to the model: something asked to be
-    /// read again (an operation of the contract confirmed in the chat).
+    /// Wakes the process up: something asked to be read again (an
+    /// operation of the contract confirmed in the chat).
     pub(crate) fn request_asking(&self) {
-        self.ask_wake.request();
+        self.wake.request();
     }
 }
 
@@ -84,7 +82,6 @@ impl DocBaseState {
 /// starts its background worker.
 pub fn start(app: &tauri::AppHandle) {
     let wake = Arc::new(Wake::default());
-    let ask_wake = Arc::new(Wake::default());
     // The catalog of document types can be replaced by a file of the same
     // shape in the data folder (similar/types.rs).
     if let Ok(dir) = app.path().app_data_dir() {
@@ -118,16 +115,14 @@ pub fn start(app: &tauri::AppHandle) {
                 Err(error) => eprintln!("[docbase] the wiki's files could not be imported: {error}"),
             }
             bridge::share(base.clone());
-            let handle = app.clone();
-            worker::spawn(base.clone(), wake.clone(), move || {
-                let _ = handle.emit(CHANGED_EVENT, ());
-            });
+            // The loop of the process, the only thread of the work (E4 of
+            // 2 nov): no barrier, no thread of its own for the questions or
+            // for the scans. Pages written again change what the screens show.
             let handle = app.clone();
             let pages = app.clone();
-            // Pages written again in the base change what the screens show.
-            worker::spawn_asking(
+            process_run::spawn(
                 base.clone(),
-                ask_wake.clone(),
+                wake.clone(),
                 move || {
                     let _ = handle.emit(CHANGED_EVENT, ());
                 },
@@ -135,15 +130,10 @@ pub fn start(app: &tauri::AppHandle) {
                     let _ = pages.emit(CHANGED_EVENT, ());
                 },
             );
-            // The new scans, read on this computer (D-558).
-            let handle = app.clone();
-            worker::spawn_local_recognition(base.clone(), move || {
-                let _ = handle.emit(CHANGED_EVENT, ());
-            });
         }
         Err(error) => eprintln!("[docbase] {error}"),
     }
-    app.manage(DocBaseState { base, wake, ask_wake, data_dir, opening, restored: Default::default() });
+    app.manage(DocBaseState { base, wake, data_dir, opening, restored: Default::default() });
 }
 
 /// Where the data are, the version of the base, what the app did when it
@@ -669,10 +659,13 @@ pub fn docbase_decided_types(state: State<'_, DocBaseState>) -> Result<Vec<Decid
     state.base()?.decided_types()
 }
 
-/// Asks the model the pending questions about type, stage and data, at
-/// most `max_questions`, with this engine. Only on an explicit action of
-/// the user: it costs the provider's quota. The engine is also kept as
-/// the one that answers while the archive's wiki is active.
+/// A person asks for the questions about type, stage and data, with the
+/// automatic reading on or off: one more start of the process (change B of
+/// 2 nov). The ask is kept in the base and the loop does it, in its order:
+/// it waits only for the operation going on and the steps before. It costs
+/// the provider's quota. `engine` and `max_questions` are no longer used:
+/// the engine is the one of «Preguntar al modelo», and the round is the
+/// process's.
 #[tauri::command(async)]
 pub fn docbase_types_run(
     app: tauri::AppHandle,
@@ -680,13 +673,23 @@ pub fn docbase_types_run(
     engine: AskConfig,
     max_questions: Option<usize>,
 ) -> Result<RunReport, String> {
+    let _ = (engine, max_questions);
     let base = state.base()?.clone();
-    // It waits for the work without AI too (D-719).
-    base.barrier_check()?;
-    let asker = asker_for(&engine)?;
-    let report = base.types_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
+    if super::similar::classify::ask_engine(&base.conn())?.is_none() {
+        return Err("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede preguntar.".to_string());
+    }
+    base.process_ask(Ask::Types, &ProcessScope::All)?;
+    state.wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
-    Ok(report)
+    Ok(RunReport { requested: true, ..RunReport::default() })
+}
+
+/// The process: how each of its 18 steps stands over the whole base, and
+/// what its loop is doing, why it went back, and why it waits (for
+/// «En curso», A3). Reads only.
+#[tauri::command(async)]
+pub fn docbase_process_state(state: State<'_, DocBaseState>) -> Result<process_run::ProcessView, String> {
+    state.base()?.process_view()
 }
 
 /// The registry of the AI services (which engine each service uses), with
@@ -721,7 +724,7 @@ pub fn docbase_model_question_last(state: State<'_, DocBaseState>, id: String) -
 pub fn docbase_set_ai_services(state: State<'_, DocBaseState>, services: AiServices) -> Result<AiServicesView, String> {
     let base = state.base()?;
     base.set_ai_services(services)?;
-    state.ask_wake.request();
+    state.wake.request();
     base.ai_services()
 }
 
@@ -776,9 +779,6 @@ pub struct DocTypeView {
     pub name: Option<String>,
 }
 
-/// Questions a run started by the user asks at most (R-16).
-const RUN_LIMIT: usize = 60;
-
 /// How far the knowledge layer read the archive: documents read, still
 /// to read and failed, mentions, identifiers and claims kept, and what
 /// the check of the quotes discarded.
@@ -809,74 +809,7 @@ pub fn docbase_knowledge_plan(state: State<'_, DocBaseState>) -> Result<Knowledg
     state.base()?.knowledge_plan()
 }
 
-/// Reads the pending documents for the knowledge layer, asking at most
-/// `max_questions` questions, with this engine. Only on an explicit action
-/// of the user: it costs the provider's quota. The engine is also kept as
-/// the one that answers while the archive's wiki is active.
-#[tauri::command(async)]
-pub fn docbase_knowledge_run(
-    app: tauri::AppHandle,
-    state: State<'_, DocBaseState>,
-    engine: AskConfig,
-    max_questions: Option<usize>,
-) -> Result<KnowledgeReport, String> {
-    let base = state.base()?.clone();
-    base.barrier_check()?;
-    let asker = asker_for(&engine)?;
-    let report = base.knowledge_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
-    let _ = app.emit(CHANGED_EVENT, ());
-    Ok(report)
-}
 
-/// Resolves the identities of what the knowledge layer read: without a
-/// model, or asking at most `max_questions` questions to this engine (only
-/// on an explicit action of the user: it costs the provider's quota).
-#[tauri::command(async)]
-pub fn docbase_knowledge_resolve(
-    app: tauri::AppHandle,
-    state: State<'_, DocBaseState>,
-    engine: Option<AskConfig>,
-    max_questions: Option<usize>,
-) -> Result<ResolveReport, String> {
-    let base = state.base()?.clone();
-    let report = match engine {
-        Some(engine) => {
-            base.barrier_check()?;
-            let asker = asker_for(&engine)?;
-            base.knowledge_resolve(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
-        }
-        None => base.knowledge_resolve(None, 0)?,
-    };
-    let _ = app.emit(CHANGED_EVENT, ());
-    Ok(report)
-}
-
-/// Projects the record into the archive's wiki now: the pages of the
-/// entities, the blocks of the pages of documents and the overview. Without
-/// an engine, what the documents say is left as it is (or pending); with
-/// one, at most `max_questions` questions (only on an explicit action of
-/// the user: it costs the provider's quota).
-#[tauri::command(async)]
-pub fn docbase_knowledge_project(
-    app: tauri::AppHandle,
-    state: State<'_, DocBaseState>,
-    engine: Option<AskConfig>,
-    max_questions: Option<usize>,
-) -> Result<ProjectReport, String> {
-    let base = state.base()?.clone();
-    let report = match engine {
-        Some(engine) => {
-            base.barrier_check()?;
-            let asker = asker_for(&engine)?;
-            base.knowledge_project(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
-        }
-        None => base.knowledge_project(None, 0)?,
-    };
-    if report.wrote() {
-        let _ = app.emit(CHANGED_EVENT, ());
-    }
-    Ok(report)
-}
 
 /// The language the archive's wiki is written in ("auto" or none: the
 /// language of the documents), for the pages the knowledge layer writes.
@@ -1119,7 +1052,7 @@ pub fn docbase_recognize_text(
         return Err("El lector de escaneos de esta computadora no está disponible: faltan sus modelos. Los escaneos esperan, con su falla en Atención.".to_string());
     }
     let asked = base.request_recognition(&which)?;
-    state.ask_wake.request();
+    state.wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(asked)
 }
@@ -1210,7 +1143,7 @@ pub fn docbase_knowledge_reread(app: tauri::AppHandle, state: State<'_, DocBaseS
         return Err("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede volver a leer.".to_string());
     }
     let count = base.knowledge_request_reread(&target.unwrap_or_default())?;
-    state.ask_wake.request();
+    state.wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(count)
 }
@@ -1221,7 +1154,7 @@ pub fn docbase_knowledge_reread(app: tauri::AppHandle, state: State<'_, DocBaseS
 #[tauri::command(async)]
 pub fn docbase_auto_questions_decide(app: tauri::AppHandle, state: State<'_, DocBaseState>, go: bool) -> Result<(), String> {
     state.base()?.auto_questions_decide(go)?;
-    state.ask_wake.request();
+    state.wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(())
 }
@@ -1480,8 +1413,14 @@ pub fn docbase_cut_ask(
     let Some(engine) = super::similar::classify::ask_engine(&base.conn())? else {
         return Err("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede preguntar.".to_string());
     };
-    let asker = asker_for(&engine)?;
-    let parts = base.cut_ask_file(asker.as_ref(), &hash);
+    if !asker_for(&engine)?.sees_images() {
+        return Err("El motor de «Preguntar al modelo» no mira imágenes: no puede decir dónde empieza cada documento.".into());
+    }
+    // One more start of the process (change B of 2 nov): kept in the base,
+    // the loop asks once the steps before of this file are complete (D-774,
+    // point 1). The parts change when the answers come.
+    base.process_ask(Ask::Cut, &ProcessScope::File(hash.clone()))?;
+    state.wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
-    parts
+    base.strip_parts(&hash)
 }

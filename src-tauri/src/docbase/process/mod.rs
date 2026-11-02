@@ -16,19 +16,40 @@
 //! also the doubtful steps the app does not ask by itself). What a person
 //! does on the screen without touching the process is none of this.
 //!
-//! This part only tells the steps and what each has left: who does the
-//! work does not change yet (A2 puts one loop in place of the threads and
-//! the barrier).
+//! The loop (`run.rs`, E4 of 2 nov) is the only one that does the work: it
+//! looks at the steps in order, does one small operation of the first one
+//! incomplete, keeps it, and starts again from the first step. There is no
+//! barrier and no other thread.
 
+pub mod run;
 pub mod steps;
+#[cfg(test)]
+mod run_tests;
 #[cfg(test)]
 mod tests;
 
+use std::collections::BTreeSet;
+
 use serde::Serialize;
 
+#[allow(unused_imports)]
 pub use steps::{About, Class, Count, Level, Scope, Step, STEPS};
 
 use super::DocBase;
+
+/// What a count of the process takes into account besides the scope.
+#[derive(Debug, Clone, Default)]
+pub struct Looking {
+    /// The steps a person asked for, in the scope of the ask: their
+    /// questions go out even with the automatic reading off.
+    pub allowed: Vec<Step>,
+    /// Steps set aside as a whole now (the round past its cap waits for a
+    /// person, or a step that could not go on): their pending elements are
+    /// counted as set aside, and they do not hold the steps after.
+    pub aside: BTreeSet<Step>,
+    /// Stop at the first incomplete step.
+    pub first_only: bool,
+}
 
 /// How one step stands.
 #[derive(Debug, Clone, Serialize)]
@@ -66,10 +87,12 @@ pub struct ProcessState {
 }
 
 impl ProcessState {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn step(&self, step: Step) -> Option<&StepState> {
         self.steps.iter().find(|s| s.about.step == step)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn pending(&self, step: Step) -> usize {
         self.step(step).map(|s| s.count.pending).unwrap_or(0)
     }
@@ -80,15 +103,37 @@ impl DocBase {
     /// the first one incomplete. Reads only. With `first_only`, it stops at
     /// the first incomplete step (what the loop of A2 needs to choose its
     /// next operation, and what a person's ask waits for).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn process_state(&self, scope: &Scope, first_only: bool) -> Result<ProcessState, String> {
+        self.process_state_looking(scope, &Looking { first_only, ..Looking::default() })
+    }
+
+    /// The same, with what the loop takes into account (`Looking`).
+    pub fn process_state_looking(&self, scope: &Scope, looking: &Looking) -> Result<ProcessState, String> {
+        let first_only = looking.first_only;
         let reading_on = self.background_reading()?;
         let conn = self.conn();
         let held = steps::asking_held(&conn, reading_on)?;
+        // A person's ask goes out with the reading off; never past an
+        // engine paused, nor without an engine.
+        let held_for = |step: Step| match held {
+            Some(why) if looking.allowed.contains(&step) && why == "la lectura automática está apagada" => {
+                if super::services::ask_engine(&conn).ok().flatten().is_none() {
+                    Some("falta elegir el motor de IA")
+                } else {
+                    steps::asking_held(&conn, true).ok().flatten()
+                }
+            }
+            other => other,
+        };
         let mut state = ProcessState { steps: Vec::new(), first_incomplete: None, unknown: Vec::new() };
         for step in STEPS {
             let class = steps::class_now(&conn, step)?;
             let mut count = steps::count_step(&conn, step, scope)?;
-            let step_held = if class == Class::Asks { held } else { None };
+            let mut step_held = if class == Class::Asks { held_for(step) } else { None };
+            if looking.aside.contains(&step) {
+                step_held = Some("apartado por ahora");
+            }
             if step_held.is_some() {
                 // Questions that cannot go out now wait, set aside; what
                 // the step closes without asking is still pending.

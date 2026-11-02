@@ -13,9 +13,12 @@
 //! «alta» is uncertain: a person sees it (D-603). A person's word wins
 //! over all of it when the parts are made (`parts.rs`).
 //!
-//! The model is asked about the windows only when a person asks
-//! (`cut_ask_file`), or by itself when `WINDOWS_BY_ITSELF` is on, which it
-//! is not until the owner decides it (decision 3 of the plan of the cut).
+//! The model is asked about every window by itself, in every base, with
+//! nothing to turn on (D-720, of the owner, and D-774, point 4): the
+//! question goes in the round with a cap like any other (D-606), and a
+//! doubtful step is never left unasked because a setting is off. A person
+//! may also ask for one file (`cut_ask_file`). Each window that fails is
+//! written down with its class and waits (P-535, D-714).
 
 pub mod page;
 pub(crate) mod py;
@@ -24,7 +27,7 @@ pub mod scan;
 pub mod window;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -59,18 +62,16 @@ pub const ZONES_READING: &str = "cut:zones-reading";
 #[cfg_attr(not(test), allow(dead_code))]
 pub const ZONES_STAGE: &str = "zones";
 
-/// The setting that lets the thread that asks the model take the windows
-/// by itself, in the round with a cap (D-606). Off: decision 3 of the plan.
-pub const WINDOWS_BY_ITSELF: &str = "cut:windows-by-itself";
 
 /// The version the steps of the cut by zones are decided with.
 pub fn zones_version() -> String {
     format!("{}+cut.json/{}", catalog().zones.version, catalog().version)
 }
 
-/// SQL: the windows are asked by themselves.
-pub(crate) fn by_itself_sql() -> String {
-    format!("coalesce((SELECT value FROM docbase_setting WHERE key = '{WINDOWS_BY_ITSELF}'), '') = '1'")
+/// SQL over a window `w`: its failure holds (`failures::holds_any_sql`):
+/// it waits for its next attempt, or for a person.
+pub(crate) fn window_held_sql() -> String {
+    crate::docbase::failures::holds_any_sql(crate::docbase::failures::CUT_QUESTION_STAGE, "w.resource_hash || '#v' || w.first_page")
 }
 
 /// Whether a reading by zones is coming when the setting is not written:
@@ -303,24 +304,22 @@ impl DocBase {
     }
 
     /// The windows still without an answer, of the files in `only` or,
-    /// without it, of all when they are asked by themselves.
+    /// without it, of all: every one is asked by itself (D-720).
     pub(crate) fn windows_left(&self, only: Option<&BTreeSet<String>>) -> Result<usize, String> {
         let conn = self.conn();
-        let mut statement = conn
-            .prepare(&format!(
-                "SELECT w.resource_hash FROM cut_window w WHERE {WINDOW_WITHOUT_ANSWER} AND ({})",
-                if only.is_some() { "1".to_string() } else { by_itself_sql() }
-            ))
-            .map_err(sql_err)?;
+        let mut statement =
+            conn.prepare(&format!("SELECT w.resource_hash FROM cut_window w WHERE {WINDOW_WITHOUT_ANSWER}")).map_err(sql_err)?;
         let hashes: Vec<String> =
             statement.query_map([], |row| row.get(0)).map_err(sql_err)?.collect::<Result<_, _>>().map_err(sql_err)?;
         Ok(hashes.iter().filter(|h| only.is_none_or(|o| o.contains(*h))).count())
     }
 
     /// Asks the model about the windows still without an answer (of the
-    /// files in `only`; without it, only when they are asked by
-    /// themselves), one at a time, counted in `report` with the limit of
-    /// the run: each window is one question.
+    /// files in `only`; without it, of all but those whose failure holds),
+    /// one at a time, counted in `report` with the limit of the run: each
+    /// window is one question. Each failure is written down over its
+    /// window, with its class (P-535, D-714); one of the whole engine pauses
+    /// that engine and ends the run.
     pub(crate) fn cut_windows_ask(
         &self,
         asker: &dyn DocumentAsker,
@@ -335,7 +334,7 @@ impl DocBase {
                 .prepare(&format!(
                     "SELECT w.resource_hash, w.first_page, w.last_page, w.question, w.prompt FROM cut_window w
                      WHERE ({}) ORDER BY w.resource_hash, w.first_page",
-                    if only.is_some() { "1".to_string() } else { by_itself_sql() }
+                    if only.is_some() { "1".to_string() } else { format!("NOT {}", window_held_sql()) }
                 ))
                 .map_err(sql_err)?;
             let rows = statement
@@ -357,7 +356,14 @@ impl DocBase {
             if report.asked + report.failed >= limit {
                 continue;
             }
+            use crate::docbase::failures::{self, About, Failure};
+            let window = About::Window { file: hash.clone(), first };
+            // The folder is not connected: a transient failure of the
+            // window; the file waits (D-717).
             let Some(path) = file_path(&self.conn(), &hash)? else {
+                let mut failure = Failure::new(failures::CUT_QUESTION_STAGE, window, "The folder of the file is not connected.");
+                failure.cause = failures::cause("folder-disconnected");
+                self.note(&failure);
                 continue;
             };
             let scratch = std::env::temp_dir().join(format!("micelya-cut-{}", uuid::Uuid::new_v4()));
@@ -368,7 +374,16 @@ impl DocBase {
                 .and_then(|images| asker.ask_with_images(&prompt, &schema, &images));
             report.seconds += started.elapsed().as_secs_f64();
             let _ = std::fs::remove_dir_all(&scratch);
-            match answer.and_then(|text| window::valid(&text).map(|_| text)) {
+            // An answer of another shape keeps the answer, to count the
+            // equal ones (D-714).
+            let outcome = match answer {
+                Ok(text) => match window::valid(&text) {
+                    Ok(_) => Ok(text),
+                    Err(error) => Err((error, Some(text))),
+                },
+                Err(error) => Err((error, None)),
+            };
+            match outcome {
                 Ok(text) => {
                     self.conn()
                         .execute(
@@ -379,11 +394,27 @@ impl DocBase {
                         .map_err(sql_err)?;
                     report.asked += 1;
                     touched.insert(hash);
+                    failures::resolve(&self.conn(), failures::CUT_QUESTION_STAGE, &window)?;
+                    failures::resolve_engine(&self.conn(), &engine)?;
                 }
-                Err(error) => {
+                Err((error, answer)) => {
                     report.failed += 1;
-                    let stop = stops_the_run(&error);
+                    let mut failure = Failure::new(failures::CUT_QUESTION_STAGE, window, &error);
+                    if answer.is_some() {
+                        failure.cause = failures::cause("bad-answer");
+                        failure.answer = answer.as_deref();
+                    }
+                    let whole_engine = failure.cause.scope == failures::Scope::Engine;
+                    if whole_engine {
+                        failure.about = About::Engine(engine.clone());
+                    }
+                    failure.engine = Some(&engine);
+                    let recorded = self.note(&failure);
+                    let stop = whole_engine || stops_the_run(&error);
                     report.errors.push(error);
+                    if whole_engine {
+                        report.paused_until = Some(recorded.and_then(|r| r.next_at).unwrap_or(i64::MAX));
+                    }
                     if stop {
                         break;
                     }

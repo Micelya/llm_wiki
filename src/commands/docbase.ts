@@ -919,6 +919,8 @@ export interface TypesRunReport {
   corrected: number
   left: number
   errors: string[]
+  /** Kept as an ask of a person: the process asks, in its order (change B of 2 nov). */
+  requested?: boolean
 }
 
 /** A document type of the catalog, with its stages and data; names come from the vocabulary. */
@@ -1173,15 +1175,6 @@ export interface KnowledgeProjectReport {
   blocksWritten: number
   overviewWritten: boolean
   errors: string[]
-}
-
-/**
- * Projects the record of the knowledge layer into the archive's wiki now.
- * Without an engine nothing is asked; with one it costs the provider's
- * quota: only on an explicit action.
- */
-export function projectKnowledge(engine: AskConfig | null, maxQuestions?: number): Promise<KnowledgeProjectReport> {
-  return invoke<KnowledgeProjectReport>("docbase_knowledge_project", { engine, maxQuestions: maxQuestions ?? null })
 }
 
 /** The language the base writes its articles in. */
@@ -1689,16 +1682,6 @@ export function getDocumentKnowledge(locationId: number): Promise<DocumentKnowle
   return invoke<DocumentKnowledge>("docbase_knowledge_document", { locationId })
 }
 
-/** Reads the pending documents for the layer. It costs the provider's quota: only on an explicit action. */
-export function runKnowledge(engine: AskConfig, maxQuestions?: number): Promise<KnowledgeRunReport> {
-  return invoke<KnowledgeRunReport>("docbase_knowledge_run", { engine, maxQuestions: maxQuestions ?? null })
-}
-
-/** Resolves identities; with an engine it costs the provider's quota: only on an explicit action. */
-export function resolveKnowledge(engine: AskConfig | null, maxQuestions?: number): Promise<KnowledgeResolveReport> {
-  return invoke<KnowledgeResolveReport>("docbase_knowledge_resolve", { engine, maxQuestions: maxQuestions ?? null })
-}
-
 export function listEntities(kind: string | null = null, query: string | null = null): Promise<EntitySummary[]> {
   return invoke<EntitySummary[]>("docbase_knowledge_entities", { kind, query })
 }
@@ -2022,17 +2005,6 @@ export interface Progress {
   lastError: ModelError | null
   /** The questions of «quién es quién» and of the summaries that go by themselves (D-484). */
   autoQuestions?: AutoQuestions | null
-  /** The work without AI left in the base (D-719): while there is some, only the question of the cut goes out. */
-  barrier?: Barrier | null
-}
-
-/** The work without AI left in the base, by kind (D-719). */
-export interface Barrier {
-  text: number
-  scans: number
-  shapes: number
-  cut: number
-  similar: number
 }
 
 /**

@@ -346,7 +346,7 @@ fn apply_answer(conn: &Connection, key: &str, answer: &CutAnswer) -> Result<(), 
 
 /// How many files are still to cut with the rules (`cut_pending`) and
 /// `free` (an SQL condition over the version `c`) says do not hold back
-/// the barrier (`barrier.rs`).
+/// what is set aside (`process::steps::free_sql`).
 pub(crate) fn rules_left(conn: &rusqlite::Connection, free: &str) -> Result<usize, String> {
     conn.query_row(
         &format!(
@@ -588,12 +588,10 @@ impl DocBase {
             .prepare(&format!(
                 "SELECT DISTINCT a.version_id FROM appearance a
                  WHERE (EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = a.resource_hash AND {WITHOUT_ANSWER} AND {ASKED_BY_ITSELF})
-                        OR (EXISTS (SELECT 1 FROM cut_window w WHERE w.resource_hash = a.resource_hash AND {window_without})
-                            AND {windows_by_itself}))
+                        OR EXISTS (SELECT 1 FROM cut_window w WHERE w.resource_hash = a.resource_hash AND {window_without}))
                    AND EXISTS (SELECT 1 FROM location l WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {excluded})",
                 excluded = super::excluded_sql!(),
                 window_without = by_zones::WINDOW_WITHOUT_ANSWER,
-                windows_by_itself = by_zones::by_itself_sql(),
             ))
             .map_err(sql_err)?;
         let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
@@ -633,6 +631,7 @@ impl DocBase {
     /// The questions about the doubtful steps, for the thread that asks
     /// the model: nothing while the automatic reading is off, and only in
     /// the files of `ASKED_BY_ITSELF`.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn cut_background(&self, asker: &dyn DocumentAsker, limit: usize) -> Result<CutAskReport, String> {
         if !self.background_reading()? {
             return Ok(CutAskReport { left: self.cut_questions()?.by_itself, ..CutAskReport::default() });
@@ -643,6 +642,7 @@ impl DocBase {
     /// The worker's turn for the questions about the cuts (D-606): when the
     /// round of questions with a cap lets them go, up to `limit` more,
     /// counted in the round; `None` while they wait for a person.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn cut_round_turn(&self, asker: &dyn DocumentAsker, limit: usize) -> Result<Option<CutAskReport>, String> {
         if !self.auto_questions_go("cut")? {
             return Ok(None);
@@ -666,28 +666,17 @@ impl DocBase {
             )
             .map_err(sql_err)?;
         // Each window of the cut by zones still without an answer is one
-        // question more: by itself only when `WINDOWS_BY_ITSELF` is on.
-        let (windows_by_itself, windows): (i64, i64) = self
+        // question more, always asked by itself (D-720).
+        let windows: i64 = self
             .conn()
-            .query_row(
-                &format!(
-                    "SELECT coalesce(sum({}), 0), count(*) FROM cut_window w WHERE {}",
-                    by_zones::by_itself_sql(),
-                    by_zones::WINDOW_WITHOUT_ANSWER
-                ),
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
+            .query_row(&format!("SELECT count(*) FROM cut_window w WHERE {}", by_zones::WINDOW_WITHOUT_ANSWER), [], |row| row.get(0))
             .map_err(sql_err)?;
-        Ok(CutQuestions {
-            by_itself: (by_itself + windows_by_itself) as usize,
-            on_request: (all - by_itself + windows - windows_by_itself) as usize,
-        })
+        Ok(CutQuestions { by_itself: (by_itself + windows) as usize, on_request: (all - by_itself) as usize })
     }
 
     /// Doubtful steps without an answer in the files of `only`, or, without
     /// it, in those the thread asks by itself.
-    fn cut_doubtful_left(&self, only: Option<&BTreeSet<String>>) -> Result<usize, String> {
+    pub(crate) fn cut_doubtful_left(&self, only: Option<&BTreeSet<String>>) -> Result<usize, String> {
         let Some(only) = only else {
             return Ok(self.cut_questions()?.by_itself);
         };
@@ -704,6 +693,7 @@ impl DocBase {
     /// a time, with the automatic reading on or off; the answers are kept
     /// and counted like any other. Its parts are made again with them.
     /// Returns the parts as they are now.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn cut_ask_file(&self, asker: &dyn DocumentAsker, hash: &str) -> Result<Vec<parts::IncludedPart>, String> {
         if !asker.sees_images() {
             return Err("El motor de «Preguntar al modelo» no mira imágenes: no puede decir dónde empieza cada documento.".into());

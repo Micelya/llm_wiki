@@ -2787,6 +2787,12 @@ impl DocBase {
                 report.left += 1;
                 continue;
             }
+            // A document whose reading failed waits for its next attempt,
+            // or for a person (P-533, D-714): it takes no place in the run.
+            // What a person asked to read again goes all the same.
+            if !only_requested && self.question_held(TASK, item.content_id, "") {
+                continue;
+            }
             let (item_questions, shapes) = questions(&self.conn(), vocabulary, item.content_id, &item.body)?;
             let keys: Vec<String> = item_questions.iter().map(|q| q.key.clone()).collect();
             let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
@@ -2890,8 +2896,14 @@ fn ask_fresh(
     base.engine_state().asking(question.task, question.content_id);
     let answer = asker.ask(&question.prompt, &question.schema);
     base.engine_state().asked(answer.is_ok());
-    let answer = answer?;
-    parse_json::<serde_json::Value>(&answer)?;
+    // A failure stays over its document, with its class and its waits
+    // (P-533, D-714); one of the whole engine pauses the engine.
+    let answer = answer.inspect_err(|error| base.question_failed(question.task, question.content_id, &question.key, engine, error, None))?;
+    if let Err(error) = parse_json::<serde_json::Value>(&answer) {
+        base.question_failed(question.task, question.content_id, &question.key, engine, &error, Some(&answer));
+        return Err(error);
+    }
+    base.question_answered(question.task, question.content_id, &question.key, engine);
     if !usable(&answer) {
         return Ok(None);
     }

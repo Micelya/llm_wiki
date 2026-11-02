@@ -450,9 +450,6 @@ pub struct Progress {
     /// person (D-484), and what every question since the round began was
     /// for (D-606).
     pub auto_questions: super::auto_questions::AutoQuestions,
-    /// The work without AI left in the base (D-719): while there is some,
-    /// only the question of the cut goes out.
-    pub barrier: super::barrier::Barrier,
 }
 
 /// A folder of an origin and how many files it holds, its subfolders included.
@@ -1064,7 +1061,6 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
         recognition_engine: facts.recognizer.clone(),
         last_error: facts.now.last_error.clone(),
         auto_questions: super::auto_questions::AutoQuestions::of(conn, &facts.now, facts.permit)?,
-        barrier: super::barrier::barrier(conn)?,
     })
 }
 

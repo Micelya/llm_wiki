@@ -110,7 +110,7 @@ fn the_four_safe_rules_only_say_it_goes_on() {
 }
 
 /// A file of `n` pages, every step doubtful.
-fn doubtful_file(n: u32) -> Vec<PageReading> {
+pub(crate) fn doubtful_file(n: u32) -> Vec<PageReading> {
     (1..=n).map(|p| prose(p, &[&format!("Escrito inventado número {p}."), "Termina acá."])).collect()
 }
 
@@ -279,23 +279,21 @@ fn the_cut_by_zones_runs_where_there_is_a_reading_and_a_person_wins() {
     assert_eq!(steps.iter().map(|s| s.verdict).collect::<Vec<_>>(), vec![Verdict::New, Verdict::Doubtful, Verdict::Doubtful]);
     assert_eq!(steps[1].hints.as_deref(), Some("[]"));
 
-    // One window, never asked by itself (decision 3 of the plan): it waits
-    // for a person, with the automatic reading on.
+    // One window, asked by itself in every base, with nothing to turn on
+    // (D-720, E4 of 2 nov): the file waits for its answer.
     let q = base.cut_questions().unwrap();
-    assert_eq!((q.by_itself, q.on_request), (0, 1 + before.iter().filter(|s| s.verdict == Verdict::Doubtful && s.model_says.is_none() && s.question.is_some()).count()));
+    assert_eq!((q.by_itself, q.on_request), (1, before.iter().filter(|s| s.verdict == Verdict::Doubtful && s.model_says.is_none() && s.question.is_some()).count()));
+    assert!(!base.waiting_for_cut_answers(true).unwrap().is_empty());
     base.set_background_reading(true).unwrap();
     let eyes = Windows { calls: AtomicUsize::new(0), starts: 3, sure: "alta" };
     base.cut_background(&eyes, 5).unwrap();
-    assert_eq!(eyes.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(eyes.calls.load(Ordering::SeqCst), 1);
     assert!(base.waiting_for_cut_answers(true).unwrap().is_empty());
 
-    // A person asks: one question for the window, and the parts follow it.
+    // A person asks: the answer kept is taken, and the parts follow it.
     let parts = base.cut_ask_file(&eyes, &zoned).unwrap();
     assert_eq!(eyes.calls.load(Ordering::SeqCst), 1);
     assert_eq!(parts.iter().map(|p| (p.first_page, p.last_page)).collect::<Vec<_>>(), vec![(1, 2), (3, 3)]);
-    // Asked again, the answer kept is taken.
-    base.cut_ask_file(&eyes, &zoned).unwrap();
-    assert_eq!(eyes.calls.load(Ordering::SeqCst), 1);
 
     // A person's word wins over the model: one part, the whole file, with
     // nothing left to look at.

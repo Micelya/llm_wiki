@@ -2121,6 +2121,12 @@ fn ask_question(
     let answer = match asking.asker {
         Some(asker) => {
             let cached = cached_answer(&base.conn(), &question.key, Some(&asker.engine_id()))?;
+            // A question whose failure holds waits for its next attempt, or
+            // for a person (P-533): it is left for another run.
+            if cached.is_none() && base.question_held(question.task, question.content_id, &question.key) {
+                report.left += 1;
+                return Ok(None);
+            }
             if cached.is_none() {
                 asking.budget = asking.budget.saturating_sub(1);
                 report.asked += 1;

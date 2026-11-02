@@ -1,17 +1,16 @@
-//! The steps of the process (A1 of 2 nov): their order, the counts against
-//! the barrier of today, the gap the barrier does not see, a scope, the
-//! steps a person decided and the type a new member of a family takes.
+//! The steps of the process (A1 of 2 nov): their order, the counts of the
+//! steps without AI one piece at a time, the gap, a scope, the steps a
+//! person decided and the type a new member of a family takes. The barrier
+//! they were compared with is gone (E4): the loop is in `run_tests.rs`.
 //! Invented PDFs (R-24) and a stand-in model.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rusqlite::params;
 
-use super::super::barrier::Barrier;
 use super::super::failures::{self, About as FailureAbout, Failure};
 use super::super::knowledge::tests::{is_knowledge, type_answer};
 use super::super::testing::TempDir;
-use super::super::worker::ask_with;
 use super::super::DocBase;
 use super::{Class, Level, Scope, Step, STEPS};
 use crate::source_volume::asking::DocumentAsker;
@@ -115,8 +114,16 @@ fn settled(dir: &TempDir, files: &[(&str, Vec<Page>)]) -> (DocBase, String) {
     (base, origin)
 }
 
+/// One turn of the loop of the process.
 fn turn(base: &DocBase, model: &Model) {
-    ask_with(base, model, &|| {}, &|| {});
+    base.process_turn(Some(model)).unwrap();
+}
+
+/// What a person sets in Ajustes to let the base ask.
+fn reading_on(base: &DocBase) {
+    base.set_background_reading(true).unwrap();
+    base.set_ask_engine(Some(&crate::source_volume::asking::AskConfig { engine: "codex-cli".into(), model: "m".into(), ..Default::default() }))
+        .unwrap();
 }
 
 /// A scan the engine of this computer is still to read.
@@ -137,23 +144,17 @@ fn all(base: &DocBase) -> super::ProcessState {
     base.process_state(&Scope::All, false).unwrap()
 }
 
-/// The steps without AI that the barrier counts, side by side with it.
-/// The barrier does not see the key data that changed after a document was
-/// measured (the gap): that is `stale`, the only difference allowed.
-fn compare(base: &DocBase, at: &str) {
+/// The work without AI left, all the steps without AI together: it never
+/// grows with a piece of the same work, and no reading changed any key
+/// datum here.
+fn compare(base: &DocBase, at: &str) -> usize {
     let state = all(base);
-    let barrier: Barrier = base.barrier().unwrap();
-    let p = |step: Step| state.pending(step);
     let stale = super::super::similar::store::stale_by_key_data_now(&base.conn()).unwrap().len();
-    let steps = Barrier {
-        text: p(Step::FileHash) + p(Step::Text),
-        scans: p(Step::Scans),
-        shapes: p(Step::Shapes),
-        cut: p(Step::Zones) + p(Step::CutRules) + p(Step::Parts),
-        similar: p(Step::Signature) + p(Step::Similar) - stale,
-    };
-    assert_eq!(steps, barrier, "{at}: the steps count what the barrier counts");
     assert_eq!(stale, 0, "{at}: no reading changed any key datum here");
+    [Step::FileHash, Step::Text, Step::Scans, Step::Shapes, Step::Zones, Step::CutRules, Step::Parts, Step::Signature, Step::Similar]
+        .iter()
+        .map(|s| state.pending(*s))
+        .sum()
 }
 
 #[test]
@@ -175,7 +176,7 @@ fn the_eighteen_steps_go_in_order_nine_of_the_file_and_nine_of_the_document() {
 }
 
 #[test]
-fn the_steps_without_ai_count_what_the_barrier_counts_at_every_moment() {
+fn the_steps_without_ai_count_their_work_at_every_moment() {
     let dir = TempDir::new();
     let (base, origin) = with_files(
         &dir,
@@ -204,11 +205,10 @@ fn the_steps_without_ai_count_what_the_barrier_counts_at_every_moment() {
         }
     }
     local(&base);
-    compare(&base, "settled");
+    assert_eq!(compare(&base, "settled"), 0);
     assert!(moments >= 10, "it compared at {moments} moments");
-    assert_eq!(base.barrier().unwrap().left(), 0);
 
-    // A scan waiting, then failed: set aside, as the barrier lets it go.
+    // A scan waiting, then failed: set aside.
     let scan = add_scan(&base, &origin);
     compare(&base, "a scan waits");
     assert_eq!(all(&base).pending(Step::Scans), 1);
@@ -258,8 +258,6 @@ fn an_answer_that_changes_the_key_data_leaves_the_similar_documents_incomplete_i
             )
             .unwrap();
     }
-    // The barrier does not see it: nothing marked the documents yet.
-    assert_eq!(base.barrier().unwrap().similar, 0, "the gap of the barrier");
     // The step does, in the same moment, from the base.
     let state = base.process_state(&Scope::All, true).unwrap();
     assert_eq!(state.pending(Step::Similar), 3);
@@ -275,7 +273,7 @@ fn an_answer_that_changes_the_key_data_leaves_the_similar_documents_incomplete_i
 fn a_step_of_the_cut_a_person_decided_is_not_asked_again() {
     let dir = TempDir::new();
     let (base, _) = settled(&dir, &[("escrito.pdf", vec![prose("primera hoja"), prose("segunda hoja"), opener()])]);
-    base.set_background_reading(true).unwrap();
+    reading_on(&base);
     assert_eq!(all(&base).pending(Step::CutQuestion), 1);
     assert_eq!(all(&base).first_incomplete, Some(Step::CutQuestion));
 
@@ -340,7 +338,7 @@ fn a_document_new_to_a_family_already_asked_takes_its_type_without_asking() {
     let (base, origin) = settled(&dir, &[("acuerdo.pdf", vec![agreement("debida")]), ("acuerdo bis.pdf", vec![agreement("esperada")])]);
     let families: i64 = base.conn().query_row("SELECT count(*) FROM similar_group", [], |row| row.get(0)).unwrap();
     assert_eq!(families, 1, "the two agreements are one family");
-    base.set_background_reading(true).unwrap();
+    reading_on(&base);
     let model = Model::default();
     for _ in 0..6 {
         turn(&base, &model);

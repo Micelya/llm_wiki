@@ -17,7 +17,6 @@ use std::collections::BTreeSet;
 use rusqlite::{params, Connection};
 use serde::Serialize;
 
-use super::super::barrier::free_sql;
 use super::super::{excluded_sql, sql_err};
 use crate::source_volume::page_shape::SHAPES_ENGINE;
 
@@ -116,6 +115,7 @@ impl Step {
         self as u8
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn from_number(number: u8) -> Option<Step> {
         STEPS.get((number as usize).checked_sub(1)?).copied()
     }
@@ -251,7 +251,7 @@ impl Step {
                     "los documentos con tipo",
                     "la base de sus datos y la respuesta a su pregunta",
                     "un tipo nuevo",
-                    &["types"],
+                    &["data"],
                 ),
                 Step::TemplateFields => (
                     "template-fields",
@@ -460,12 +460,27 @@ impl Count {
     }
 }
 
+/// SQL: no failure is open, of any class, about the version `version` (an
+/// SQL value) or about a file it is in: what failed is set aside, and does
+/// not leave its step incomplete.
+pub(crate) fn free_sql(version: &str) -> String {
+    format!(
+        "NOT EXISTS (SELECT 1 FROM failure fb WHERE fb.state <> 'resolved' AND (
+             (fb.item_kind = 'version' AND fb.item = CAST({version} AS TEXT))
+             OR fb.file_hash IN (SELECT fc.hash FROM file fc WHERE fc.version_id = {version})
+             OR fb.file_hash IN (SELECT ab.resource_hash FROM appearance ab WHERE ab.version_id = {version})))"
+    )
+}
+
 /// What holds back every question to the model now, if anything does: the
-/// automatic reading off, or the engine paused after a failure of the
-/// whole engine (D-714). Its pending elements are set aside.
+/// automatic reading off, no engine chosen, or the engine paused after a
+/// failure of the whole engine (D-714). Its pending elements are set aside.
 pub(crate) fn asking_held(conn: &Connection, reading_on: bool) -> Result<Option<&'static str>, String> {
     if !reading_on {
         return Ok(Some("la lectura automática está apagada"));
+    }
+    if super::super::services::ask_engine(conn)?.is_none() {
+        return Ok(Some("falta elegir el motor de IA"));
     }
     let paused: i64 = conn
         .query_row(
@@ -609,7 +624,9 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
         }
         Step::CutRules => Count::of(super::super::cut::rules_left(conn, &format!("{free} AND {versions}"))?, failed()?),
         Step::CutQuestion => {
-            let cut = super::super::cut::by_zones::by_itself_sql();
+            // Every window of the cut by zones is asked by itself (D-720);
+            // one whose failure holds is set aside.
+            let window_held = super::super::cut::by_zones::window_held_sql();
             let holds = super::super::failures::holds_any_sql("cut-question", "s.resource_hash || '#' || s.after_page");
             let steps = |held: &str| {
                 count(
@@ -622,15 +639,20 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
                     ),
                 )
             };
-            let windows = count(
-                conn,
-                &format!(
-                    "SELECT count(*) FROM cut_window w WHERE {} AND {cut} AND {}",
-                    super::super::cut::by_zones::WINDOW_WITHOUT_ANSWER,
-                    scope.file_sql("w.resource_hash")
-                ),
-            )?;
-            Count::of(steps(&format!("NOT {holds}"))? + windows, steps(&holds)?)
+            let windows = |held: &str| {
+                count(
+                    conn,
+                    &format!(
+                        "SELECT count(*) FROM cut_window w WHERE {} AND {held} AND {}",
+                        super::super::cut::by_zones::WINDOW_WITHOUT_ANSWER,
+                        scope.file_sql("w.resource_hash")
+                    ),
+                )
+            };
+            Count::of(
+                steps(&format!("NOT {holds}"))? + windows(&format!("NOT {window_held}"))?,
+                steps(&holds)? + windows(&window_held)?,
+            )
         }
         Step::Parts => Count::of(super::super::cut::parts::parts_left(conn, &format!("{free} AND {versions}"))?, failed()?),
         Step::Signature => Count::of(super::super::similar::store::unsigned_left(conn, &format!("{free} AND {versions}"))?, failed()?),
@@ -640,31 +662,37 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
             // the base, in the same moment an answer is kept.
             let marked = super::super::similar::store::dirty_left(conn, &format!("{free} AND {versions}"))?;
             let only = scope.versions(conn)?;
-            let stale = super::super::similar::store::stale_by_key_data_now(conn)?
+            // A document set aside for going back too often waits for a
+            // person (D-774, point 2).
+            let back = super::super::failures::held_versions(conn, super::super::failures::BACK_STAGE)?;
+            let (aside, stale): (Vec<i64>, Vec<i64>) = super::super::similar::store::stale_by_key_data_now(conn)?
                 .into_iter()
                 .filter(|id| only.as_ref().is_none_or(|o| o.contains(id)))
-                .count();
-            Count::of(marked + stale, 0)
+                .partition(|id| back.contains(id));
+            Count::of(marked + stale.len(), aside.len())
         }
         Step::Type => {
             let only = scope.versions(conn)?;
             let left = super::super::similar::classify::types_left(conn, only.as_ref())?;
-            Count { without_asking: left.by_marks + left.by_inheritance, ..Count::of(left.units, failed()?) }
+            // A unit whose question a failure holds is set aside (P-533).
+            Count { without_asking: left.by_marks + left.by_inheritance, ..Count::of(left.units, left.held) }
         }
         Step::TypeData => {
             let only = in_scope_but_low(conn, scope)?;
             let set_aside = low_in_scope(conn, scope)?;
-            Count::of(super::super::similar::classify::data_left(conn, Some(&only))?, set_aside)
+            let (pending, held) = super::super::similar::classify::data_left(conn, Some(&only))?;
+            Count::of(pending, set_aside + held)
         }
         Step::TemplateFields => {
             let only = scope.versions(conn)?;
             let low = low_confidence(conn)?;
+            let held = super::super::failures::held_versions(conn, "templates")?;
             let (mut pending, mut set_aside) = (0, 0);
             for (principal, waiting) in super::super::similar::naming::waiting_templates(conn)? {
                 if waiting == 0 || only.as_ref().is_some_and(|o| !o.contains(&principal)) {
                     continue;
                 }
-                if low.contains(&principal) {
+                if low.contains(&principal) || held.contains(&principal) {
                     set_aside += 1;
                 } else {
                     pending += 1;
@@ -675,6 +703,9 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
         Step::Reading => {
             let only = scope.versions(conn)?;
             let low = low_confidence(conn)?;
+            // A document whose reading failed waits for its next attempt,
+            // or for a person (P-533): set aside.
+            let held = super::super::failures::held_versions(conn, "reading")?;
             let (mut pending, mut checks, mut set_aside) = (0, 0, 0);
             let standings = super::super::knowledge::extract::standings(conn, &super::super::Visible::All, None)?;
             for standing in standings {
@@ -686,14 +717,16 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
                 if reading.is_some_and(|r| r.current) && !to_check {
                     continue;
                 }
-                if low.contains(&standing.content_id) {
+                // What a person asked to read again is never held.
+                let asked_again = reading.is_some_and(|r| r.reread);
+                if low.contains(&standing.content_id) || (!to_check && !asked_again && held.contains(&standing.content_id)) {
                     set_aside += 1;
                 } else {
                     pending += 1;
                     checks += usize::from(to_check);
                 }
             }
-            Count { without_asking: checks, ..Count::of(pending, set_aside + failed()?) }
+            Count { without_asking: checks, ..Count::of(pending, set_aside) }
         }
         Step::Identity => {
             let marked = count(conn, "SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')")?;

@@ -45,6 +45,7 @@ const CAUSES: Record<string, { one: string; many: string; todo: string }> = {
   "bad-answer": { one: "respuesta del modelo vino con otra forma", many: "respuestas del modelo vinieron con otra forma", todo: "No hace falta hacer nada; si se repite, se deja de intentar y se avisa." },
   "folder-disconnected": { one: "archivo está en una carpeta que no está conectada", many: "archivos están en carpetas que no están conectadas", todo: "Conectá la carpeta o el disco donde está." },
   "before-record": { one: "falla quedó de antes, sin su causa", many: "fallas quedaron de antes, sin su causa", todo: "No hace falta hacer nada: se vuelve a intentar para conocer la causa." },
+  "goes-back": { one: "documento volvió más de dos veces a un paso anterior", many: "documentos volvieron más de dos veces a un paso anterior", todo: "Miralo: puede ser una respuesta que cambia cada vez. Se deja aparte hasta que lo revises." },
   "program-error": { one: "error del programa", many: "errores del programa", todo: "No se puede arreglar desde acá." },
   unknown: { one: "falla desconocida", many: "fallas desconocidas", todo: "No se puede arreglar desde acá." },
 }
@@ -68,6 +69,7 @@ const STAGES: Record<string, string> = {
   recognition: "al leer un escaneo",
   sweep: "al revisar una carpeta",
   thread: "en el trabajo de fondo",
+  "process-back": "al volver a un paso anterior del proceso",
 }
 
 function when(at: number): string {

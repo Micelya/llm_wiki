@@ -26,9 +26,6 @@
 //! Design: `docs/design/base-documental.md`.
 
 pub mod auto_questions;
-pub mod barrier;
-#[cfg(test)]
-mod barrier_tests;
 pub mod bridge;
 pub mod chat_files;
 pub mod commands;
@@ -60,7 +57,7 @@ pub mod thresholds;
 pub mod tree;
 pub mod upgrade;
 pub mod work_origin;
-mod worker;
+
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -114,6 +111,8 @@ pub struct DocBase {
     conn: Mutex<Connection>,
     /// What the engine is doing now and the last error of the model (in memory).
     engine: progress::EngineState,
+    /// What the loop of the process keeps between its turns (in memory).
+    process: Mutex<process::run::Memory>,
     /// Where the text recognized from scans is kept page by page, beside
     /// the database (`recognize.rs`).
     recognized: PathBuf,
@@ -218,6 +217,7 @@ impl DocBase {
         let base = Self {
             conn: Mutex::new(conn),
             engine: progress::EngineState::default(),
+            process: Mutex::default(),
             recognized,
         };
         labels::adopt_conventions(&base)?;

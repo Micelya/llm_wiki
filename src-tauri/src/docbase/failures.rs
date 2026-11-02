@@ -33,6 +33,9 @@ use super::{now_ms, sql_err, DocBase};
 pub const SHAPES_STAGE: &str = "shapes";
 pub const CUT_QUESTION_STAGE: &str = "cut-question";
 pub const DIGITAL_SIGNATURES_STAGE: &str = "digital-signatures";
+/// An element that went back to an earlier step more times than the
+/// process allows (D-774, point 2): it waits for a person.
+pub const BACK_STAGE: &str = "process-back";
 const FILE_WAITING_STAGES: &str = "'shapes', 'cut', 'parts', 'zones'";
 
 /// The settings of the threshold of the indicator (D-722).
@@ -135,6 +138,9 @@ pub const CAUSES: &[Cause] = &[
     c("folder-disconnected", Transient, Item),
     // Written before this record: tried again to learn its cause.
     c("before-record", Transient, Item),
+    // An element that went back to an earlier step more than twice (D-774,
+    // point 2): it waits for a person.
+    c("goes-back", Unknown, Item),
     // An error of the program (a panic) and anything else.
     c("program-error", Unknown, Item),
     c("unknown", Unknown, Item),
@@ -265,6 +271,11 @@ pub enum About {
     /// A stretch of the question of the cut: a file and the page after
     /// which its step is.
     Span { file: String, after: u32 },
+    /// A window of the cut by zones: a file and its first page (P-535).
+    Window { file: String, first: u32 },
+    /// One question to the model about no document (the summary of a page
+    /// of an entity), by its key (P-533).
+    Question(String),
     /// A whole engine, by its id.
     Engine(String),
     /// A folder (origin) of the base.
@@ -278,7 +289,8 @@ impl About {
         match self {
             About::File(_) => "file",
             About::Version(_) => "version",
-            About::Span { .. } => "span",
+            About::Span { .. } | About::Window { .. } => "span",
+            About::Question(_) => "question",
             About::Engine(_) => "engine",
             About::Origin(_) => "origin",
             About::Thread(_) => "thread",
@@ -290,13 +302,14 @@ impl About {
             About::File(hash) => hash.clone(),
             About::Version(id) => id.to_string(),
             About::Span { file, after } => format!("{file}#{after}"),
-            About::Engine(id) | About::Origin(id) | About::Thread(id) => id.clone(),
+            About::Window { file, first } => format!("{file}#v{first}"),
+            About::Engine(id) | About::Origin(id) | About::Thread(id) | About::Question(id) => id.clone(),
         }
     }
 
     fn file(&self) -> Option<&str> {
         match self {
-            About::File(hash) | About::Span { file: hash, .. } => Some(hash),
+            About::File(hash) | About::Span { file: hash, .. } | About::Window { file: hash, .. } => Some(hash),
             _ => None,
         }
     }
@@ -583,6 +596,71 @@ pub fn file_waits_sql(hash: &str) -> String {
     )
 }
 
+/// The stage of the record of a question to the model, by its task: the
+/// seven steps of the questions (P-533). The question of the cut keeps its
+/// own (`CUT_QUESTION_STAGE`).
+pub fn question_stage(task: &str) -> &'static str {
+    match task {
+        "type" => "types",
+        "data" => "data",
+        super::similar::naming::FIELDS_TASK => "templates",
+        "knowledge" => "reading",
+        "identity" => "resolve",
+        "matter" => "matters",
+        _ => "pages",
+    }
+}
+
+/// What a question is about in the record: its document, or the question
+/// itself when it is about none (the summary of a page of an entity).
+pub(crate) fn question_about(content_id: i64, key: &str) -> About {
+    if content_id > 0 {
+        About::Version(content_id)
+    } else {
+        About::Question(key.to_string())
+    }
+}
+
+/// Whether a failure of `stage` over `about` holds now: permanent or
+/// unknown (they are not tried again by themselves, D-714), or transient
+/// before its next attempt. A document set aside for going back too many
+/// times (`BACK_STAGE`) is held in every step.
+pub fn holds(conn: &Connection, stage: &str, about: &About) -> Result<bool, String> {
+    conn.query_row(
+        &format!(
+            "SELECT EXISTS (SELECT 1 FROM failure WHERE state <> 'resolved' AND item_kind = ?2 AND item = ?3
+                 AND ((stage = ?1 AND (next_at IS NULL OR next_at > {NOW_SQL})) OR stage = '{BACK_STAGE}'))"
+        ),
+        params![stage, about.kind(), about.item()],
+        |row| row.get(0),
+    )
+    .map_err(sql_err)
+}
+
+/// The documents a failure of `stage` holds now (`holds`), with those set
+/// aside for going back too many times.
+pub fn held_versions(conn: &Connection, stage: &str) -> Result<std::collections::BTreeSet<i64>, String> {
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT DISTINCT CAST(item AS INTEGER) FROM failure WHERE state <> 'resolved' AND item_kind = 'version'
+               AND ((stage = ?1 AND (next_at IS NULL OR next_at > {NOW_SQL})) OR stage = '{BACK_STAGE}')"
+        ))
+        .map_err(sql_err)?;
+    let rows = statement.query_map([stage], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
+}
+
+/// The earliest next attempt still to come of any failure, or of a pause
+/// of an engine: when the process wakes up by itself.
+pub fn next_attempt(conn: &Connection) -> Result<Option<i64>, String> {
+    conn.query_row(
+        &format!("SELECT min(next_at) FROM failure WHERE state <> 'resolved' AND next_at IS NOT NULL AND next_at > {NOW_SQL}"),
+        [],
+        |row| row.get(0),
+    )
+    .map_err(sql_err)
+}
+
 /// A failure still open, as «Atención» shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -661,6 +739,41 @@ impl DocBase {
                 None
             }
         }
+    }
+
+    /// A question of one of the seven steps of the questions failed
+    /// (P-533, D-714): written down over its document (or over the
+    /// question, when it is about none) with its class and its waits; one
+    /// of the whole engine pauses that engine. `answer`: the answer of
+    /// another shape, which counts the equal ones.
+    pub(crate) fn question_failed(&self, task: &str, content_id: i64, key: &str, engine: &str, error: &str, answer: Option<&str>) {
+        let stage = question_stage(task);
+        let mut failure = Failure::new(stage, question_about(content_id, key), error);
+        if answer.is_some() {
+            failure.cause = cause("bad-answer");
+            failure.answer = answer;
+        }
+        if failure.cause.scope == Scope::Engine {
+            failure.about = About::Engine(engine.to_string());
+        }
+        failure.engine = Some(engine);
+        self.note(&failure);
+    }
+
+    /// A question of those steps was answered: its failure, and those of
+    /// its engine, are resolved.
+    pub(crate) fn question_answered(&self, task: &str, content_id: i64, key: &str, engine: &str) {
+        let conn = self.conn();
+        let about = question_about(content_id, key);
+        if let Err(error) = resolve(&conn, question_stage(task), &about).and_then(|_| resolve_engine(&conn, engine)) {
+            eprintln!("[docbase] {error}");
+        }
+    }
+
+    /// Whether the question is held by a failure now (`holds`): it is not
+    /// asked, and does not take a place in the run.
+    pub(crate) fn question_held(&self, task: &str, content_id: i64, key: &str) -> bool {
+        holds(&self.conn(), question_stage(task), &question_about(content_id, key)).unwrap_or(false)
     }
 }
 

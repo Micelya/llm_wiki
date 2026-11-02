@@ -702,9 +702,10 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         turn_reading_on(&base);
         let one = content_of(&base, "uno.png");
         assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![one])).unwrap(), 1);
-        // The thread that asks the model reads no scan, asked for or not.
-        let model = crate::docbase::knowledge::tests::FakeModel::new("falso:1", |_| String::new());
-        crate::docbase::worker::ask_with(&base, &model, &|| {}, &|| {});
+        // Nothing asks the model for a scan (there is no thread that asks
+        // any more: the loop of the process reads it with the reader of
+        // this computer; the stage of the reader chosen in Ajustes, E2,
+        // changes it).
         assert_eq!(state_of(&base, "uno.png"), "needs-recognition");
         assert_eq!(requested_recognitions(&base.conn()).unwrap(), vec![one]);
         // The thread of this computer reads it, what a person asked first,

@@ -171,7 +171,8 @@ fn without_the_model_of_zones_the_pdfs_wait_with_their_failure() {
     // Only the PDF of two pages or more waits for it; the cut waits too.
     assert_eq!(zones_left(&base.conn(), free, BANDS).unwrap(), 1);
     assert_eq!(base.cut_pending(10).unwrap(), 0);
-    assert!(base.barrier().unwrap().cut >= 1);
+    let process = base.process_state(&crate::docbase::process::Scope::All, false).unwrap();
+    assert!(process.pending(crate::docbase::process::Step::Zones) >= 1);
     let waiting = base.zones_waiting(10).unwrap();
     assert_eq!(waiting.len(), 1);
     assert!(waiting[0].1.ends_with("a.pdf"));

@@ -478,6 +478,11 @@ impl DocBase {
             }
             let Some(pending) = pending_of(&self.conn(), principal)? else { continue };
             let kept = cached_answer(&self.conn(), &pending.question.key, Some(&engine))?;
+            // A template whose question failed waits for its next attempt,
+            // or for a person: it takes no place in the run (P-533).
+            if kept.is_none() && self.question_held(pending.question.task, pending.question.content_id, &pending.question.key) {
+                continue;
+            }
             let answer = match kept {
                 Some(answer) => answer,
                 None if budget == 0 || stopped => {

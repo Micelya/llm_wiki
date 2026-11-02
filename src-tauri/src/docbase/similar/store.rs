@@ -324,13 +324,6 @@ fn unsigned_or_failed_where() -> String {
     )
 }
 
-/// How many documents are still to sign or to measure against the others,
-/// `free` (an SQL condition over the version `c`) saying they hold the
-/// barrier (`barrier.rs`).
-pub(crate) fn similar_left(conn: &Connection, free: &str) -> Result<usize, String> {
-    Ok(unsigned_left(conn, free)? + dirty_left(conn, free)?)
-}
-
 /// How many documents are still to sign, `free` (an SQL condition over the
 /// version `c`) saying which count: the step of the signature (A1 of 2 nov).
 pub(crate) fn unsigned_left(conn: &Connection, free: &str) -> Result<usize, String> {
@@ -372,7 +365,7 @@ fn key_data_now(conn: &Connection) -> Result<String, String> {
 /// The documents measured with other key data than the ones they have now,
 /// not yet marked to measure again (R-15). Reads only: the step of the
 /// similar documents counts them from the base, in the same moment an
-/// answer changes them (A1 of 2 nov; it closes the gap of the barrier).
+/// answer changes them (A1 of 2 nov; it closes the gap, E4).
 /// `now` is `key_data_now`: when it is the one of the last check, none.
 pub(crate) fn stale_by_key_data(conn: &Connection, now: &str) -> Result<Vec<i64>, String> {
     let then: Option<String> = conn

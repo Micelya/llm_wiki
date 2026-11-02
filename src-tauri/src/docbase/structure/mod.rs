@@ -64,7 +64,7 @@ fn waiting_where() -> String {
 }
 
 /// How many PDFs wait for their reading by zones and `free` (an SQL
-/// condition over the version `c`) says hold the barrier (`barrier.rs`).
+/// condition over the version `c`) says count (`process::steps::free_sql`).
 pub(crate) fn zones_left(conn: &Connection, free: &str, bands: Bands) -> Result<usize, String> {
     conn.query_row(
         &format!(

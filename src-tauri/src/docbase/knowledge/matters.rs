@@ -1213,7 +1213,10 @@ impl crate::docbase::DocBase {
             let cached = crate::docbase::similar::classify::cached_answer(&self.conn(), &question.key, engine.as_deref())?;
             let answer = match (cached, asker) {
                 (Some(answer), _) => Some(answer),
-                (None, Some(asker)) if !stopped && report.asked < max_questions => {
+                // A question whose failure holds waits (P-533).
+                (None, Some(asker))
+                    if !stopped && report.asked < max_questions && !self.question_held(question.task, question.content_id, &question.key) =>
+                {
                     report.asked += 1;
                     match crate::docbase::similar::classify::ask_and_keep(self, asker, &question) {
                         Ok(answer) => Some(answer),

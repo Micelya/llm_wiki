@@ -2841,6 +2841,10 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
                 None => {
                     if let Some(collect) = &mut asking.collect {
                         collect.push(question);
+                    } else if asking.asker.is_some() && base.question_held(question.task, question.content_id, &question.key) {
+                        // Its failure holds: it waits for its next attempt,
+                        // or for a person (P-533).
+                        report.left += 1;
                     } else if let (Some(asker), true) = (asking.asker, asking.budget > 0) {
                         asking.budget -= 1;
                         report.asked += 1;
