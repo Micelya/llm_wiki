@@ -4839,9 +4839,9 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "La clave de los parecidos incluye las entidades, los tipos y las identidades. Cuando llega una respuesta que los cambia, el hilo sin IA marca documentos para volver a medir en su paso siguiente, de 0,1 a 3,3 segundos después. En ese hueco, la barrera da 0 y sale la pregunta siguiente. En la corrida de control salieron así 13 preguntas en la carpeta (4 de tipo, 8 de identidad y 1 de páginas) y 5 de identidad en el examen; ninguna de lectura de entidades. Arreglo posible: que la barrera mire también si la clave de los parecidos cambió, o que el hilo que pregunta la revise antes de mirar la barrera. Además, el volcado de la corrida de control tiene que usar la hora de salida de cada pregunta (D-762). Consultas de producción por documento (D-672): 0, o alguna menos si un tipo sale por familia. 2026-11-01: El proceso único (D-765) reemplaza a la barrera y cierra el hueco por construcción: volver a medir los parecidos es parte de la condición de su paso y se calcula antes de elegir cada operación. Lo hacen las etapas A1 y A2 de la tanda del 2 nov, y se mide en el registro de operaciones.",
+      "detalle": "La clave de los parecidos incluye las entidades, los tipos y las identidades. Cuando llega una respuesta que los cambia, el hilo sin IA marca documentos para volver a medir en su paso siguiente, de 0,1 a 3,3 segundos después. En ese hueco, la barrera da 0 y sale la pregunta siguiente. En la corrida de control salieron así 13 preguntas en la carpeta (4 de tipo, 8 de identidad y 1 de páginas) y 5 de identidad en el examen; ninguna de lectura de entidades. Arreglo posible: que la barrera mire también si la clave de los parecidos cambió, o que el hilo que pregunta la revise antes de mirar la barrera. Además, el volcado de la corrida de control tiene que usar la hora de salida de cada pregunta (D-762). Consultas de producción por documento (D-672): 0, o alguna menos si un tipo sale por familia. 2026-11-01: El proceso único (D-765) reemplaza a la barrera y cierra el hueco por construcción: volver a medir los parecidos es parte de la condición de su paso y se calcula antes de elegir cada operación. Lo hacen las etapas A1 y A2 de la tanda del 2 nov, y se mide en el registro de operaciones. 2026-11-02: Etapa A1 del 2 nov (decisión D-781): el paso de los parecidos ya cuenta desde la base los documentos cuyos datos clave cambiaron, en el mismo momento en que se guarda la respuesta, sin esperar a otro hilo; una prueba lo muestra con tres documentos (la barrera de hoy ve 0, el paso ve 3). El hueco se cierra del todo cuando un solo hilo elija la operación siguiente con esa condición (etapa A2).",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-570",
@@ -4896,12 +4896,12 @@
       "titulo": "Que la app no vuelva a preguntar los saltos que ya decidió una persona",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "Hoy la condición de «salto sin respuesta» no mira las decisiones de una persona (`docbase/cut/mod.rs:167`), así que un salto que ya decidió alguien puede volver a preguntarse. Estaba en el plan del 1 nov, sin número y sin código. Es técnico y va con el corte (la etapa 3b de la tanda del 2 nov). Consultas de producción por documento (D-672): resta, en los saltos que ya decidió una persona.",
+      "detalle": "Hoy la condición de «salto sin respuesta» no mira las decisiones de una persona (`docbase/cut/mod.rs:167`), así que un salto que ya decidió alguien puede volver a preguntarse. Estaba en el plan del 1 nov, sin número y sin código. Es técnico y va con el corte (la etapa 3b de la tanda del 2 nov). Consultas de producción por documento (D-672): resta, en los saltos que ya decidió una persona. 2026-11-02: Hecho en el código en la etapa A1 del 2 nov (decisión D-781): la pregunta del corte ya no incluye un salto que decidió una persona, ni un tramo del corte por zonas que una persona decidió entero; vale para la condición del paso y para lo que la app pregunta hoy. Probado con una base inventada: decidido el salto, el modelo no recibe la pregunta. Falta verlo en la app.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-575",
@@ -5180,6 +5180,30 @@
       "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). (1) Las tablas de documentos de las páginas de personas y casos muestran el tipo como código interno, en minúscula y sin tildes («correo electronico», «resolucion judicial», «escrito inicio sucesion intestada»), mientras la lista de Documentos usa el nombre bien escrito. (2) La lista de tipos propuestos tiene nombres repetidos (dos «Acta de defunción», dos «Oficio judicial electrónico») y casi iguales («Acta» y «Partida» de defunción, «Providencia» y «Proveído» judicial), y las plantillas se llaman «Carta documento (2)» y «(3)» sin decir en qué difieren. (3) Los nombres de caso usan «entre A y B» donde no hay dos partes (una sucesión «entre» la madre y el hijo fallecidos), hay dos casos con el mismo nombre y un «Caso sin nombre» que junta dos copias de la misma escritura. (4) Los títulos largos (el nombre de archivo de un compuesto) se parten en una columna angosta junto a los botones. (5) Alias que no son nombres: la línea de lectura mecánica de un pasaporte, el nombre de un área de una empresa, un apellido solo; y personas con el apellido primero o pegado («Dr.nombreapellido»). (6) La pantalla Habilidades lista las habilidades de programación de la máquina, en inglés. (7) El panel de Investigación aprieta la pantalla de abajo en una columna angosta; el Grafo es una nube de cientos de nodos sin filtro; el origen de prueba se muestra como «1»; la lista de Documentos muestra la fecha del archivo y no la del documento. Consultas de producción por documento (D-672): igual.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-595",
+      "titulo": "Lo que la primera parte del proceso deja para la segunda: los pedidos de una persona dentro de su paso, la ronda con tope como permiso y lo que queda en identidad, asuntos y síntesis",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "La etapa A1 del 2 nov dejó los 18 pasos del proceso con su condición y su alcance (docbase/process, decisión D-781), sin cambiar quién hace el trabajo. Para la etapa A2, que pone un solo hilo: (1) anotar en la base los pedidos de una persona que tocan el proceso, para que su paso los atienda primero y limitados al alcance de su documento (decisión 2 del 2 nov): «Preguntar al modelo» sobre el corte de un PDF (el paso de la pregunta del corte, también con los saltos que la app no pregunta sola), leer con la IA un documento ilegible o un manuscrito viejo (el paso de los escaneos, con un motor de la nube para ese documento) y la corrida de tipos de la pantalla de tipos; (2) guardar lo que queda después de cada pasada de la identidad, los asuntos y las síntesis de las páginas: hoy esos pasos solo saben lo que marcan para hacer y, si no hay nada marcado, dicen que no saben hasta una pasada (D-452); (3) la ronda con tope como permiso de los pasos de la pregunta del corte, la identidad y las páginas, con lo que pasa el tope apartado y esperando a una persona; (4) contar en el paso del texto la reextracción y los documentos hechos desde una plantilla, que hoy la barrera tampoco cuenta; (5) el sello del inventario con la hora del último cambio avisado, que llega con el vigilante (A3).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-596",
+      "titulo": "Que la regla nueva del tipo aparte los documentos de tipo de confianza baja en los pasos posteriores al tipo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Decisión 5 del 2 nov: lo que sale de un documento de tipo de confianza baja no se usa en ningún proceso ni para información derivada. La etapa A1 dejó el lugar: la función low_confidence de docbase/process/steps.rs (hoy vacía) y la marca after_the_type en los pasos 13 a 18. La etapa B la llena: los datos del tipo, los nombres de los campos de las plantillas y la lectura de entidades (pasos 13, 14 y 15) ya apartan por documento lo que esa función devuelva; la identidad, los asuntos y las páginas (pasos 16, 17 y 18) tienen que filtrar lo que toman de esos documentos (sus menciones, sus partes, lo que muestran), porque su elemento no es un documento.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
     }
   ]
 }
