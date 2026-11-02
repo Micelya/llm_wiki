@@ -4632,12 +4632,12 @@
       "titulo": "Las fallas de las preguntas que no son el corte: anotarlas por documento y con las esperas de D-714",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "Viene de D-714 y D-732. En la etapa 1 del 1 nov, la pregunta del corte anota cada falla por tramo, con su clase y sus esperas (10 minutos, 1 hora, 6 horas, un día), y una falla de todo el motor pausa solo ese motor para todas las preguntas. Las fallas de una sola pregunta del tipo, los datos, las plantillas, la lectura, las identidades, los asuntos y las páginas se anotan en el registro por paso (no por documento, porque esos pasos devuelven solo el mensaje), y el paso sigue con su espera de hoy de 10 minutos. Falta que esos pasos devuelvan el documento de cada falla, que la falla quede sobre él con su clase, y que el reintento siga las esperas de D-714 sin frenar a los demás documentos. Consultas de producción por documento: resta, porque hoy un documento que falla se vuelve a preguntar cada 10 minutos.",
+      "detalle": "Viene de D-714 y D-732. En la etapa 1 del 1 nov, la pregunta del corte anota cada falla por tramo, con su clase y sus esperas (10 minutos, 1 hora, 6 horas, un día), y una falla de todo el motor pausa solo ese motor para todas las preguntas. Las fallas de una sola pregunta del tipo, los datos, las plantillas, la lectura, las identidades, los asuntos y las páginas se anotan en el registro por paso (no por documento, porque esos pasos devuelven solo el mensaje), y el paso sigue con su espera de hoy de 10 minutos. Falta que esos pasos devuelvan el documento de cada falla, que la falla quede sobre él con su clase, y que el reintento siga las esperas de D-714 sin frenar a los demás documentos. Consultas de producción por documento: resta, porque hoy un documento que falla se vuelve a preguntar cada 10 minutos. 2026-11-02: Hecho en el código en la etapa E4 del 2 nov (decisión D-784): las fallas del tipo, los datos, las plantillas, la lectura de entidades, la identidad, los asuntos y las páginas quedan sobre su documento con su clase y sus esperas; las permanentes y desconocidas no se reintentan solas, y Atención dice lo que pasa. Probado con respuestas simuladas (una permanente y una pasajera del tipo). Falta verlo en la app.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-534",
@@ -4659,9 +4659,9 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "base",
-      "detalle": "Viene de la tabla de clases del 1 nov (A2). La etapa 1 dejó en el registro de fallas la ficha, el corte, la lectura por zonas, las partes, la firma de parecidos, las firmas digitales, la pregunta del corte por tramo, los pasos de las preguntas, el barrido, el escaneo no reconocido, las respuestas guardadas que no se leen y la caída de un hilo. Quedan afuera: las preguntas de las ventanas del corte por zonas (hoy solo las pide una persona), la parte sin texto de la extracción (fila 9, es P-524: espera mientras pueda llegar y pasa a desconocida pasado el umbral), el motor de la lectura por zonas que falta (fila 6, cuando la lectura por zonas entre en Rust, D-725) y la base que no abre al arrancar la app (no hay base donde anotarla). Consultas de producción por documento: 0.",
+      "detalle": "Viene de la tabla de clases del 1 nov (A2). La etapa 1 dejó en el registro de fallas la ficha, el corte, la lectura por zonas, las partes, la firma de parecidos, las firmas digitales, la pregunta del corte por tramo, los pasos de las preguntas, el barrido, el escaneo no reconocido, las respuestas guardadas que no se leen y la caída de un hilo. Quedan afuera: las preguntas de las ventanas del corte por zonas (hoy solo las pide una persona), la parte sin texto de la extracción (fila 9, es P-524: espera mientras pueda llegar y pasa a desconocida pasado el umbral), el motor de la lectura por zonas que falta (fila 6, cuando la lectura por zonas entre en Rust, D-725) y la base que no abre al arrancar la app (no hay base donde anotarla). Consultas de producción por documento: 0. 2026-11-02: Etapa E4 del 2 nov (D-784): las ventanas del corte por zonas ya entran al registro, cada una con su clase; una falla de todo el motor lo pausa. Lo demás de este pendiente sigue.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-536",
@@ -4836,10 +4836,10 @@
       "titulo": "Cerrar el hueco de la barrera: el trabajo que deja una respuesta tiene que contar antes de la pregunta siguiente",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "La clave de los parecidos incluye las entidades, los tipos y las identidades. Cuando llega una respuesta que los cambia, el hilo sin IA marca documentos para volver a medir en su paso siguiente, de 0,1 a 3,3 segundos después. En ese hueco, la barrera da 0 y sale la pregunta siguiente. En la corrida de control salieron así 13 preguntas en la carpeta (4 de tipo, 8 de identidad y 1 de páginas) y 5 de identidad en el examen; ninguna de lectura de entidades. Arreglo posible: que la barrera mire también si la clave de los parecidos cambió, o que el hilo que pregunta la revise antes de mirar la barrera. Además, el volcado de la corrida de control tiene que usar la hora de salida de cada pregunta (D-762). Consultas de producción por documento (D-672): 0, o alguna menos si un tipo sale por familia. 2026-11-01: El proceso único (D-765) reemplaza a la barrera y cierra el hueco por construcción: volver a medir los parecidos es parte de la condición de su paso y se calcula antes de elegir cada operación. Lo hacen las etapas A1 y A2 de la tanda del 2 nov, y se mide en el registro de operaciones. 2026-11-02: Etapa A1 del 2 nov (decisión D-781): el paso de los parecidos ya cuenta desde la base los documentos cuyos datos clave cambiaron, en el mismo momento en que se guarda la respuesta, sin esperar a otro hilo; una prueba lo muestra con tres documentos (la barrera de hoy ve 0, el paso ve 3). El hueco se cierra del todo cuando un solo hilo elija la operación siguiente con esa condición (etapa A2).",
+      "detalle": "La clave de los parecidos incluye las entidades, los tipos y las identidades. Cuando llega una respuesta que los cambia, el hilo sin IA marca documentos para volver a medir en su paso siguiente, de 0,1 a 3,3 segundos después. En ese hueco, la barrera da 0 y sale la pregunta siguiente. En la corrida de control salieron así 13 preguntas en la carpeta (4 de tipo, 8 de identidad y 1 de páginas) y 5 de identidad en el examen; ninguna de lectura de entidades. Arreglo posible: que la barrera mire también si la clave de los parecidos cambió, o que el hilo que pregunta la revise antes de mirar la barrera. Además, el volcado de la corrida de control tiene que usar la hora de salida de cada pregunta (D-762). Consultas de producción por documento (D-672): 0, o alguna menos si un tipo sale por familia. 2026-11-01: El proceso único (D-765) reemplaza a la barrera y cierra el hueco por construcción: volver a medir los parecidos es parte de la condición de su paso y se calcula antes de elegir cada operación. Lo hacen las etapas A1 y A2 de la tanda del 2 nov, y se mide en el registro de operaciones. 2026-11-02: Etapa A1 del 2 nov (decisión D-781): el paso de los parecidos ya cuenta desde la base los documentos cuyos datos clave cambiaron, en el mismo momento en que se guarda la respuesta, sin esperar a otro hilo; una prueba lo muestra con tres documentos (la barrera de hoy ve 0, el paso ve 3). El hueco se cierra del todo cuando un solo hilo elija la operación siguiente con esa condición (etapa A2). 2026-11-02: Etapa E4 del 2 nov (D-783): el hueco se cierra por construcción. Un solo bucle elige la operación siguiente después de guardar la anterior; una prueba guarda una respuesta que cambia las partes de tres documentos y la operación siguiente mide los parecidos, nunca pregunta. Falta verlo en la app.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-02"
     },
@@ -5186,10 +5186,10 @@
       "titulo": "Lo que la primera parte del proceso deja para la segunda: los pedidos de una persona dentro de su paso, la ronda con tope como permiso y lo que queda en identidad, asuntos y síntesis",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "La etapa A1 del 2 nov dejó los 18 pasos del proceso con su condición y su alcance (docbase/process, decisión D-781), sin cambiar quién hace el trabajo. Para la etapa A2, que pone un solo hilo: (1) anotar en la base los pedidos de una persona que tocan el proceso, para que su paso los atienda primero y limitados al alcance de su documento (decisión 2 del 2 nov): «Preguntar al modelo» sobre el corte de un PDF (el paso de la pregunta del corte, también con los saltos que la app no pregunta sola), leer con la IA un documento ilegible o un manuscrito viejo (el paso de los escaneos, con un motor de la nube para ese documento) y la corrida de tipos de la pantalla de tipos; (2) guardar lo que queda después de cada pasada de la identidad, los asuntos y las síntesis de las páginas: hoy esos pasos solo saben lo que marcan para hacer y, si no hay nada marcado, dicen que no saben hasta una pasada (D-452); (3) la ronda con tope como permiso de los pasos de la pregunta del corte, la identidad y las páginas, con lo que pasa el tope apartado y esperando a una persona; (4) contar en el paso del texto la reextracción y los documentos hechos desde una plantilla, que hoy la barrera tampoco cuenta; (5) el sello del inventario con la hora del último cambio avisado, que llega con el vigilante (A3).",
+      "detalle": "La etapa A1 del 2 nov dejó los 18 pasos del proceso con su condición y su alcance (docbase/process, decisión D-781), sin cambiar quién hace el trabajo. Para la etapa A2, que pone un solo hilo: (1) anotar en la base los pedidos de una persona que tocan el proceso, para que su paso los atienda primero y limitados al alcance de su documento (decisión 2 del 2 nov): «Preguntar al modelo» sobre el corte de un PDF (el paso de la pregunta del corte, también con los saltos que la app no pregunta sola), leer con la IA un documento ilegible o un manuscrito viejo (el paso de los escaneos, con un motor de la nube para ese documento) y la corrida de tipos de la pantalla de tipos; (2) guardar lo que queda después de cada pasada de la identidad, los asuntos y las síntesis de las páginas: hoy esos pasos solo saben lo que marcan para hacer y, si no hay nada marcado, dicen que no saben hasta una pasada (D-452); (3) la ronda con tope como permiso de los pasos de la pregunta del corte, la identidad y las páginas, con lo que pasa el tope apartado y esperando a una persona; (4) contar en el paso del texto la reextracción y los documentos hechos desde una plantilla, que hoy la barrera tampoco cuenta; (5) el sello del inventario con la hora del último cambio avisado, que llega con el vigilante (A3). 2026-11-02: Etapa E4 del 2 nov (D-783): hechos los pedidos de una persona con su alcance, la ronda como permiso de los pasos 8, 16 y 18, y el recorrido de la identidad, los asuntos y las síntesis cuando todo lo demás está completo. Lo que queda (guardar lo que deja cada pasada, contar en el texto la reextracción y lo hecho desde una plantilla, el sello del inventario con el vigilante) pasa a P-597.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     },
@@ -5202,6 +5202,42 @@
       "prioridad": 1,
       "tema": "base",
       "detalle": "Decisión 5 del 2 nov: lo que sale de un documento de tipo de confianza baja no se usa en ningún proceso ni para información derivada. La etapa A1 dejó el lugar: la función low_confidence de docbase/process/steps.rs (hoy vacía) y la marca after_the_type en los pasos 13 a 18. La etapa B la llena: los datos del tipo, los nombres de los campos de las plantillas y la lectura de entidades (pasos 13, 14 y 15) ya apartan por documento lo que esa función devuelva; la identidad, los asuntos y las páginas (pasos 16, 17 y 18) tienen que filtrar lo que toman de esos documentos (sus menciones, sus partes, lo que muestran), porque su elemento no es un documento.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-597",
+      "titulo": "Lo que el proceso único deja para «En curso» y el vigilante: la pantalla de los 18 pasos, la recuenta de la ronda, lo que queda tras cada pasada y los pedidos en una tabla propia",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "La etapa E4 del 2 nov dejó un solo bucle con los 18 pasos (decisión D-783). Para la etapa A3: (1) dibujar «En curso» con la orden que ya devuelve el estado del proceso (docbase_process_state: el paso, la operación, por qué volvió atrás, por qué espera, y cada paso con sus pendientes y apartados); (2) el vigilante recuperado del historial despierta al bucle, y el botón «Volver a procesar»; (3) borrar la recuenta de la ronda con tope (auto_questions.rs, auto_questions_go), que todavía corre la resolución y las páginas sin preguntar para contar: el conteo tiene que salir de la operación del paso; (4) guardar en la base lo que queda después de cada pasada de la identidad, los asuntos y las síntesis (hoy el bucle las recorre una vez al abrir la app y después de cualquier trabajo); (5) contar en el paso del texto la reextracción y los documentos hechos desde una plantilla, que el bucle ya hace antes de mirar los pasos pero sin contarlas; (6) pasar los pedidos de una persona y la cuenta de las vueltas atrás a tablas propias en la próxima versión de la base (hoy los pedidos son filas de la tabla de ajustes y la cuenta vive en memoria).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-598",
+      "titulo": "Que el trabajo sin IA de un pedido se limite a su documento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En la etapa E4 del 2 nov, lo que pide una persona va primero y espera solo los pasos anteriores de su documento (decisión 2 del 2 nov, D-783). Pero si su propio documento todavía tiene trabajo sin IA pendiente (la huella, el texto, la ficha, la lectura por zonas, el corte, las partes o la firma), el bucle hace ese trabajo con las operaciones de siempre, que toman lotes chicos en el orden de toda la base: puede hacer antes el de otros archivos. Hay que limitar cada operación sin IA al alcance del pedido. El caso común (volver a leer, preguntar el corte o los tipos de documentos ya procesados) ya no espera a nadie.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-599",
+      "titulo": "Lo que queda de las fallas y del arnés después del proceso único",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Después de la etapa E4 del 2 nov (D-784): (1) la lectura de entidades cuya respuesta no tiene la forma pedida sigue quedando como «lectura fallida», fuera del registro de fallas; no se reintenta sola y se reintenta con «Leer de nuevo»: unificarla con el registro; (2) el corte de antes, que solo corre donde no hay lectura por zonas, sigue preguntando solo en los archivos que una regla cortó (D-622): revisar si también tiene que preguntar todo salto dudoso; (3) para la etapa A4: el arnés de la corrida ya maneja el mismo bucle y no cambia ajustes, pero todavía toma el modelo con respuestas guardadas (MICELYA_ASK_CACHE); hay que sacarlo para las corridas y sumar los guiones de antes y de después; los ajustes que una corrida necesite distintos van en MICELYA_CONTROL_SETTINGS, a la vista.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
