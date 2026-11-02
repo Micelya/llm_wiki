@@ -5064,12 +5064,12 @@
       "titulo": "Tres reglas del corte que salen de los 10 saltos distintos de N",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "1) Una página cuyo único texto repite el pie de la anterior es una página con solo el pie, y sigue por regla, sin preguntar. En la corrida de control, una página así quedó como documento aparte con seguridad alta, porque el lector no marcó el renglón como pie. 2) La pista «termina con una fórmula de cierre: empezaría otro» no debe empujar a cortar cuando la página siguiente solo trae una firma con el nombre y la matrícula. 3) La pista «se pasa de digital a escaneada» no debe salir cuando la página tomada por escaneada tiene su propia capa de texto, como una página digital con una imagen grande. Son criterios generales; se miden con las respuestas guardadas contra la hoja y entran solo si no empeoran. Van con el corte, parte 3. Consultas de producción por documento (D-672): la 1 resta una pregunta en los archivos donde ese era el único salto dudoso; la 2 y la 3, 0.",
+      "detalle": "1) Una página cuyo único texto repite el pie de la anterior es una página con solo el pie, y sigue por regla, sin preguntar. En la corrida de control, una página así quedó como documento aparte con seguridad alta, porque el lector no marcó el renglón como pie. 2) La pista «termina con una fórmula de cierre: empezaría otro» no debe empujar a cortar cuando la página siguiente solo trae una firma con el nombre y la matrícula. 3) La pista «se pasa de digital a escaneada» no debe salir cuando la página tomada por escaneada tiene su propia capa de texto, como una página digital con una imagen grande. Son criterios generales; se miden con las respuestas guardadas contra la hoja y entran solo si no empeoran. Van con el corte, parte 3. Consultas de producción por documento (D-672): la 1 resta una pregunta en los archivos donde ese era el único salto dudoso; la 2 y la 3, 0. 2026-11-02: Etapa 3b (D-792): medidas desde cero, sin IA y sin respuestas guardadas, contra las etiquetas. Entran la 1 (la página que solo repite el pie sigue: 4 saltos, todos bien, 2 preguntas menos) y la 2 (la fórmula de cierre no empuja a cortar ante una página de solo firma: 1 pista menos en un salto que sigue, ninguna en uno que corta). No entra la 3: quitaría la pista en 2 saltos que siguen y en 1 que corta. Falta verlas con el modelo en la prueba chica y en la corrida larga.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-589",
@@ -5117,9 +5117,9 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "pruebas y calidad",
-      "detalle": "La etapa G1 aplicó las correcciones de la etapa F en etiquetas nuevas (versión 2 de las de entrenamiento y del examen): cada salto corregido lleva una marca («anuncio» o «vale igual»), un grupo y la respuesta alternativa. Un guion de prueba ya mide con esa tolerancia (la diferencia con N baja de 3 documentos a 1 en el entrenamiento y en el examen), pero la medición que usa el arnés y la corrida de control todavía compara salto por salto con las etiquetas de hoy (P-584). Falta que la medición del arnés use las etiquetas nuevas, acepte el grupo entero con los valores de hoy o con los alternativos, y no cuente como documento la página que solo anuncia un anexo. Consultas de producción por documento (D-672): igual, 0; es medición.",
+      "detalle": "La etapa G1 aplicó las correcciones de la etapa F en etiquetas nuevas (versión 2 de las de entrenamiento y del examen): cada salto corregido lleva una marca («anuncio» o «vale igual»), un grupo y la respuesta alternativa. Un guion de prueba ya mide con esa tolerancia (la diferencia con N baja de 3 documentos a 1 en el entrenamiento y en el examen), pero la medición que usa el arnés y la corrida de control todavía compara salto por salto con las etiquetas de hoy (P-584). Falta que la medición del arnés use las etiquetas nuevas, acepte el grupo entero con los valores de hoy o con los alternativos, y no cuente como documento la página que solo anuncia un anexo. Consultas de producción por documento (D-672): igual, 0; es medición. 2026-11-02: Etapa 3b: la hoja de entrenamiento todavía etiqueta con la regla anterior (D-699) el anuncio del acuerdo de cesión con su anexo de la carpeta de prueba (página 4, en sus 4 copias): el salto antes de esa página dice «sigue». Por D-724 tiene que llevar la marca «anuncio», como los de e01 y e13. La medición de la 3b lo aplica con una opción aparte; sin ella, la regla del anuncio cuenta 4 cortes de más.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-588",
@@ -5358,6 +5358,30 @@
       "prioridad": 2,
       "tema": "lectura",
       "detalle": "La etapa E6 del 2 nov (D-810 y D-811) agregó reglas que solo se probaron con datos armados y, en parte, sobre una copia de la base del 1 nov. Falta mirar en la prueba chica y en la corrida larga: cuántos datos de valor quedan en duda por tener el sujeto lejos (40 palabras, en la configuración del vocabulario, «subjectWindow») y si alguno era un hecho bueno; cuántos remitentes pasan a «otro» y si alguno lo era; y que las copias por parecido tomen la lectura del original sin perder datos cuando su texto escaneado difiere (la lectura heredada se controla contra el texto de la copia).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-606",
+      "titulo": "Lo que queda del documento compuesto en el corte: el logo partido y la pieza del anuncio en las pantallas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Dos cosas que la etapa 3b del 2 nov (D-791 y D-792) dejó. 1) El logo partido (D-723): las letras de un logo leídas una por renglón siguen sin unirse en la lectura por zonas. La etapa F no encontró ningún salto que lo necesite, y unirlas cambia el texto leído de muchas páginas (unos 21 tramos de la carpeta), así que no es un cambio chico: hay que hacerlo en la lectura y medirlo con la prueba chica. 2) Las pantallas todavía no muestran la pieza del anuncio de anexo ni la marca de anexo: la tira del compuesto saltea la página de la pieza, y la parte que es anexo se ve como cualquier otra (etapa de las pantallas).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-607",
+      "titulo": "Borrar lo que queda del corte de antes: sus reglas de texto, la pregunta de dos páginas y el ajuste que lo prende",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "La etapa 3b del 2 nov borró la exportación de señales del corte de antes y sus variantes de medición (la de solo reglas, la del modelo en los saltos dudosos de dos páginas y la cuenta de sus preguntas). Queda el corte mismo: las reglas de texto, la pregunta de dos páginas, sus señales, su rama en el paso del corte y el ajuste de la lectura por zonas. La app como viene nunca lo usa (el ajuste viene prendido y nada lo apaga), pero es el cortador de las pruebas de Rust, que se compilan sin el modelo de zonas: las 12 del corte de antes y las del proceso, el reconocimiento y el texto que arman PDF. Para borrarlo hace falta un lector por zonas de prueba (el rasgo de lectura por zonas lo permite) y pasar esas pruebas al corte por zonas. Es una etapa propia: no entraba en la 3b sin pasarse del tope.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
