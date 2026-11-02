@@ -144,6 +144,76 @@ pub struct IdentityWords {
     /// How a person is named by what most of its documents write (D-516).
     #[serde(default)]
     pub person_name: PersonNameRule,
+    /// How the numbers of the strong identifiers are compared (`numbers.rs`,
+    /// E5 of 2 nov): their common form, what the reader confuses, the check
+    /// digit and the labels. The caps of the names are in the base's
+    /// configuration (`thresholds.rs`), not here.
+    #[serde(default)]
+    pub numbers: NumberWords,
+}
+
+/// How the numbers of the strong identifiers are compared (E5 of 2 nov).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NumberWords {
+    pub about: String,
+    /// A letter the reader takes for a digit, and that digit.
+    pub misread: std::collections::BTreeMap<String, String>,
+    /// The shape of each kind of identifier: "cifras" or "tomo-y-folio".
+    /// A kind without one is compared as written (`names::identifier_value`).
+    pub shapes: std::collections::BTreeMap<String, String>,
+    /// The check digit of a kind (the CUIT's).
+    pub check_digits: std::collections::BTreeMap<String, CheckDigit>,
+    /// A number that holds another inside (a person's CUIT holds the DNI).
+    pub holds: Vec<Holds>,
+    /// Labels of a kind besides the identifier's own ("le" of the DNI).
+    pub labels: std::collections::BTreeMap<String, Vec<String>>,
+    /// The least digits of a number that is joined with the tolerance or
+    /// held whole by another.
+    pub min_digits: usize,
+    /// The least digits of a volume and a folio together, to be near.
+    pub min_group_digits: usize,
+}
+
+impl Default for NumberWords {
+    fn default() -> Self {
+        Self {
+            about: String::new(),
+            misread: Default::default(),
+            shapes: Default::default(),
+            check_digits: Default::default(),
+            holds: Vec::new(),
+            labels: Default::default(),
+            min_digits: 6,
+            min_group_digits: 4,
+        }
+    }
+}
+
+/// A check digit: the last digit of a number of `weights.len() + 1` digits
+/// is `modulo` less the weighted sum of the others, modulo `modulo` (with
+/// `modulo` as 0 and 10 as `if_ten`).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckDigit {
+    pub weights: Vec<u32>,
+    pub modulo: u32,
+    pub if_ten: u32,
+    /// The least digits of a shorter number held whole by one of this kind
+    /// to be the same (written without its prefix).
+    pub contained_from: usize,
+}
+
+/// A number of kind `id` and `length` digits holds one of kind `holds`:
+/// its digits from `from` to `to` (the middle of a CUIT is the DNI).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Holds {
+    pub id: String,
+    pub holds: String,
+    pub length: usize,
+    pub from: usize,
+    pub to: usize,
 }
 
 /// A person is named by what most of its documents write (D-516): with

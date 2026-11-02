@@ -13,6 +13,10 @@
 //! - Of the round of questions that go by themselves: its cap (D-484).
 //! - Of the retries: the waits of a transient failure, in minutes; past
 //!   the last, the last again, without end.
+//! - Of the identity: how far two names may be to join two mentions whose
+//!   number is the same or near (E5 of 2 nov, note 2 of the coordinator):
+//!   at most so many letters and at most so much of the name, both
+//!   provisional (2 letters and 15 %, audit 1C).
 //!
 //! The least words to compare (30) stay in the code: the owner did not ask
 //! for them. The 10 words to type and to read are gone (E3 of 2 nov): a
@@ -29,6 +33,8 @@ pub const QUALITY: &str = "reading:quality-threshold";
 pub const LOW_CONFIDENCE_TYPE: &str = "types:low-confidence-threshold";
 pub const ROUND_CAP: &str = "auto-questions:cap";
 pub const RETRY_MINUTES: &str = "failures:retry-minutes";
+pub const NAME_LETTERS: &str = "identity:name-letters";
+pub const NAME_SHARE: &str = "identity:name-share";
 
 /// The share of firm text below which a document is «no legible», by
 /// default (P-520): provisional, assumed in the unattended run of 1 nov
@@ -41,6 +47,22 @@ pub const DEFAULT_LOW_CONFIDENCE_TYPE: f64 = 0.30;
 
 fn default_low_confidence_type() -> f64 {
     DEFAULT_LOW_CONFIDENCE_TYPE
+}
+
+/// How many letters two names may differ to join two mentions with the
+/// same number or a near one, by default: provisional (audit 1C, E5 of 2
+/// nov), until the long run of control measures it again.
+pub const DEFAULT_NAME_LETTERS: usize = 2;
+/// The share of the name those letters may be at most, by default: so a
+/// short name does not take two changes. Provisional, as the letters.
+pub const DEFAULT_NAME_SHARE: f64 = 0.15;
+
+fn default_name_letters() -> usize {
+    DEFAULT_NAME_LETTERS
+}
+
+fn default_name_share() -> f64 {
+    DEFAULT_NAME_SHARE
 }
 
 /// Every threshold, with its value now.
@@ -57,6 +79,11 @@ pub struct Thresholds {
     pub indicator_hours: i64,
     pub round_cap: usize,
     pub retry_minutes: Vec<i64>,
+    /// The caps of the names of the identity (E5 of 2 nov).
+    #[serde(default = "default_name_letters")]
+    pub name_letters: usize,
+    #[serde(default = "default_name_share")]
+    pub name_share: f64,
 }
 
 impl Default for Thresholds {
@@ -70,6 +97,8 @@ impl Default for Thresholds {
             indicator_hours: 6,
             round_cap: super::auto_questions::CAP,
             retry_minutes: vec![10, 60, 6 * 60, 24 * 60],
+            name_letters: DEFAULT_NAME_LETTERS,
+            name_share: DEFAULT_NAME_SHARE,
         }
     }
 }
@@ -103,7 +132,19 @@ pub fn thresholds(conn: &Connection) -> Result<Thresholds, String> {
         indicator_hours,
         round_cap: round_cap(conn)?,
         retry_minutes: retry_minutes(conn)?,
+        name_letters: name_letters(conn)?,
+        name_share: share(conn, NAME_SHARE, default.name_share)?,
     })
+}
+
+/// How many letters two names may differ to join by a number.
+pub fn name_letters(conn: &Connection) -> Result<usize, String> {
+    Ok(setting(conn, NAME_LETTERS)?.and_then(|v| v.trim().parse().ok()).unwrap_or(DEFAULT_NAME_LETTERS))
+}
+
+/// The caps of the names of the identity: (letters, share of the name).
+pub fn name_caps(conn: &Connection) -> Result<(usize, f64), String> {
+    Ok((name_letters(conn)?, share(conn, NAME_SHARE, DEFAULT_NAME_SHARE)?))
 }
 
 /// The cap of the round of questions that go by themselves.
@@ -121,7 +162,7 @@ fn invalid(t: &Thresholds) -> Option<&'static str> {
     if !(0.0 < t.low && t.low < t.high && t.high <= 1.0) {
         return Some("El umbral bajo tiene que ser mayor que 0 y menor que el alto, y el alto, a lo sumo 1.");
     }
-    if !(0.0..=1.0).contains(&t.quality) || !(0.0..=1.0).contains(&t.low_confidence_type) {
+    if !(0.0..=1.0).contains(&t.quality) || !(0.0..=1.0).contains(&t.low_confidence_type) || !(0.0..=1.0).contains(&t.name_share) {
         return Some("La calidad es una proporción: entre 0 y 1.");
     }
     if t.indicator_attempts < 1 || t.indicator_hours < 1 || t.round_cap < 1 {
@@ -154,6 +195,8 @@ impl DocBase {
             (failures::INDICATOR_HOURS, t.indicator_hours.to_string()),
             (ROUND_CAP, t.round_cap.to_string()),
             (RETRY_MINUTES, retry),
+            (NAME_LETTERS, t.name_letters.to_string()),
+            (NAME_SHARE, t.name_share.to_string()),
         ];
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;

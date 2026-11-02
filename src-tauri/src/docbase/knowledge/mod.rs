@@ -38,6 +38,8 @@ mod check_attention;
 mod check_pages;
 #[cfg(test)]
 mod check_relations;
+#[cfg(test)]
+mod check_numbers;
 pub(crate) mod anchors;
 pub mod articles;
 pub(crate) mod changes;
@@ -50,6 +52,7 @@ pub mod matter_edit;
 pub mod matter_records;
 pub mod matters;
 pub mod names;
+pub mod numbers;
 pub mod pages;
 pub mod quote;
 pub mod read_checks;
@@ -96,6 +99,8 @@ mod tests_repeated;
 mod tests_order;
 #[cfg(test)]
 mod tests_levels;
+#[cfg(test)]
+mod tests_numbers;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;

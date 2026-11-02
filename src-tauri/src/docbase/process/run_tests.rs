@@ -427,7 +427,7 @@ fn the_thresholds_are_read_from_the_configuration_with_their_values_by_default()
     assert_eq!((by_default.indicator_attempts, by_default.indicator_hours), (3, 6));
     assert_eq!(by_default.retry_minutes, vec![10, 60, 360, 1440]);
 
-    let mine = Thresholds { low: 0.85, high: 0.98, quality: 0.6, low_confidence_type: 0.25, indicator_attempts: 5, indicator_hours: 12, round_cap: 20, retry_minutes: vec![1, 2] };
+    let mine = Thresholds { low: 0.85, high: 0.98, quality: 0.6, low_confidence_type: 0.25, indicator_attempts: 5, indicator_hours: 12, round_cap: 20, retry_minutes: vec![1, 2], name_letters: 3, name_share: 0.2 };
     base.set_thresholds(&mine).unwrap();
     assert_eq!(base.thresholds().unwrap(), mine);
     assert_eq!(failures::indicator_threshold(&base.conn()).unwrap(), (5, 12));
