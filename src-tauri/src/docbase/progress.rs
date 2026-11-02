@@ -755,17 +755,21 @@ fn recognition_state(facts: &Facts, members: &Members, error: bool) -> &'static 
 }
 
 /// Each document with text, compared with the others: copies, versions
-/// and documents of the same template.
+/// and documents of the same template. Only documents, by the one rule of
+/// every screen (`cut::parts::is_document_sql`, P-593): the whole text of
+/// a file of several documents is never compared, and counting it left
+/// this stage fixed short of its end (101 of 136 in the run of 1 nov).
 fn similar_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
     let mut statement = conn
-        .prepare(
+        .prepare(&format!(
             "SELECT c.id,
                     s.version_id IS NOT NULL AND s.text_at = d.created_at AND s.engine = ?1
                     AND NOT EXISTS (SELECT 1 FROM similar_dirty sd WHERE sd.version_id = c.id)
              FROM version c JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
              LEFT JOIN similar_signature s ON s.version_id = c.id
-             WHERE c.state = 'processed'",
-        )
+             WHERE c.state = 'processed' AND {}",
+            super::cut::parts::is_document_sql("c.id")
+        ))
         .map_err(sql_err)?;
     let rows = statement
         .query_map([super::similar::store::engine_id()], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)))

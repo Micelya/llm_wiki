@@ -601,3 +601,148 @@ fn the_harness_of_the_run_changes_no_setting_of_the_app() {
     assert!(code.contains("process_turn"), "it runs the same loop as the app");
     assert!(code.contains("MICELYA_CONTROL_SETTINGS"), "what a run needs different is in its script");
 }
+
+// ---- A3: the watcher, «Volver a procesar» and the counts of «En curso» ----
+
+/// Waits, a little at a time, until the watch has a change that calmed down.
+fn heard_and_calmed(watch: &super::super::watch::Watch) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(20) {
+        if !watch.calmed().is_empty() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    false
+}
+
+#[test]
+fn a_new_file_in_a_watched_folder_wakes_the_process_which_starts_again_after_the_operation_going_on() {
+    let dir = TempDir::new();
+    let (base, origin) = with_files(&dir, &[("uno.pdf", vec![prose("una hoja")])]);
+    reading_on(&base);
+    let wake = std::sync::Arc::new(Wake::default());
+    let mut watch = super::super::watch::Watch::start(wake.clone());
+    watch.follow(&[(origin.clone(), dir.path().join("o"))]);
+    std::thread::sleep(Duration::from_millis(300));
+    let model = Model::default();
+    // While the model answers the question of the type, a file is copied
+    // into the folder.
+    *model.drops.lock().unwrap() = Some((dir.path().join("o/nuevo.pdf"), build(&[prose("hoja nueva")])));
+    let mut asked_at = None;
+    for _ in 0..200 {
+        let done = turn(&base, &model);
+        if model.texts.load(Ordering::SeqCst) > 0 {
+            asked_at = done.step;
+            break;
+        }
+    }
+    assert_eq!(asked_at, Some(Step::Type));
+    // The operation going on ended: its answer is kept.
+    assert_eq!(base.document_types_all().unwrap().len(), 1);
+    // The watcher heard the copy; once it calmed down, the loop writes it
+    // down at the start of its turn and goes back to the first step.
+    assert!(heard_and_calmed(&watch), "the watcher hears the new file");
+    base.origin_changed(&origin).unwrap();
+    assert_eq!(first(&base), Some(Step::Inventory));
+    assert_eq!(turn(&base, &model).step, Some(Step::Inventory));
+    let back = base.process_status().back.unwrap_or_default();
+    assert!(back.contains("volvió al paso 1") && back.contains("un archivo nuevo o cambiado en «O»"), "{back}");
+    assert_eq!(turn(&base, &model).step, Some(Step::FileHash));
+    until_idle(&base, &model);
+    assert_eq!(base.document_types_all().unwrap().len(), 2);
+    // The inventory is complete again: the change is older than the sweep.
+    assert_eq!(base.process_state(&Scope::All, false).unwrap().pending(Step::Inventory), 0);
+}
+
+#[test]
+fn processing_a_folder_again_leaves_its_inventory_incomplete_and_asks_nothing_again() {
+    let dir = TempDir::new();
+    let (base, origin) = with_files(&dir, &[("a/uno.pdf", vec![prose("una hoja")]), ("b/dos.pdf", vec![prose("otra hoja")])]);
+    reading_on(&base);
+    let model = Model::default();
+    until_idle(&base, &model);
+    let asked = model.asked();
+    let types = base.document_types_all().unwrap().len();
+    assert_eq!(base.process_state(&Scope::All, false).unwrap().first_incomplete, None);
+
+    let again = super::run::Again { origin_id: Some(origin.clone()), folder: Some("a".into()), rel_path: None };
+    assert_eq!(base.process_again(&again).unwrap(), 1);
+    let state = base.process_state(&Scope::All, false).unwrap();
+    assert_eq!(state.first_incomplete, Some(Step::Inventory));
+    assert_eq!(state.pending(Step::Inventory), 1);
+    assert_eq!(state.pending(Step::FileHash), 1, "only the file of the folder");
+    let pending: Vec<String> = {
+        let conn = base.conn();
+        let mut statement = conn.prepare("SELECT rel_path FROM location WHERE hash_state = 'pending'").unwrap();
+        let rows = statement.query_map([], |row| row.get(0)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    assert_eq!(pending, vec!["a/uno.pdf".to_string()]);
+
+    // The same loop takes it, in its order; nothing changed, so nothing is
+    // asked again and every step is complete again.
+    assert_eq!(turn(&base, &model).step, Some(Step::Inventory));
+    assert!(base.process_status().back.unwrap_or_default().contains("pediste volver a procesar la carpeta «a»"));
+    until_idle(&base, &model);
+    assert_eq!(model.asked(), asked);
+    assert_eq!(base.document_types_all().unwrap().len(), types);
+    assert_eq!(base.process_state(&Scope::All, false).unwrap().first_incomplete, None);
+
+    // A file, and everything.
+    let file = super::run::Again { origin_id: Some(origin.clone()), folder: None, rel_path: Some("b/dos.pdf".into()) };
+    assert_eq!(base.process_again(&file).unwrap(), 1);
+    until_idle(&base, &model);
+    assert_eq!(base.process_again(&super::run::Again::default()).unwrap(), 2);
+    assert_eq!(base.process_state(&Scope::All, false).unwrap().pending(Step::FileHash), 2);
+    until_idle(&base, &model);
+    assert_eq!(model.asked(), asked);
+    // An origin that is not there.
+    let gone = super::run::Again { origin_id: Some("no-existe".into()), ..Default::default() };
+    assert!(base.process_again(&gone).is_err());
+}
+
+#[test]
+fn a_file_of_three_parts_counts_three_documents_in_inicio_and_in_en_curso() {
+    let dir = TempDir::new();
+    let (base, _) = with_files(
+        &dir,
+        &[("compuesto.pdf", vec![prose("primera parte"), prose("segunda parte"), prose("tercera parte")]), ("suelto.pdf", vec![prose("una hoja")])],
+    );
+    // The bytes and the text of the files, without asking.
+    for _ in 0..10 {
+        base.hash_pending(8).unwrap();
+        base.extract_pending(8).unwrap();
+    }
+    // The composite file cut in three parts (data made for the test): the
+    // whole text of the file stays a version, and is not a document.
+    {
+        let conn = base.conn();
+        let hash: String = conn
+            .query_row("SELECT file_hash FROM location WHERE rel_path = 'compuesto.pdf'", [], |row| row.get(0))
+            .unwrap();
+        conn.execute("DELETE FROM appearance WHERE resource_hash = ?1 AND selector = 'all'", [&hash]).unwrap();
+        for part in 1..=3 {
+            conn.execute("INSERT INTO version (id, state, first_seen_at) VALUES (?1, 'processed', 1)", [800 + part]).unwrap();
+            conn.execute(
+                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, created_at)
+                 VALUES (?1, ?2, ?3, ?4, 'rule', 'confirmed', 1)",
+                params![800 + part, hash, format!("pages:{part}-{part}"), part],
+            )
+            .unwrap();
+        }
+    }
+    let health = base.health(&super::super::Visible::All).unwrap();
+    assert_eq!((health.documents, health.files, health.places), (4, 2, 2), "3 parts and the single file");
+    let view = base.process_view().unwrap();
+    assert_eq!(view.totals.documents, 4);
+    assert_eq!(view.totals.documents, health.documents, "Inicio and «En curso» say the same");
+    // A copy of the composite in another folder is the same 3 documents.
+    let bytes = std::fs::read(dir.path().join("o/compuesto.pdf")).unwrap();
+    dir.write("o/copia/compuesto.pdf", &bytes);
+    let origin: String = base.conn().query_row("SELECT id FROM origin", [], |row| row.get(0)).unwrap();
+    base.scan_origin(&origin).unwrap();
+    base.hash_pending(8).unwrap();
+    let health = base.health(&super::super::Visible::All).unwrap();
+    assert_eq!((health.documents, health.files, health.places), (4, 2, 3));
+}

@@ -128,7 +128,7 @@ impl Step {
                     Level::File,
                     Class::Local,
                     "las carpetas conectadas",
-                    "la hora de su último recorrido (la del último cambio avisado llega con el vigilante, A3)",
+                    "la hora de su último recorrido, frente a la del último cambio que avisó el vigilante o pidió una persona",
                     "el vigilante, una carpeta nueva, «Volver a procesar», excluir o volver a incluir algo, el barrido de resguardo",
                     &["sweep"],
                 ),
@@ -443,6 +443,12 @@ pub struct Count {
     pub pending: usize,
     /// Elements that wait for a known reason; they do not hold the step.
     pub set_aside: usize,
+    /// Of the set aside, those that wait for a person (a scan whose reading
+    /// failed for good, a document that went back too often) and those of
+    /// a type of low confidence; the rest wait for a failure to be tried
+    /// again or for their folder («En curso» says each, A3 of 2 nov).
+    pub person: usize,
+    pub low: usize,
     /// Of the pending, those the step closes without asking (the marks
     /// or the inheritance of the type, the check of a reading kept).
     pub without_asking: usize,
@@ -455,7 +461,7 @@ pub struct Count {
 
 impl Count {
     fn of(pending: usize, set_aside: usize) -> Count {
-        Count { pending, set_aside, without_asking: 0, known: true }
+        Count { pending, set_aside, person: 0, low: 0, without_asking: 0, known: true }
     }
 }
 
@@ -542,6 +548,14 @@ pub(crate) fn low_confidence(conn: &Connection) -> Result<BTreeSet<i64>, String>
     super::super::safe_words::low_confidence(conn)
 }
 
+/// SQL over an origin `o`: its inventory is incomplete. It was never swept
+/// (and is not known to be out of reach), or something changed in it after
+/// its last sweep: the watcher heard it, or a person asked to process it
+/// again (`origin.changed_at`, A3 of 2 nov). A sweep that failed sets it
+/// aside, with its failure, until the next sweep of backup.
+pub(crate) const INVENTORY_LEFT: &str = "((o.last_scan_at IS NULL AND o.reachable IS NOT 0) OR o.changed_at >= o.last_scan_at)
+    AND NOT EXISTS (SELECT 1 FROM failure fo WHERE fo.item_kind = 'origin' AND fo.item = o.id AND fo.stage = 'sweep' AND fo.state <> 'resolved')";
+
 fn count(conn: &Connection, sql: &str) -> Result<usize, String> {
     conn.query_row(sql, [], |row| row.get::<_, i64>(0)).map(|n| n.max(0) as usize).map_err(sql_err)
 }
@@ -575,8 +589,9 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
         Step::Inventory => {
             let origins = scope.origin_sql();
             Count::of(
-                count(conn, &format!("SELECT count(*) FROM origin o WHERE o.last_scan_at IS NULL AND o.reachable IS NOT 0 AND {origins}"))?,
-                count(conn, &format!("SELECT count(*) FROM origin o WHERE o.reachable = 0 AND {origins}"))? + failed()?,
+                count(conn, &format!("SELECT count(*) FROM origin o WHERE {INVENTORY_LEFT} AND {origins}"))?,
+                count(conn, &format!("SELECT count(*) FROM origin o WHERE o.reachable = 0 AND NOT ({INVENTORY_LEFT}) AND {origins}"))?
+                    + failed()?,
             )
         }
         Step::FileHash => {
@@ -624,7 +639,10 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
             // A scan whose recognition failed for good (`error`) waits for a
             // person; one whose failure holds, until its next attempt.
             let scan_free = super::super::recognize::scan_free_sql();
-            Count::of(left(&format!("c.error IS NULL AND {scan_free}"))?, left(&format!("(c.error IS NOT NULL OR NOT ({scan_free}))"))?)
+            Count {
+                person: left("c.error IS NOT NULL")?,
+                ..Count::of(left(&format!("c.error IS NULL AND {scan_free}"))?, left(&format!("(c.error IS NOT NULL OR NOT ({scan_free}))"))?)
+            }
         }
         Step::Shapes => {
             let left = |held: &str| -> Result<usize, String> {
@@ -696,13 +714,13 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
                 .into_iter()
                 .filter(|id| only.as_ref().is_none_or(|o| o.contains(id)))
                 .partition(|id| back.contains(id));
-            Count::of(marked + stale.len(), aside.len())
+            Count { person: aside.len(), ..Count::of(marked + stale.len(), aside.len()) }
         }
         Step::Type => {
             let only = scope.versions(conn)?;
             let left = super::super::similar::classify::types_left(conn, only.as_ref())?;
             // A unit whose question a failure holds is set aside (P-533).
-            Count { without_asking: left.by_marks + left.by_inheritance, ..Count::of(left.units, left.held) }
+            Count { without_asking: left.by_marks + left.by_inheritance + left.by_answer, ..Count::of(left.units, left.held) }
         }
         Step::TypeData => {
             // The documents of low confidence are read too (E6 of 2 nov).
@@ -714,18 +732,19 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
             let only = scope.versions(conn)?;
             let low = low_confidence(conn)?;
             let held = super::super::failures::held_versions(conn, "templates")?;
-            let (mut pending, mut set_aside) = (0, 0);
+            let (mut pending, mut set_aside, mut of_low) = (0, 0, 0);
             for (principal, waiting) in super::super::similar::naming::waiting_templates(conn)? {
                 if waiting == 0 || only.as_ref().is_some_and(|o| !o.contains(&principal)) {
                     continue;
                 }
                 if low.contains(&principal) || held.contains(&principal) {
                     set_aside += 1;
+                    of_low += usize::from(low.contains(&principal));
                 } else {
                     pending += 1;
                 }
             }
-            Count::of(pending, set_aside)
+            Count { low: of_low, ..Count::of(pending, set_aside) }
         }
         Step::Reading => {
             let only = scope.versions(conn)?;

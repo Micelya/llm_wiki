@@ -78,7 +78,8 @@ function EntityList() {
             ))}
           </div>
           {entities.data && (
-            <span className="ml-auto text-[0.8125rem] text-muted-foreground tabular-nums">{plural(rows.length, "resultado", "resultados")}</span>
+            <span className="ml-auto text-[0.8125rem] text-muted-foreground tabular-nums">{/* What it counts, said (P-593): everyone named, with a page or not; Inicio counts those with a page. */}
+              {`${plural(rows.length, "resultado", "resultados")} · con página o sin ella`}</span>
           )}
         </div>
         {entities.error && <ErrorNote>{entities.error}</ErrorNote>}

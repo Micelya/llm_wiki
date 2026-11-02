@@ -480,6 +480,7 @@ pub fn run() {
             docbase::commands::docbase_add_origin,
             docbase::commands::docbase_remove_origin,
             docbase::commands::docbase_rescan,
+            docbase::commands::docbase_reprocess,
             docbase::commands::docbase_home,
             docbase::commands::docbase_list_documents,
             docbase::commands::docbase_list_folder,

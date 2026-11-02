@@ -160,6 +160,9 @@ fn one_question_per_family_and_it_is_never_asked_twice() {
     // Everything computed forgotten: the answer kept is used, not asked again.
     base.conn().execute_batch("DELETE FROM document_type; DELETE FROM document_data;").unwrap();
     assert_eq!(base.types_plan().unwrap().type_questions, 0);
+    // Looking writes nothing (P-593, A3 of 2 nov): the process applies it.
+    assert!(type_of(&base, "febrero.md").is_none());
+    base.types_refresh().unwrap();
     assert_eq!(type_of(&base, "febrero.md").unwrap().doc_type, "factura");
     let stored: (String, String) = base
         .conn()

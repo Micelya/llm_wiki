@@ -124,7 +124,7 @@ pub struct DecidedType {
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypesPlan {
-    /// Documents with enough text to be typed.
+    /// The documents, by the one rule of every screen (`query::totals`).
     pub documents: usize,
     /// Of those, how many have a type now.
     pub typed: usize,
@@ -855,6 +855,9 @@ pub(crate) struct TypesLeft {
     /// Of them, those a document new to a family already asked closes,
     /// without asking (decision 3 of 2 nov).
     pub by_inheritance: usize,
+    /// Of them, those whose question has an answer kept (of the engine that
+    /// answers now): applied without asking.
+    pub by_answer: usize,
     /// Units whose question a failure holds (P-533): set aside, not counted
     /// in `units`.
     pub held: usize,
@@ -867,6 +870,8 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
     let units = load_units(conn, catalog, &docs)?;
     let kept = kept_types(conn)?;
     let held = crate::docbase::failures::held_versions(conn, "types")?;
+    let decisions = read_type_decisions(conn)?;
+    let engine = answering_engine(conn)?;
     let mut left = TypesLeft::default();
     for unit in units {
         let all: Vec<i64> = std::iter::once(unit.principal).chain(unit.members.iter().map(|(m, _)| *m)).collect();
@@ -881,6 +886,8 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
             left.by_marks += 1;
         } else if inherited_rows(catalog, &unit, &docs, &kept).is_some() {
             left.by_inheritance += 1;
+        } else if cached_answer(conn, &type_question(conn, catalog, &decisions, &unit, &docs)?.key, engine.as_deref())?.is_some() {
+            left.by_answer += 1;
         } else if held.contains(&unit.principal) {
             left.held += 1;
             continue;
@@ -1353,23 +1360,22 @@ impl DocBase {
         Ok(typed + data + corrected)
     }
 
-    /// What a run would ask now.
+    /// What a run would ask now. **Looking writes nothing** (P-593, A3 of 2
+    /// nov): the marks, the answers kept, the rules of the types and the
+    /// families are done by the process, in its steps of the type and of the
+    /// similar documents; here they are only counted, with the same counts
+    /// as «En curso» (`types_left`, `data_left`), and the documents by the
+    /// one rule of every screen (`query::totals`).
     pub fn types_plan(&self) -> Result<TypesPlan, String> {
-        let (_, pending_types) = self.pass4_refresh()?;
-        let (_, pending_data) = self.pass5_refresh()?;
-        if self.apply_type_rules()? > 0 {
-            self.similar_regroup()?;
-        }
         let conn = self.conn();
-        let documents = load_docs(&conn)?.len();
-        let typed: i64 = conn.query_row("SELECT count(*) FROM document_type", [], |row| row.get(0)).map_err(sql_err)?;
+        let left = types_left(&conn, None)?;
+        let (data_questions, _) = data_left(&conn, None)?;
+        let totals = crate::docbase::query::totals(&conn, &crate::docbase::Visible::All)?;
         let proposed_types = read_proposed_types(&conn)?;
-        let mut keys: BTreeSet<&str> = BTreeSet::new();
-        let data_questions = pending_data.iter().filter(|p| keys.insert(p.question.key.as_str())).count();
         Ok(TypesPlan {
-            documents,
-            typed: typed as usize,
-            type_questions: pending_types.len(),
+            documents: totals.documents as usize,
+            typed: totals.typed as usize,
+            type_questions: left.units.saturating_sub(left.by_marks + left.by_inheritance + left.by_answer),
             data_questions,
             proposed_types,
             engine: ask_engine(&conn)?,

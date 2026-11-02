@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -397,6 +397,14 @@ CREATE TABLE structure_piece (
     PRIMARY KEY (resource_hash, page)
 );
 DELETE FROM cut_applied;
+";
+
+/// The watcher (A3 of 2 nov): when something last changed in the folder of
+/// an origin, as the watcher heard it or a person asked to process it again
+/// («Volver a procesar»). Its inventory is incomplete while this is not
+/// older than its last sweep (`last_scan_at`). Null: nothing heard.
+const V11: &str = "
+ALTER TABLE origin ADD COLUMN changed_at INTEGER;
 ";
 
 /// The version of a base: 0 for one just created.

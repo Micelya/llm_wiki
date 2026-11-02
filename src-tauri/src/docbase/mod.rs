@@ -59,6 +59,7 @@ pub mod text;
 pub mod thresholds;
 pub mod tree;
 pub mod upgrade;
+pub mod watch;
 pub mod work_origin;
 
 

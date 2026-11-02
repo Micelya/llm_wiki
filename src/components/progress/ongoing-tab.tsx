@@ -31,14 +31,15 @@ import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { useRecognize, useRecognitionEngine, type Recognize } from "@/components/docbase/recognition"
 import { useProgressStore } from "@/stores/progress-store"
 import { ReadAgainButton as ReadAgainWithModel } from "@/components/knowledge/read-again"
+import { ProcessSteps } from "./process-steps"
 
 /** Things listed when a stage is opened; the rest are counted. */
 export const STAGE_ITEMS = 50
 
 /**
- * The tab «En curso» of the attention view (D-424): every stage of the
- * processing, done and to do, in the order they happen; each one opens
- * into its documents with a button to open each. Above, whether the
+ * The tab «En curso» of the attention view (D-424): the 18 steps of the
+ * process and how its loop stands (A3 of 2 nov), and below, folded, every
+ * stage with its documents and a button to open each. Above, whether the
  * automatic reading is on, and the origin or folder it is narrowed to.
  * `progress` is of that origin or folder (the attention view asks for it,
  * so the figure of the tab and the tab say the same); `extra` is what
@@ -54,8 +55,17 @@ export function OngoingTab({ progress, error, extra }: { progress: Progress | nu
         <ScopePicker scope={scope} onChange={setScope} />
       </div>
       {progress?.autoQuestions && <AutoQuestionsLine round={progress.autoQuestions} />}
+      {/* The 18 steps of the process and how the loop stands (A3 of 2 nov). */}
+      <ProcessSteps />
       {error && <ErrorNote>{error}</ErrorNote>}
-      {progress ? <StageList progress={progress} scope={scope} /> : !error && <EmptyNote>Buscando…</EmptyNote>}
+      {/* The documents of each stage one by one, with their buttons (read
+          a scan, read again), until they are listed under each step. */}
+      <details className="rounded-lg border bg-card px-4 py-2">
+        <summary className="cursor-pointer text-sm text-muted-foreground">Los documentos de cada etapa, uno por uno</summary>
+        <div className="pt-3">
+          {progress ? <StageList progress={progress} scope={scope} /> : !error && <EmptyNote>Buscando…</EmptyNote>}
+        </div>
+      </details>
       <ReadAllAgain />
       {extra}
     </div>

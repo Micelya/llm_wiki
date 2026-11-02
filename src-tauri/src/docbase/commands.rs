@@ -278,6 +278,16 @@ pub fn docbase_rescan(state: State<'_, DocBaseState>) -> Result<(), String> {
     Ok(())
 }
 
+/// «Volver a procesar» a file, a folder or everything (A3 of 2 nov): the
+/// inventory of that scope is left incomplete and the process is woken, as
+/// with any other start. Returns how many files have their bytes read again.
+#[tauri::command(async)]
+pub fn docbase_reprocess(state: State<'_, DocBaseState>, again: process_run::Again) -> Result<usize, String> {
+    let files = state.base()?.process_again(&again)?;
+    state.wake.request();
+    Ok(files)
+}
+
 /// What the Inicio screen shows of the base.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

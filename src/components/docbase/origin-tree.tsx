@@ -7,13 +7,13 @@ import {
   EyeOff,
   FileText,
   Folder,
-  RefreshCw,
+  RotateCcw,
 } from "lucide-react"
 import {
   listFolder,
   openFolder,
   openLocation,
-  rescanOrigins,
+  reprocess,
   setExcluded,
   type DocumentRow,
   type FolderNode,
@@ -127,8 +127,14 @@ function FolderRow({
           >
             {node.excluded ? <Eye /> : <EyeOff />}
           </IconAction>
-          <IconAction title="Volver a barrer" onClick={() => run(rescanOrigins)}>
-            <RefreshCw />
+          {/* «Volver a procesar» (A3 of 2 nov): its inventory is left incomplete,
+              and the process takes it in its order; what did not change is
+              not done again nor asked to the AI. */}
+          <IconAction
+            title="Volver a procesar esta carpeta: vuelve a mirar sus archivos y su huella. Lo que no cambió no se rehace."
+            onClick={() => run(async () => void (await reprocess({ originId, folder: node.relPath })))}
+          >
+            <RotateCcw />
           </IconAction>
         </RowActions>
       </div>
@@ -178,6 +184,12 @@ function FileRow({ file, depth, actions }: { file: DocumentRow; depth: number; a
           onClick={() => run(() => setExcluded(file.originId, file.relPath, false, !excluded))}
         >
           {excluded ? <Eye /> : <EyeOff />}
+        </IconAction>
+        <IconAction
+          title="Volver a procesar este archivo: vuelve a mirar su huella. Si no cambió, no se rehace nada; para leerlo de nuevo con la IA, «Leer de nuevo»."
+          onClick={() => run(async () => void (await reprocess({ originId: file.originId, relPath: file.relPath })))}
+        >
+          <RotateCcw />
         </IconAction>
       </RowActions>
     </div>

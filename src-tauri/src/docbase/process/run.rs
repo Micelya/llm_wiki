@@ -51,6 +51,8 @@ use serde::Serialize;
 use super::steps::{Class, Scope, Step, STEPS};
 use super::{Looking, ProcessState};
 use crate::docbase::failures::{self, About, Failure};
+use crate::docbase::watch::Watch;
+use rusqlite::OptionalExtension;
 use crate::docbase::{sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 use crate::source_volume::recognition::TextRecognizer;
@@ -66,7 +68,8 @@ const SCAN_PAGES_BATCH: usize = 2;
 const PROFILE_BATCH: usize = 4;
 /// PDFs cut by the rules, or whose parts are made, at a time (D-556).
 const CUT_BATCH: usize = 4;
-/// The sweep of backup of every folder (the watcher comes with A3).
+/// The sweep of backup of every folder, for the folders of the network and
+/// the cloud that do not tell (the watcher, `watch.rs`, A3 of 2 nov).
 pub const SWEEP_EVERY: Duration = Duration::from_secs(5 * 60);
 /// How often the screens are told that something changed, at most.
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
@@ -220,6 +223,10 @@ pub(crate) struct Memory {
     /// over, and whether a whole pass did nothing.
     pass: usize,
     settled: bool,
+    /// Why the process has to start again from the first step: a change the
+    /// watcher heard, or a person who asked to process something again.
+    /// «En curso» says it with the next going back.
+    cause: Option<String>,
 }
 
 /// What one turn did.
@@ -498,14 +505,21 @@ impl DocBase {
     /// «En curso» says why.
     fn went_back(&self, step: Step) {
         let mut memory = self.memory();
+        let because = |memory: &mut Memory| memory.cause.take().map(|why| format!(": {why}")).unwrap_or_default();
         if let Some(last) = memory.last_step.filter(|last| step < *last) {
+            let why = if step == Step::Inventory { because(&mut memory) } else { String::new() };
             memory.status.back = Some(format!(
-                "volvió al paso {} ({}) después del paso {} ({})",
+                "volvió al paso {} ({}) después del paso {} ({}){why}",
                 step.number(),
                 step.about().name.to_lowercase(),
                 last.number(),
                 last.about().name.to_lowercase()
             ));
+        } else if step == Step::Inventory && memory.cause.is_some() {
+            // It was at the start already, or stopped: the cause is told all
+            // the same.
+            let why = because(&mut memory);
+            memory.status.back = Some(format!("empezó de nuevo por el paso 1 ({}){why}", step.about().name.to_lowercase()));
         }
     }
 
@@ -578,10 +592,19 @@ impl DocBase {
             _ => 0,
         };
         let done = match step {
-            Step::Inventory => Done::when(self.sweep_origins(match scope {
-                Scope::Folder { origin, .. } => Some(origin.as_str()),
-                _ => None,
-            })),
+            Step::Inventory => Done::when(match scope {
+                Scope::Folder { origin, .. } => self.sweep_origins(Some(origin.as_str())),
+                // The origins whose inventory is incomplete: never swept, or
+                // changed after their last sweep (the watcher, «Volver a
+                // procesar»). The sweep of backup goes over all of them.
+                _ => {
+                    let mut swept = false;
+                    for origin in self.origins_to_sweep()? {
+                        swept |= self.sweep_origins(Some(origin.as_str()));
+                    }
+                    swept
+                }
+            }),
             Step::FileHash => Done::when(self.hash_pending(HASH_BATCH)? > 0),
             Step::Text => Done::when(self.extract_pending(TEXT_BATCH)? > 0),
             Step::Scans => Done::when(self.scans_operation(scope, ask)?),
@@ -839,6 +862,104 @@ impl DocBase {
         self.engine_state().sweeping(None);
         swept
     }
+
+    /// The origins whose inventory is incomplete now (`steps::INVENTORY_LEFT`).
+    fn origins_to_sweep(&self) -> Result<Vec<String>, String> {
+        let conn = self.conn();
+        let mut statement =
+            conn.prepare(&format!("SELECT o.id FROM origin o WHERE {}", super::steps::INVENTORY_LEFT)).map_err(sql_err)?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(sql_err)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)
+    }
+
+    /// Something changed in the folder of `origin` (the watcher heard it and
+    /// it calmed down): its inventory is incomplete until a sweep newer than
+    /// the change, and the loop starts again from the first step after the
+    /// operation going on. «En curso» says why.
+    pub fn origin_changed(&self, origin: &str) -> Result<(), String> {
+        let name: Option<String> = self
+            .conn()
+            .query_row("SELECT name FROM origin WHERE id = ?1", [origin], |row| row.get(0))
+            .optional()
+            .map_err(sql_err)?;
+        let Some(name) = name else {
+            return Ok(());
+        };
+        self.conn()
+            .execute("UPDATE origin SET changed_at = ?1 WHERE id = ?2", rusqlite::params![crate::docbase::now_ms(), origin])
+            .map_err(sql_err)?;
+        self.memory().cause = Some(format!("un archivo nuevo o cambiado en «{name}»"));
+        self.process_woken();
+        Ok(())
+    }
+
+    /// «Volver a procesar» (A3 of 2 nov): a person asks to process again a
+    /// file, a folder or everything. It is one more start of the same
+    /// process, with no way of its own: the inventory of that scope is left
+    /// incomplete (the origins, to be swept again, and their files, to have
+    /// their bytes read again instead of trusting their size and date), and
+    /// the loop does the rest in its order. A step after it is done again
+    /// only where what it was made with changed (its seal); reading again
+    /// with the AI is «Leer de nuevo», with its cost. Returns how many files
+    /// are to be read again.
+    pub fn process_again(&self, again: &Again) -> Result<usize, String> {
+        let now = crate::docbase::now_ms();
+        let conn = self.conn();
+        let (files, origins) = match (&again.origin_id, &again.rel_path) {
+            (None, _) => (
+                conn.execute("UPDATE location SET hash_state = 'pending', hash_error = NULL WHERE kind = 'file'", []).map_err(sql_err)?,
+                conn.execute("UPDATE origin SET changed_at = ?1", [now]).map_err(sql_err)?,
+            ),
+            (Some(origin), Some(rel_path)) => (
+                conn.execute(
+                    "UPDATE location SET hash_state = 'pending', hash_error = NULL WHERE kind = 'file' AND origin_id = ?1 AND rel_path = ?2",
+                    rusqlite::params![origin, rel_path],
+                )
+                .map_err(sql_err)?,
+                conn.execute("UPDATE origin SET changed_at = ?1 WHERE id = ?2", rusqlite::params![now, origin]).map_err(sql_err)?,
+            ),
+            (Some(origin), None) => {
+                let folder = again.folder.as_deref().unwrap_or("").trim_matches('/');
+                (
+                    conn.execute(
+                        "UPDATE location SET hash_state = 'pending', hash_error = NULL
+                         WHERE kind = 'file' AND origin_id = ?1 AND (?2 = '' OR substr(rel_path, 1, length(?2) + 1) = ?2 || '/')",
+                        rusqlite::params![origin, folder],
+                    )
+                    .map_err(sql_err)?,
+                    conn.execute("UPDATE origin SET changed_at = ?1 WHERE id = ?2", rusqlite::params![now, origin]).map_err(sql_err)?,
+                )
+            }
+        };
+        drop(conn);
+        if origins == 0 {
+            return Err("Ese origen ya no existe".to_string());
+        }
+        let folder = again.folder.as_deref().unwrap_or("").trim_matches('/');
+        let what = match (&again.origin_id, &again.rel_path) {
+            (None, _) => "todo".to_string(),
+            (Some(_), Some(rel_path)) => format!("el archivo «{}»", rel_path.rsplit('/').next().unwrap_or(rel_path)),
+            (Some(_), None) if !folder.is_empty() => format!("la carpeta «{folder}»"),
+            (Some(origin), None) => {
+                let name: Option<String> =
+                    self.conn().query_row("SELECT name FROM origin WHERE id = ?1", [origin], |row| row.get(0)).optional().map_err(sql_err)?;
+                format!("la carpeta «{}»", name.unwrap_or_default())
+            }
+        };
+        self.memory().cause = Some(format!("pediste volver a procesar {what}"));
+        self.process_woken();
+        Ok(files)
+    }
+}
+
+/// What a person asks to process again: everything (no origin), a folder
+/// of an origin (`folder`, empty for all of it) or a file (`rel_path`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Again {
+    pub origin_id: Option<String>,
+    pub folder: Option<String>,
+    pub rel_path: Option<String>,
 }
 
 #[cfg(test)]
@@ -870,13 +991,31 @@ fn asker_now(base: &DocBase) -> Option<Box<dyn DocumentAsker>> {
 
 /// How long the loop may sleep when nothing is left: until the sweep of
 /// backup, or the next attempt of a failure, whatever comes first.
-fn sleep_for(base: &DocBase, last_sweep: Instant) -> Duration {
+fn sleep_for(base: &DocBase, last_sweep: Instant, watch: &Watch) -> Duration {
     let sweep = SWEEP_EVERY.saturating_sub(last_sweep.elapsed());
     let retry = failures::next_attempt(&base.conn())
         .ok()
         .flatten()
         .map(|at| Duration::from_millis(at.saturating_sub(crate::docbase::now_ms()).max(0) as u64));
-    retry.map_or(sweep, |r| r.min(sweep)).max(Duration::from_secs(1))
+    let calm = watch.next_calm();
+    [retry, calm].into_iter().flatten().fold(sweep, Duration::min).max(Duration::from_millis(200))
+}
+
+/// The folders of the origins, for the watcher.
+fn origin_folders(base: &DocBase) -> Vec<(String, std::path::PathBuf)> {
+    base.origins(&Visible::All).map(|origins| origins.iter().map(|o| (o.id.clone(), o.root())).collect()).unwrap_or_default()
+}
+
+/// The changes the watcher heard that calmed down: written down in the base,
+/// and the loop starts again from the first step. Whether there was one.
+pub(crate) fn take_calmed(base: &DocBase, watch: &Watch) -> bool {
+    let calmed = watch.calmed();
+    for origin in &calmed {
+        if let Err(error) = base.origin_changed(origin) {
+            eprintln!("[docbase] {error}");
+        }
+    }
+    !calmed.is_empty()
 }
 
 /// Starts the loop, the only thread of the work of the base. `on_change`
@@ -891,18 +1030,26 @@ pub fn spawn(base: Arc<DocBase>, wake: Arc<Wake>, on_change: impl Fn() + Send + 
     }
 }
 
-fn run(base: &DocBase, wake: &Wake, on_change: &dyn Fn(), on_pages: &dyn Fn()) {
+fn run(base: &DocBase, wake: &Arc<Wake>, on_change: &dyn Fn(), on_pages: &dyn Fn()) {
     let mut last_sweep: Option<Instant> = None;
     let mut last_notice = Instant::now();
     let mut unannounced = false;
+    // The watcher (A3 of 2 nov): its notices only write down when a folder
+    // changed, and wake this loop; the change is taken here, at the start
+    // of a turn, once the folder calmed down.
+    let mut watch = Watch::start(wake.clone());
     loop {
         let (woken, sweep) = wake.take();
         if woken {
             base.process_woken();
         }
+        unannounced |= take_calmed(base, &watch);
         if sweep || last_sweep.is_none_or(|at| at.elapsed() >= SWEEP_EVERY) {
             unannounced |= base.sweep_origins(None);
             last_sweep = Some(Instant::now());
+            // The folders of the origins, watched again after each sweep: a
+            // new origin, one removed, one that came back.
+            watch.follow(&origin_folders(base));
             base.process_woken();
             // The readings of this computer left in Micelya Core are tried
             // again with the sweep (P-294); nothing is sent when none.
@@ -934,7 +1081,7 @@ fn run(base: &DocBase, wake: &Wake, on_change: &dyn Fn(), on_pages: &dyn Fn()) {
             unannounced = false;
         }
         if !worked {
-            wake.wait(sleep_for(base, last_sweep.unwrap_or_else(Instant::now)));
+            wake.wait(sleep_for(base, last_sweep.unwrap_or_else(Instant::now), &watch));
         }
     }
 }
@@ -956,15 +1103,23 @@ fn note_thread(base: &DocBase, error: &str) {
 pub struct ProcessView {
     pub status: LoopStatus,
     pub state: ProcessState,
+    /// The places, files and documents of the base, by the same rule as
+    /// Inicio (`query::totals`): a file of 3 parts is 3 documents.
+    pub totals: crate::docbase::query::Totals,
+    /// Why each step set aside as a whole now is (the round past its cap
+    /// waits for a person), by its number.
+    pub aside: BTreeMap<u8, String>,
 }
 
 impl DocBase {
     /// The 18 steps over the whole base and the loop. Reads only.
     pub fn process_view(&self) -> Result<ProcessView, String> {
+        let reasons: BTreeMap<u8, String> = self.memory().aside.iter().map(|(step, why)| (step.number(), why.clone())).collect();
         let aside: BTreeSet<Step> = self.memory().aside.keys().copied().collect();
         let state = self.process_state_looking(&Scope::All, &Looking { aside, ..Looking::default() })?;
         debug_assert_eq!(state.steps.len(), STEPS.len());
-        Ok(ProcessView { status: self.process_status(), state })
+        let totals = crate::docbase::query::totals(&self.conn(), &Visible::All)?;
+        Ok(ProcessView { status: self.process_status(), state, totals, aside: reasons })
     }
 }
 

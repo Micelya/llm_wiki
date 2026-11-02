@@ -56,6 +56,62 @@ export function rescanOrigins(): Promise<void> {
   return invoke<void>("docbase_rescan")
 }
 
+/**
+ * «Volver a procesar» (A3 of 2 nov): everything (no origin), a folder of an
+ * origin (`folder`, empty for all of it) or a file (`relPath`). The
+ * inventory of that scope is left incomplete and the process takes it in
+ * its order. Returns how many files have their bytes read again.
+ */
+export function reprocess(again: { originId?: string; folder?: string; relPath?: string }): Promise<number> {
+  return invoke<number>("docbase_reprocess", { again })
+}
+
+/** The places, files and documents of the base, by the one rule of every screen. */
+export interface Totals {
+  places: number
+  files: number
+  /** Each part of a file of several documents, or the file itself: a file of 3 parts is 3. */
+  documents: number
+  typed: number
+}
+
+export type StepKey =
+  | "inventory" | "file-hash" | "text" | "scans" | "shapes" | "zones" | "cut-rules" | "cut-question" | "parts"
+  | "signature" | "similar" | "type" | "type-data" | "template-fields" | "reading" | "identity" | "matters" | "pages"
+
+/** One of the 18 steps of the process, as the base counts it now. */
+export interface StepState {
+  about: { number: number; key: StepKey; name: string; level: "file" | "document"; class: "local" | "asks" | "bySettings" }
+  class: "local" | "asks" | "bySettings"
+  count: { pending: number; setAside: number; person: number; low: number; withoutAsking: number; known: boolean }
+  /** Why its questions are set aside now, if they are. */
+  held: string | null
+}
+
+/** How the loop of the process stands. */
+export interface LoopStatus {
+  state: "working" | "stopped" | "waiting-person" | "waiting" | ""
+  step: number | null
+  operation: string | null
+  scope: string | null
+  back: string | null
+  waitingFor: string | null
+  turns: number
+}
+
+/** What «En curso» shows: the 18 steps, the loop and the totals. */
+export interface ProcessView {
+  status: LoopStatus
+  state: { steps: StepState[]; firstIncomplete: string | null; unknown: string[] }
+  totals: Totals
+  /** Why each step set aside as a whole is, by its number. */
+  aside: Record<string, string>
+}
+
+export function processView(): Promise<ProcessView> {
+  return invoke<ProcessView>("docbase_process_state")
+}
+
 /** Fires whenever something the document base screens show may have changed. */
 export function onDocbaseChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("docbase://changed", () => handler())
@@ -315,8 +371,11 @@ export interface Health {
   unreachableOrigins: number
   /** Files in the inventory, cloud shortcuts included. */
   locations: number
-  /** Distinct documents among the files already read. */
+  /** The documents, by the one rule of every screen: the same figure as «En curso». */
   documents: number
+  /** Distinct files read, by their bytes, and the places they are in. */
+  files?: number
+  places?: number
   /** Files by state. */
   byState: Partial<Record<DocumentState, number>>
   /** Files whose document is also somewhere else. */
