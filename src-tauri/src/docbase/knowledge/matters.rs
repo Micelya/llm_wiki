@@ -122,13 +122,15 @@ struct Link {
     reason: (String, String),
 }
 
-/// The documents read by the layer that count (not left out), with the
-/// fingerprint of their text, in an order that depends only on the texts.
+/// The documents read by the layer that count (not left out, nor of a
+/// type of low confidence: D-769, E3 of 2 nov), with the fingerprint of
+/// their text, in an order that depends only on the texts.
 fn documents(conn: &Connection) -> Result<Vec<(i64, String)>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT k.version_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {}",
+            "SELECT k.version_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {} AND NOT {}",
             changes::active_content("k.version_id"),
+            crate::docbase::safe_words::low_sql("k.version_id", crate::docbase::safe_words::limit(conn)?),
         ))
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;

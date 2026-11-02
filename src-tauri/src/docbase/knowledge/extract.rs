@@ -39,8 +39,9 @@ use super::vocabulary::{vocabulary, RoleReference, Vocabulary};
 use super::{mark_dirty, visible_content, Discarded};
 use crate::docbase::similar::changes::{classify as kind_of_token, Kind};
 use crate::docbase::similar::classify::{
-    self as classify, cached_answer, parse_json, stops_the_run, Question, ASKING, MIN_TYPE_WORDS,
+    self as classify, cached_answer, parse_json, stops_the_run, Question, ASKING,
 };
+use crate::docbase::safe_words::ASKED_WORDS;
 use crate::docbase::similar::data::Datum;
 use crate::docbase::similar::text::{firm_pages, Prepared};
 use crate::docbase::{now_ms, sql_err, DocBase, Visible};
@@ -218,14 +219,17 @@ impl ReadingRow {
     }
 }
 
-/// The documents with enough text to be read (all of them, or `only`),
-/// over what `visible` lets see, and how their reading stands. Whether a
+/// The documents with a word in their text (the one rule of the steps that
+/// ask, `safe_words::ASKED_WORDS`, E3 of 2 nov), all of them or `only`,
+/// over what `visible` lets see, and how their reading stands. Those of a
+/// type of low confidence are here too: the step of the reading sets them
+/// aside, with their reason (`knowledge_pending`, `process::steps`). Whether a
 /// reading is current is told without reading the texts: the same text
 /// (by when it was written), question and vocabulary.
 pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>) -> Result<Vec<Standing>, String> {
     let vocabulary = vocabulary();
     let (condition, params) = visible_content("c.id", visible);
-    let mut values: Vec<rusqlite::types::Value> = vec![MIN_TYPE_WORDS.into(), only.into()];
+    let mut values: Vec<rusqlite::types::Value> = vec![ASKED_WORDS.into(), only.into()];
     values.extend(params.into_iter().map(rusqlite::types::Value::from));
     let mut statement = conn
         .prepare(&format!(
@@ -2560,9 +2564,16 @@ impl DocBase {
         let waiting = self.waiting_before_reading(sees_images)?;
         let vocabulary = vocabulary();
         let conn = self.conn();
+        // A document of a type of low confidence is not read: what would
+        // come out of it is used in no process (D-769, E3 of 2 nov). It
+        // stays set aside, with its reason, until the threshold lets it in.
+        let low = crate::docbase::safe_words::low_confidence(&conn)?;
         let mut pending = Vec::new();
         let mut waiting_count = 0;
         for standing in stale {
+            if low.contains(&standing.content_id) {
+                continue;
+            }
             let body: String = conn
                 .query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [standing.content_id], |row| row.get(0))
                 .map_err(sql_err)?;

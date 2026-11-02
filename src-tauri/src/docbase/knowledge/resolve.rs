@@ -197,9 +197,12 @@ pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
         .prepare(&format!(
             "SELECT m.id, m.version_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id, m.defined
              FROM knowledge_mention m JOIN knowledge_extraction k ON k.version_id = m.version_id AND k.state = 'done'
-             WHERE {}
+             WHERE {} AND NOT {}
              ORDER BY m.version_id, m.id",
-            changes::active_content("m.version_id")
+            changes::active_content("m.version_id"),
+            // The mentions of a document of a type of low confidence join
+            // nobody (D-769, E3 of 2 nov).
+            crate::docbase::safe_words::low_sql("m.version_id", crate::docbase::safe_words::limit(conn)?)
         ))
         .map_err(sql_err)?;
     let hints = changes::entity_hints(conn)?;

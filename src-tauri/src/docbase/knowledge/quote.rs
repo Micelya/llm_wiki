@@ -105,13 +105,19 @@ impl Located {
     pub fn new(body: &str) -> Self {
         let mut located = Located::default();
         let mut page: Option<i64> = None;
+        // The page of the heading: the scanned text that follows the fields
+        // of a form is on it again (E3 of 2 nov).
+        let mut on_page: Option<i64> = None;
         for line in body.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with(RECOGNIZED_MARKER_START) {
+                // What a reader read of the page goes after its fields.
+                page = on_page;
                 continue;
             }
             if is_page_heading(trimmed) {
                 page = trimmed["## Page ".len()..].parse().ok();
+                on_page = page;
                 continue;
             }
             if trimmed == FORM_FIELDS_HEADING {
@@ -267,6 +273,15 @@ mod tests {
         assert_eq!(text.locate("constituye domicilio en calle falsa 123", Some(1)), Some(Some(2)));
         // A form field is on no page.
         assert_eq!(text.locate("Nombre: Persona Dos", Some(2)), Some(None));
+    }
+
+    #[test]
+    fn a_quote_of_the_scanned_text_after_the_fields_of_a_form_has_its_page() {
+        let text = Located::new(crate::docbase::similar::text::tests::FORM);
+        assert_eq!(text.locate("Inscribo el nacimiento de Persona Cinco", None), Some(Some(1)));
+        assert_eq!(text.locate("Hijo de Persona Seis", None), Some(Some(2)));
+        // The fields are still on no page.
+        assert_eq!(text.locate("Nombre: Persona Dos", Some(1)), Some(None));
     }
 
     #[test]

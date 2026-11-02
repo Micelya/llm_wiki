@@ -46,8 +46,11 @@ use super::types::{self, RelationDef};
 /// it certifies (D-607). `similar-6`: the stamp of a signing service in a
 /// sealed file is a party's signature, and the rules of the type take
 /// different data down to the same template, use each document's own
-/// datum and need a stage's data (P-485).
-pub const ENGINE: &str = "similar-6";
+/// datum and need a stage's data (P-485). `similar-7`: the scanned text
+/// that follows the fields of a form is compared (E3 of 2 nov), and each
+/// document keeps its share of safe words with its signature
+/// (`safe_words.rs`).
+pub const ENGINE: &str = "similar-7";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";
@@ -509,6 +512,7 @@ impl DocBase {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         save_signature(&tx, &signed, &engine_id())?;
+        save_safe_words(&tx, content_id, &body, &engine_id())?;
         tx.commit().map_err(sql_err)
     }
 
@@ -606,6 +610,7 @@ impl DocBase {
                 let mut conn = self.conn();
                 let tx = conn.transaction().map_err(sql_err)?;
                 save_signature(&tx, &signed, &engine)?;
+                save_safe_words(&tx, *content_id, body, &engine)?;
                 tx.commit().map_err(sql_err)
             };
             match saved() {
@@ -1247,6 +1252,14 @@ fn sign(
         skip_pages: reading.skip_pages,
         drop_phrases: reading.drop_phrases,
     }
+}
+
+/// The share of safe words of a document goes with its signature, made of
+/// the same text (E3 of 2 nov): the step of the signature keeps both, and
+/// its condition is the condition of both.
+fn save_safe_words(tx: &Transaction<'_>, content_id: i64, body: &str, engine: &str) -> Result<(), String> {
+    let words = crate::docbase::safe_words::measure(tx, content_id, body)?;
+    crate::docbase::safe_words::save(tx, content_id, &words, engine)
 }
 
 fn save_signature(tx: &Transaction<'_>, signed: &Signed, engine: &str) -> Result<(), String> {

@@ -287,7 +287,11 @@ fn page_number_lines(lines: &[String]) -> Vec<usize> {
         } else if trimmed == FORM_FIELDS_HEADING {
             // The form fields are not on the page.
             on_page = false;
-        } else if on_page && !trimmed.is_empty() && !trimmed.starts_with(RECOGNIZED_MARKER_START) {
+        } else if trimmed.starts_with(RECOGNIZED_MARKER_START) {
+            // What a reader read of the page goes after its fields: it is on
+            // the page again (E3 of 2 nov).
+            on_page = !pages.is_empty();
+        } else if on_page && !trimmed.is_empty() {
             if let Some((_, page)) = pages.last_mut() {
                 page.push(index);
             }
@@ -447,6 +451,14 @@ mod tests {
         assert_eq!(comparable(one), one);
         // A Word file has no pages.
         assert_eq!(comparable("Texto\n\n3"), "Texto\n\n3");
+    }
+
+    #[test]
+    fn the_page_number_read_after_the_fields_of_a_form_goes_too() {
+        let out = comparable(crate::docbase::similar::text::tests::FORM);
+        let lines: Vec<&str> = out.lines().map(str::trim).collect();
+        assert!(lines.contains(&"Hijo de Persona Seis"), "{out}");
+        assert!(!lines.contains(&"1") && !lines.contains(&"2"), "{out}");
     }
 
     #[test]

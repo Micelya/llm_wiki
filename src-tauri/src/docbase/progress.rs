@@ -631,7 +631,7 @@ fn all_members(conn: &Connection, facts: &Facts) -> Result<Vec<Members>, String>
         similar_members(conn, facts)?,
         types_members(conn, facts)?,
         templates_members(conn, facts)?,
-        reading_members(facts, &standings)?,
+        reading_members(facts, &standings, &super::safe_words::reasons(conn)?)?,
         resolve,
         matters_members(conn, facts, &read, &waiting_resolution, resolving)?,
         pages_members(conn, facts, resolving)?,
@@ -790,19 +790,23 @@ fn types_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
                     EXISTS (SELECT 1 FROM document_data dd WHERE dd.version_id = s.version_id AND dd.question IS NOT NULL
                             AND NOT EXISTS (SELECT 1 FROM model_answer a WHERE a.question = dd.question AND (?1 IS NULL OR a.engine = ?1)))
              FROM similar_signature s JOIN version c ON c.id = s.version_id AND c.state = 'processed'
-             WHERE s.words >= ?2",
+             WHERE coalesce(c.word_count, 0) >= ?2",
         )
         .map_err(sql_err)?;
     let rows = statement
         .query_map(
-            rusqlite::params![facts.answering, super::similar::classify::MIN_TYPE_WORDS],
+            rusqlite::params![facts.answering, super::safe_words::ASKED_WORDS],
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, bool>(2)?)),
         )
         .map_err(sql_err)?;
+    // The data of a document of a type of low confidence are not looked
+    // for (D-769, E3 of 2 nov): typed, it is done.
+    let low = super::safe_words::low_confidence(conn)?;
     let mut members = Members::new("documents");
     for row in rows {
         let (content, typed, data_waiting) = row.map_err(sql_err)?;
         if facts.active.contains(&content) {
+            let data_waiting = data_waiting && !low.contains(&content);
             members.push(Key::Content(content), if typed && !data_waiting { DONE } else { PENDING });
         }
     }
@@ -830,10 +834,20 @@ fn templates_members(conn: &Connection, facts: &Facts) -> Result<Members, String
 }
 
 /// Each document read by the model to know whom it names.
-fn reading_members(facts: &Facts, standings: &[super::knowledge::extract::Standing]) -> Result<Members, String> {
+/// A document of a type of low confidence is out of the reading, with its
+/// reason (`low`, D-769, E3 of 2 nov).
+fn reading_members(
+    facts: &Facts,
+    standings: &[super::knowledge::extract::Standing],
+    low: &BTreeMap<i64, String>,
+) -> Result<Members, String> {
     let mut members = Members::new("documents");
     let (mut outdated, mut requested) = (0, 0);
     for standing in standings.iter().filter(|s| facts.active.contains(&s.content_id)) {
+        if let Some(why) = low.get(&standing.content_id) {
+            members.items.push((Key::Content(standing.content_id), OUT, Some(why.clone())));
+            continue;
+        }
         let status = match &standing.reading {
             Some(reading) if reading.current && reading.state == "done" => DONE,
             Some(reading) if reading.current => FAILED,

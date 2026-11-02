@@ -84,8 +84,7 @@ pub struct About {
     /// elements: a failure of these sets an element aside.
     pub failure_stages: &'static [&'static str],
     /// A step after the type: where the documents of a type of low
-    /// confidence are set aside (decision 5 of 2 nov; stage B builds it,
-    /// `low_confidence`).
+    /// confidence are set aside (decision 5 of 2 nov; `low_confidence`).
     pub after_the_type: bool,
 }
 
@@ -518,15 +517,30 @@ pub(crate) fn class_now(conn: &Connection, step: Step) -> Result<Class, String> 
     })
 }
 
-/// The documents of a type of low confidence (decision 5 of 2 nov): what
-/// comes out of them is used in no process and for no information derived
-/// from them. Stage B builds it; until then, none. Every step after the
-/// type (`About::after_the_type`) sets them aside here: the data of the
-/// type, the fields of the templates and the reading, by document; the
-/// identities, the matters and the pages, by what they take from them
-/// (B filters their inputs).
-pub(crate) fn low_confidence(_conn: &Connection) -> Result<BTreeSet<i64>, String> {
-    Ok(BTreeSet::new())
+/// The documents of a type of low confidence (decision 5 of 2 nov, D-769):
+/// their share of safe words is below the threshold of the type of low
+/// confidence or below the one of «no legible», now (`safe_words.rs`, E3
+/// of 2 nov). What comes out of them is used in no process and for no
+/// information derived from them: they are only for queries. Set aside,
+/// with their reason (`safe_words::reasons`, in «En curso»):
+/// - by document, in the steps after the type: the data of the type
+///   (`classify::pass5_refresh`), the fields of the templates whose
+///   principal is one (`naming::templates_naming_run`) and the reading
+///   (`extract::knowledge_pending`);
+/// - by what the others take from them: the identities (their mentions,
+///   `resolve::load_rows`, and left out as an excluded document is,
+///   `changes::left_out`), the matters (`matters::documents`) and the pages
+///   (their page of document, `pages::family::families`, and every claim,
+///   which comes from the mentions);
+/// - as a hint for other documents: a family does not take their type, nor
+///   are they described in its question (`classify::load_units`), so a new
+///   member does not inherit it either (D-766). The vectors, when they come
+///   (C1 and C2), must not take them as an example: this is their filter.
+///
+/// Their type is still asked, with their approximate words: the type is
+/// what lets a person find them.
+pub(crate) fn low_confidence(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    super::super::safe_words::low_confidence(conn)
 }
 
 fn count(conn: &Connection, sql: &str) -> Result<usize, String> {

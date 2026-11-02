@@ -44,6 +44,9 @@ pub mod progress;
 pub mod query;
 pub mod questions;
 pub mod recognize;
+pub mod safe_words;
+#[cfg(test)]
+mod check_forms;
 pub mod search;
 pub mod services;
 mod scan;

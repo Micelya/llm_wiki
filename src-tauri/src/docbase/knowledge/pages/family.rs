@@ -141,7 +141,11 @@ pub(super) fn families(base: &DocBase, vocabulary: &Vocabulary) -> Result<Famili
             .map_err(sql_err)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)?
     };
-    let contents: Vec<i64> = identities.keys().copied().collect();
+    // A document of a type of low confidence has no page of its own: the
+    // page is information derived from it (D-769, E3 of 2 nov). It is found,
+    // opened and seen in the base.
+    let low = crate::docbase::safe_words::low_confidence(&base.conn())?;
+    let contents: Vec<i64> = identities.keys().copied().filter(|c| !low.contains(c)).collect();
     let mut parent: HashMap<i64, i64> = contents.iter().map(|c| (*c, *c)).collect();
     fn find(parent: &mut HashMap<i64, i64>, x: i64) -> i64 {
         let mut at = x;

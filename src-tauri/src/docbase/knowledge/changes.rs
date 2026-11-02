@@ -53,14 +53,18 @@ pub(crate) fn active_content(column: &str) -> String {
 }
 
 /// The contents read by the layer that are left out now: every location
-/// they have is excluded.
+/// they have is excluded, or they are of a type of low confidence now
+/// (D-769, E3 of 2 nov): read before the threshold left them out, what
+/// they said goes out of the record the same way, and comes back when it
+/// lets them in.
 pub(crate) fn left_out(conn: &Connection) -> Result<BTreeSet<i64>, String> {
     let mut statement = conn
         .prepare(&format!(
             "SELECT k.version_id FROM knowledge_extraction k
              WHERE EXISTS (SELECT 1 FROM appearance f JOIN location l ON l.file_hash = f.resource_hash WHERE f.version_id = k.version_id)
-               AND NOT {}",
-            active_content("k.version_id")
+               AND (NOT {} OR {})",
+            active_content("k.version_id"),
+            crate::docbase::safe_words::low_sql("k.version_id", crate::docbase::safe_words::limit(conn)?)
         ))
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;

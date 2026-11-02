@@ -36,8 +36,6 @@ use crate::source_volume::asking::{AskConfig, DocumentAsker};
 /// every question is asked again.
 pub const TYPE_PROMPT: &str = "tipo-2";
 pub const DATA_PROMPT: &str = "datos-1";
-/// A document with fewer words than this says too little to be typed.
-pub const MIN_TYPE_WORDS: i64 = 10;
 /// The excerpt of a long text: its first and last words.
 pub const EXCERPT_HEAD: usize = 1200;
 pub const EXCERPT_TAIL: usize = 300;
@@ -267,18 +265,21 @@ fn fingerprint(parts: &[&str]) -> String {
     hasher.finalize().iter().take(12).map(|b| format!("{b:02x}")).collect()
 }
 
-/// The documents with enough text to be typed.
+/// The documents to type: every one with a word in its text (the one rule
+/// of the steps that ask, `safe_words::ASKED_WORDS`, E3 of 2 nov; before,
+/// 10 words of its signature, without the fields of a form nor the pages
+/// the marks skip), once signed.
 pub(super) fn load_docs(conn: &Connection) -> Result<BTreeMap<i64, DocInfo>, String> {
     let mut statement = conn
         .prepare(
             "SELECT s.version_id, s.text_at, coalesce(m.marks, '[]') FROM similar_signature s
              JOIN version c ON c.id = s.version_id AND c.state = 'processed'
              LEFT JOIN document_marks m ON m.version_id = s.version_id
-             WHERE s.words >= ?1",
+             WHERE coalesce(c.word_count, 0) >= ?1",
         )
         .map_err(sql_err)?;
     let rows = statement
-        .query_map([MIN_TYPE_WORDS], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
+        .query_map([crate::docbase::safe_words::ASKED_WORDS], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
         .map_err(sql_err)?;
     let mut out = BTreeMap::new();
     for row in rows {
@@ -321,8 +322,12 @@ fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo
     }
     let mut placed: BTreeSet<i64> = BTreeSet::new();
     let mut units = Vec::new();
+    // A document of a type of low confidence is typed alone (D-769, E3 of 2
+    // nov): it gives its type to no family, nor is it described in the
+    // question of one; its members, then, are typed each on its own.
+    let low = crate::docbase::safe_words::low_confidence(conn)?;
     for (principal, members) in families {
-        if !docs.contains_key(&principal) {
+        if !docs.contains_key(&principal) || low.contains(&principal) {
             continue;
         }
         // A document that only shares the template of the principal is
@@ -337,7 +342,7 @@ fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo
         let parted = principal_type_parts_family(conn, catalog, principal)?;
         let members: Vec<(i64, Option<String>)> = members
             .into_iter()
-            .filter(|(m, _)| docs.contains_key(m))
+            .filter(|(m, _)| docs.contains_key(m) && !low.contains(m))
             .filter(|(_, relation)| !(parted && relation.as_deref() == Some("same-template")))
             .collect();
         placed.insert(principal);
@@ -1268,7 +1273,13 @@ impl DocBase {
         };
         let mut written = 0;
         let mut pending = Vec::new();
+        // The data of a document of a type of low confidence are not looked
+        // for, by the rules nor by the model (D-769, E3 of 2 nov).
+        let low = crate::docbase::safe_words::low_confidence(&conn)?;
         for (content_id, doc_type, proposed) in typed {
+            if low.contains(&content_id) {
+                continue;
+            }
             let Some(doc) = docs.get(&content_id) else { continue };
             let own = (!proposed).then_some(doc_type.as_str());
             let rules = data_rules(catalog, own, &doc.marks);

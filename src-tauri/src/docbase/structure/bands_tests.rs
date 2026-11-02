@@ -128,9 +128,10 @@ fn a_scanned_pdf_of_one_page_and_an_image_are_read_by_zones_with_their_bands_and
         assert!(!body.contains("garabato"), "{name}: {body}");
         assert!(body.contains(&marker(&local)), "{name}: {body}");
         assert_eq!(engine, local);
-        // Only its firm words count as its words (the reading needs 10).
+        // Every word of its text counts as its words, firm (8) and
+        // approximate (9): the one rule of the steps that ask (E3 of 2 nov).
         let words: i64 = base.conn().query_row("SELECT word_count FROM version WHERE id = ?1", [version], |row| row.get(0)).unwrap();
-        assert_eq!(words, 8, "{name}");
+        assert_eq!(words, 17, "{name}");
     }
     assert_eq!(stand.read.get(), 2, "one page read for each document");
 
@@ -152,6 +153,16 @@ fn a_scanned_pdf_of_one_page_and_an_image_are_read_by_zones_with_their_bands_and
         let bands = &body[0]["franjas"];
         assert_eq!((bands["firme"].as_u64(), bands["aproximada"].as_u64(), bands["descartada"].as_u64()), (Some(2), Some(2), Some(1)), "{name}");
         assert_eq!(super::reader::marked_text(&body[0]), MARKED);
+    }
+
+    // The share of safe words (E3 of 2 nov), kept with the signature: the
+    // firm words over every word read, the discarded ones of the reading by
+    // zones too, for the PDF of one page and for the image.
+    while base.similar_step(10).unwrap() > 0 {}
+    for name in ["una.pdf", "foto.png"] {
+        let (version, _) = of(&base, name);
+        let words = crate::docbase::safe_words::of(&base.conn(), version).unwrap().unwrap();
+        assert_eq!(words, crate::docbase::safe_words::SafeWords { firm: 8, approximate: 9, discarded: 2 }, "{name}");
     }
 }
 

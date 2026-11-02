@@ -3,17 +3,20 @@
 //! the engines (`services.rs`), each with its value by default.
 //!
 //! - Of the reading: the low threshold (0,90, D-706), the high one of the
-//!   bands (0,97, D-668) and the quality: the share of firm text below
-//!   which a document is «no legible» (D-705, P-520). The bands and the
-//!   quality are used by the reading by bands, when it enters the app.
+//!   bands (0,97, D-668) and the quality: the share of safe words below
+//!   which a document is «no legible» (D-705, P-520).
+//! - Of the type: the share of safe words below which a document is of a
+//!   type of low confidence (D-769), 30 % provisional. A document below
+//!   either of the two is of low confidence (`safe_words.rs`, E3 of 2 nov).
 //! - Of the failures: the threshold of the indicator, attempts and hours
 //!   (D-714), kept where the first stage of 1 nov left them.
 //! - Of the round of questions that go by themselves: its cap (D-484).
 //! - Of the retries: the waits of a transient failure, in minutes; past
 //!   the last, the last again, without end.
 //!
-//! The least words to type (10) and to compare (30) stay in the code: the
-//! owner did not ask for them.
+//! The least words to compare (30) stay in the code: the owner did not ask
+//! for them. The 10 words to type and to read are gone (E3 of 2 nov): a
+//! document with one word is asked (`safe_words::ASKED_WORDS`).
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -23,6 +26,7 @@ use super::{failures, sql_err, DocBase};
 pub const LOW: &str = "reading:low-threshold";
 pub const HIGH: &str = "reading:high-threshold";
 pub const QUALITY: &str = "reading:quality-threshold";
+pub const LOW_CONFIDENCE_TYPE: &str = "types:low-confidence-threshold";
 pub const ROUND_CAP: &str = "auto-questions:cap";
 pub const RETRY_MINUTES: &str = "failures:retry-minutes";
 
@@ -30,6 +34,14 @@ pub const RETRY_MINUTES: &str = "failures:retry-minutes";
 /// default (P-520): provisional, assumed in the unattended run of 1 nov
 /// until its value is measured on the readings of the test folder (D-741).
 pub const DEFAULT_QUALITY: f64 = 0.5;
+/// The share of safe words below which a document is of a type of low
+/// confidence, by default: provisional, until it is measured with the
+/// sheet of types (decision 5 of 2 nov, D-769).
+pub const DEFAULT_LOW_CONFIDENCE_TYPE: f64 = 0.30;
+
+fn default_low_confidence_type() -> f64 {
+    DEFAULT_LOW_CONFIDENCE_TYPE
+}
 
 /// Every threshold, with its value now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,6 +50,9 @@ pub struct Thresholds {
     pub low: f64,
     pub high: f64,
     pub quality: f64,
+    /// The threshold of the type of low confidence (D-769).
+    #[serde(default = "default_low_confidence_type")]
+    pub low_confidence_type: f64,
     pub indicator_attempts: i64,
     pub indicator_hours: i64,
     pub round_cap: usize,
@@ -50,6 +65,7 @@ impl Default for Thresholds {
             low: 0.90,
             high: 0.97,
             quality: DEFAULT_QUALITY,
+            low_confidence_type: DEFAULT_LOW_CONFIDENCE_TYPE,
             indicator_attempts: 3,
             indicator_hours: 6,
             round_cap: super::auto_questions::CAP,
@@ -82,6 +98,7 @@ pub fn thresholds(conn: &Connection) -> Result<Thresholds, String> {
         low: share(conn, LOW, default.low)?,
         high: share(conn, HIGH, default.high)?,
         quality: share(conn, QUALITY, default.quality)?,
+        low_confidence_type: share(conn, LOW_CONFIDENCE_TYPE, default.low_confidence_type)?,
         indicator_attempts,
         indicator_hours,
         round_cap: round_cap(conn)?,
@@ -104,7 +121,7 @@ fn invalid(t: &Thresholds) -> Option<&'static str> {
     if !(0.0 < t.low && t.low < t.high && t.high <= 1.0) {
         return Some("El umbral bajo tiene que ser mayor que 0 y menor que el alto, y el alto, a lo sumo 1.");
     }
-    if !(0.0..=1.0).contains(&t.quality) {
+    if !(0.0..=1.0).contains(&t.quality) || !(0.0..=1.0).contains(&t.low_confidence_type) {
         return Some("La calidad es una proporción: entre 0 y 1.");
     }
     if t.indicator_attempts < 1 || t.indicator_hours < 1 || t.round_cap < 1 {
@@ -132,6 +149,7 @@ impl DocBase {
             (LOW, t.low.to_string()),
             (HIGH, t.high.to_string()),
             (QUALITY, t.quality.to_string()),
+            (LOW_CONFIDENCE_TYPE, t.low_confidence_type.to_string()),
             (failures::INDICATOR_ATTEMPTS, t.indicator_attempts.to_string()),
             (failures::INDICATOR_HOURS, t.indicator_hours.to_string()),
             (ROUND_CAP, t.round_cap.to_string()),

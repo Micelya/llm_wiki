@@ -472,7 +472,14 @@ impl DocBase {
         // A template with a whole file that is to be cut again is named
         // once the cut makes it again (D-666).
         let to_cut = if all.is_empty() { BTreeSet::new() } else { self.waiting_for_cut()? };
+        // The fields of a template whose principal is of a type of low
+        // confidence are not named: they would be named from its text
+        // (D-769, E3 of 2 nov).
+        let low = crate::docbase::safe_words::low_confidence(&self.conn())?;
         for principal in all {
+            if low.contains(&principal) {
+                continue;
+            }
             if !to_cut.is_empty() && template_documents(&self.conn(), principal)?.iter().any(|id| to_cut.contains(id)) {
                 continue;
             }

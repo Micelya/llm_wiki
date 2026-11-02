@@ -63,7 +63,15 @@ fn pages_with(text: &str, approximate: bool) -> Vec<Vec<&str>> {
             in_fields = true;
             continue;
         }
-        if in_fields || trimmed.starts_with(RECOGNIZED_MARKER_START) {
+        // What a reader read of the page goes after its fields, under its
+        // marker (`recognition::splice_replacing`): the marker closes the
+        // fields, and the scanned text of the page is text of the document
+        // (E3 of 2 nov; before, it went away with the fields).
+        if trimmed.starts_with(RECOGNIZED_MARKER_START) {
+            in_fields = false;
+            continue;
+        }
+        if in_fields {
             continue;
         }
         let line = match (bands::is_approximate(line), approximate) {
@@ -282,7 +290,7 @@ fn ends_sentence(raw: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::source_volume::catalog::normalized_words;
 
@@ -333,6 +341,42 @@ mod tests {
         let prepared = Prepared::new(&pages("4.2. El plazo es de\n10.12. días y vence el 4.2."), &[], &[]);
         let numbering: Vec<bool> = prepared.raws.iter().map(|r| r.numbering).collect();
         assert_eq!(numbering, [true, false, false, false, false, true, false, false, false, false, false]);
+    }
+
+    /// A page of a form of the Registro Civil as its text keeps it: its
+    /// fields, and after them, under its marker, what the reader read of the
+    /// page (invented names, R-24).
+    pub(crate) const FORM: &str = "## Page 1
+
+CERTIFICADO
+
+### Form fields
+
+- Nombre: Persona Dos
+<!-- texto-reconocido motor=\"local por zonas, bajo 0.9, alto 0.97\" -->
+PARTIDA DE NACIMIENTO
+Inscribo el nacimiento de Persona Cinco
+1
+
+## Page 2
+
+### Form fields
+
+- Nombre: Persona Dos
+<!-- texto-reconocido motor=\"local por zonas, bajo 0.9, alto 0.97\" -->
+Hijo de Persona Seis
+2
+";
+
+    #[test]
+    fn the_scanned_text_after_the_fields_of_a_form_is_text_of_its_page() {
+        let pages = pages(FORM);
+        assert!(pages[0].contains(&"PARTIDA DE NACIMIENTO") && pages[0].contains(&"Inscribo el nacimiento de Persona Cinco"), "{pages:?}");
+        assert!(pages[1].contains(&"Hijo de Persona Seis"), "{pages:?}");
+        // The fields stay out of the comparison, as before.
+        assert!(!pages.iter().flatten().any(|line| line.contains("Persona Dos")), "{pages:?}");
+        let words = Prepared::new(&pages, &[], &[]).word_count();
+        assert_eq!(words, 1 + 3 + 6 + 1 + 4 + 1);
     }
 
     #[test]
