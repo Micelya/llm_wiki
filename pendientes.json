@@ -4803,9 +4803,9 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "La lectura por zonas guarda la confianza de cada renglón, pero el rescate por la capa vieja necesita esa capa, que no se guarda. Hoy un cambio de umbrales no toca lo ya leído (D-747).",
+      "detalle": "La lectura por zonas guarda la confianza de cada renglón, pero el rescate por la capa vieja necesita esa capa, que no se guarda. Hoy un cambio de umbrales no toca lo ya leído (D-747). 2026-11-02: Desde la etapa E1 (decisión D-807), cada página leída por zonas queda guardada junto a la base con sus renglones, su confianza y su franja, y el texto de un escaneo guarda con qué umbrales se leyó. Un cambio de umbrales vale para lo que se lee desde ahí y para lo que una persona pide leer de nuevo; lo ya leído no se recalcula solo. Para recalcular sin leer falta guardar, por renglón, si coincidió con la capa vieja de la página.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-552",
@@ -5031,9 +5031,9 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "En la corrida de control, 149 documentos escaneados tuvieron como texto el del escaneo simple: todos los renglones, sin confianza ni franjas. La lectura por zonas con franjas solo se usó para las preguntas del corte. En N, el texto de esos documentos era la lectura por zonas, con solo lo leído con confianza. Por eso, nombres mal leídos (una letra cambiada) e identificadores mal leídos de un sello llegaron a la extracción como datos: 62 entidades activas más que N, unas 40 de ellas repetidas, y 20 páginas repetidas escritas por la IA. El texto de N no tiene ninguna de esas variantes mal leídas, y las entidades halladas son las mismas (566 contra 565 de 738 en la hoja de la sucesión). Arreglo: que el texto de un documento escaneado salga de la lectura por zonas con franjas (D-668): lo firme da datos, lo aproximado va marcado y lo descartado no entra. Va con la etapa del lector elegido o donde decida el agente principal. Consultas de producción por documento (D-672): no suma ninguna; resta páginas (unas 20 en la carpeta de prueba, 0,07 por documento) y probablemente preguntas de identidad.",
+      "detalle": "En la corrida de control, 149 documentos escaneados tuvieron como texto el del escaneo simple: todos los renglones, sin confianza ni franjas. La lectura por zonas con franjas solo se usó para las preguntas del corte. En N, el texto de esos documentos era la lectura por zonas, con solo lo leído con confianza. Por eso, nombres mal leídos (una letra cambiada) e identificadores mal leídos de un sello llegaron a la extracción como datos: 62 entidades activas más que N, unas 40 de ellas repetidas, y 20 páginas repetidas escritas por la IA. El texto de N no tiene ninguna de esas variantes mal leídas, y las entidades halladas son las mismas (566 contra 565 de 738 en la hoja de la sucesión). Arreglo: que el texto de un documento escaneado salga de la lectura por zonas con franjas (D-668): lo firme da datos, lo aproximado va marcado y lo descartado no entra. Va con la etapa del lector elegido o donde decida el agente principal. Consultas de producción por documento (D-672): no suma ninguna; resta páginas (unas 20 en la carpeta de prueba, 0,07 por documento) y probablemente preguntas de identidad. 2026-11-02: La etapa E1 hizo que el texto de cada escaneo salga de la lectura por zonas con franjas, y que cada paso que lo lee respete la marca de aproximado (decisiones D-806 y D-807). Falta verlo en la wiki que sale de la prueba chica: que no queden páginas de nombres mal leídos.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-583",
@@ -5261,7 +5261,31 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "reconocimiento",
-      "detalle": "Con el lector elegido en Ajustes (decisión D-788), el texto de un escaneo es el del lector elegido. Lo asumido del plan corregido dice que con Codex o Core su confianza se lleva a las mismas franjas que la del lector local (firme, aproximada, descartada). Hoy Core guarda las palabras dudosas aparte y Codex marca «[ilegible]», pero ninguno entra a las franjas: lo hace la etapa E1 para el lector local. Falta llevar la confianza de Core (por palabra) y la marca de Codex a las franjas, para que lo aproximado de esos lectores tampoco dé datos.",
+      "detalle": "Con el lector elegido en Ajustes (decisión D-788), el texto de un escaneo es el del lector elegido. Lo asumido del plan corregido dice que con Codex o Core su confianza se lleva a las mismas franjas que la del lector local (firme, aproximada, descartada). Hoy Core guarda las palabras dudosas aparte y Codex marca «[ilegible]», pero ninguno entra a las franjas: lo hace la etapa E1 para el lector local. Falta llevar la confianza de Core (por palabra) y la marca de Codex a las franjas, para que lo aproximado de esos lectores tampoco dé datos. 2026-11-02: La etapa E1 llevó la confianza de Micelya Core a las franjas: cada renglón toma la de su palabra menos segura, con los umbrales de Ajustes (decisión D-806). Codex no dice su confianza: su texto queda como está, todo firme salvo lo que marca «[ilegible]». Queda por decidir si a Codex se le pide su confianza o si su texto se trata como aproximado.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-625",
+      "titulo": "Que los vectores se calculen sobre el texto con franjas: lo aproximado sin su marca, como señal, y nada de lo descartado",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "Desde la etapa E1 del 2 nov (decisión D-806), el texto de un escaneo trae sus renglones aproximados marcados con «[aproximado]» y no trae los descartados. Los vectores todavía no existen en la base (etapa C1). Cuando lleguen, tienen que tomar el texto como lo toma la firma de parecidos: lo aproximado sin la marca, como señal (source_volume/bands.rs, función unmarked), y nunca un dato que salga solo de ahí. La medición de la etapa C0 usó el escaneo simple, con lo aproximado sin marcar: no vale para comparar.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-626",
+      "titulo": "Que la proporción de palabras seguras y la regla de las palabras usen la misma cuenta que la extracción: solo las palabras firmes",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "Desde la etapa E1 del 2 nov (decisión D-806), la cantidad de palabras de un documento (la que mira la extracción) cuenta solo las palabras de su texto firme, y la firma de parecidos (la que mira el tipo) cuenta también las aproximadas, como señal. La etapa E3 (la proporción de palabras seguras y el fin de la regla de las 10 palabras) tiene que tomar esto en cuenta: la proporción sale de las franjas de la lectura por zonas, que ahora existe también para los PDF de una página y las imágenes. Además, quedan con lo aproximado como señal dos pasos que la especificación de E1 no nombraba: los datos clave de la comparación de versiones y los campos de las plantillas. Conviene mirar en la prueba chica si alguno de los dos tendría que leer solo lo firme.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
