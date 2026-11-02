@@ -4884,12 +4884,12 @@
       "titulo": "«En curso» cuenta los archivos enteros como documentos que faltan comparar en «Copias, versiones y plantillas»",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "Al abrir la app con la base de la corrida de control de la carpeta, «En curso» dice «Copias, versiones y plantillas: 101 de 136, faltan 35», y no avanza nunca. Los 35 son las versiones de los archivos enteros que tienen 2 documentos o más: los lugares de tipo «archivo» de la estructura. Con los dos niveles (D-734 a D-737), un archivo entero nunca pasa por los parecidos, así que nunca van a tener su firma. El error está en la cuenta de la pantalla: `progress.rs`, en `similar_members`, toma toda versión con texto, sin mirar si es un documento de la estructura. Hay que contar solo los documentos, con la misma regla que la firma de parecidos. La base original de la corrida da lo mismo, así que no es trabajo pendiente de verdad. Consultas de producción por documento (D-672): 0.",
+      "detalle": "Al abrir la app con la base de la corrida de control de la carpeta, «En curso» dice «Copias, versiones y plantillas: 101 de 136, faltan 35», y no avanza nunca. Los 35 son las versiones de los archivos enteros que tienen 2 documentos o más: los lugares de tipo «archivo» de la estructura. Con los dos niveles (D-734 a D-737), un archivo entero nunca pasa por los parecidos, así que nunca van a tener su firma. El error está en la cuenta de la pantalla: `progress.rs`, en `similar_members`, toma toda versión con texto, sin mirar si es un documento de la estructura. Hay que contar solo los documentos, con la misma regla que la firma de parecidos. La base original de la corrida da lo mismo, así que no es trabajo pendiente de verdad. Consultas de producción por documento (D-672): 0. 2026-11-02: Hecho en el código en la etapa A3 del 2 nov (decisión D-794): «En curso» e Inicio cuentan los documentos con la misma regla de la estructura; un compuesto de 3 partes cuenta 3, no 4, y la etapa de copias ya no cuenta los textos enteros de los compuestos (lo que la dejaba fija en 101 de 136). Probado con datos armados en una prueba de Rust; falta verlo con la carpeta de prueba entera.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-574",
@@ -5165,9 +5165,9 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "pantallas",
-      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). Personas: Inicio dice 122 personas con página; la lista de Personas y organizaciones, 527 resultados (personas y organizaciones, con y sin página); el Grafo, 343 personas. Documentos: 296 leídos, 136 distintos, 148 archivos, 284 con tipo, 101 con tipo y datos, 132 en el Grafo. Menciones: en «Los más nombrados» de Inicio, la persona más nombrada figura con 48 documentos y la de la sucesión con 32; en la lista, con 77 y 83. Atención dice «1 problema · 176 decisiones» y sus pestañas, «Problemas 2 · Decisiones 5». Cada número puede ser correcto en su definición, pero ninguna pantalla dice qué cuenta, y un usuario cree que la app se contradice. Arreglo: una sola definición por número, o una aclaración corta al lado de cada uno (por ejemplo, «con página» frente a «nombradas»). Consultas de producción por documento (D-672): igual.",
+      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). Personas: Inicio dice 122 personas con página; la lista de Personas y organizaciones, 527 resultados (personas y organizaciones, con y sin página); el Grafo, 343 personas. Documentos: 296 leídos, 136 distintos, 148 archivos, 284 con tipo, 101 con tipo y datos, 132 en el Grafo. Menciones: en «Los más nombrados» de Inicio, la persona más nombrada figura con 48 documentos y la de la sucesión con 32; en la lista, con 77 y 83. Atención dice «1 problema · 176 decisiones» y sus pestañas, «Problemas 2 · Decisiones 5». Cada número puede ser correcto en su definición, pero ninguna pantalla dice qué cuenta, y un usuario cree que la app se contradice. Arreglo: una sola definición por número, o una aclaración corta al lado de cada uno (por ejemplo, «con página» frente a «nombradas»). Consultas de producción por documento (D-672): igual. 2026-11-02: En parte en la etapa A3 del 2 nov (decisión D-794): los documentos con una sola regla en Inicio, «En curso», la pantalla de tipos y la etapa de copias; Inicio dice «archivos distintos en sus lugares»; Personas dice que cuenta con página o sin ella; la consulta de la pantalla de tipos ya no escribe al mirar. Lo que falta (el Grafo y Atención) pasó a P-608.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-594",
@@ -5213,7 +5213,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "La etapa E4 del 2 nov dejó un solo bucle con los 18 pasos (decisión D-783). Para la etapa A3: (1) dibujar «En curso» con la orden que ya devuelve el estado del proceso (docbase_process_state: el paso, la operación, por qué volvió atrás, por qué espera, y cada paso con sus pendientes y apartados); (2) el vigilante recuperado del historial despierta al bucle, y el botón «Volver a procesar»; (3) borrar la recuenta de la ronda con tope (auto_questions.rs, auto_questions_go), que todavía corre la resolución y las páginas sin preguntar para contar: el conteo tiene que salir de la operación del paso; (4) guardar en la base lo que queda después de cada pasada de la identidad, los asuntos y las síntesis (hoy el bucle las recorre una vez al abrir la app y después de cualquier trabajo); (5) contar en el paso del texto la reextracción y los documentos hechos desde una plantilla, que el bucle ya hace antes de mirar los pasos pero sin contarlas; (6) pasar los pedidos de una persona y la cuenta de las vueltas atrás a tablas propias en la próxima versión de la base (hoy los pedidos son filas de la tabla de ajustes y la cuenta vive en memoria).",
+      "detalle": "La etapa E4 del 2 nov dejó un solo bucle con los 18 pasos (decisión D-783). Para la etapa A3: (1) dibujar «En curso» con la orden que ya devuelve el estado del proceso (docbase_process_state: el paso, la operación, por qué volvió atrás, por qué espera, y cada paso con sus pendientes y apartados); (2) el vigilante recuperado del historial despierta al bucle, y el botón «Volver a procesar»; (3) borrar la recuenta de la ronda con tope (auto_questions.rs, auto_questions_go), que todavía corre la resolución y las páginas sin preguntar para contar: el conteo tiene que salir de la operación del paso; (4) guardar en la base lo que queda después de cada pasada de la identidad, los asuntos y las síntesis (hoy el bucle las recorre una vez al abrir la app y después de cualquier trabajo); (5) contar en el paso del texto la reextracción y los documentos hechos desde una plantilla, que el bucle ya hace antes de mirar los pasos pero sin contarlas; (6) pasar los pedidos de una persona y la cuenta de las vueltas atrás a tablas propias en la próxima versión de la base (hoy los pedidos son filas de la tabla de ajustes y la cuenta vive en memoria). 2026-11-02: La etapa A3 del 2 nov hizo los puntos 1 y 2 (decisiones D-793 y D-794): «En curso» con los 18 pasos, el vigilante recuperado y «Volver a procesar». Los puntos 3 a 6 (la recuenta de la ronda, lo que queda tras cada pasada, contar lo que el bucle hace antes de mirar los pasos y las tablas propias de los pedidos) siguen; los dos primeros quedan también en P-608.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     },
@@ -5382,6 +5382,30 @@
       "prioridad": 3,
       "tema": "base",
       "detalle": "La etapa 3b del 2 nov borró la exportación de señales del corte de antes y sus variantes de medición (la de solo reglas, la del modelo en los saltos dudosos de dos páginas y la cuenta de sus preguntas). Queda el corte mismo: las reglas de texto, la pregunta de dos páginas, sus señales, su rama en el paso del corte y el ajuste de la lectura por zonas. La app como viene nunca lo usa (el ajuste viene prendido y nada lo apaga), pero es el cortador de las pruebas de Rust, que se compilan sin el modelo de zonas: las 12 del corte de antes y las del proceso, el reconocimiento y el texto que arman PDF. Para borrarlo hace falta un lector por zonas de prueba (el rasgo de lectura por zonas lo permite) y pasar esas pruebas al corte por zonas. Es una etapa propia: no entraba en la 3b sin pasarse del tope.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-608",
+      "titulo": "Lo que queda de «En curso» y de las cifras entre pantallas después de la etapa A3",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "La etapa A3 del 2 nov (decisión D-794) dibujó «En curso» con los 18 pasos y puso una sola regla de qué es un documento en Inicio, «En curso», la pantalla de tipos y la etapa de copias. Falta: (1) listar los documentos de cada paso debajo de su paso; hoy la lista vieja de etapas, con sus botones (leer un escaneo, leer de nuevo), queda plegada debajo y cuenta a su manera; (2) el Grafo: dice qué cuenta (un nodo por familia de versiones, personas con o sin página) solo en el código; falta decirlo en la pantalla; (3) el título de Atención y sus pestañas cuentan distinto (elementos contra avisos); (4) borrar la recuenta de la ronda con tope (auto_questions.rs), que sigue del pendiente P-597; (5) guardar lo que queda después de cada pasada de la identidad, los asuntos y las síntesis, para que esos pasos digan cuánto les falta sin pasar; (6) la captura de «En curso» con una carpeta grande, que queda para la prueba chica.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-609",
+      "titulo": "Medir el vigilante recuperado en la prueba chica y en la corrida larga: carpetas de red y de la nube, carpetas grandes y escrituras de la app",
+      "tipo": "medicion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "El vigilante recuperado (decisión D-793) se probó con archivos chicos en una carpeta local. Falta medir: (1) una carpeta de red o de la nube, que puede no avisar: hoy la ve el barrido de resguardo, cada 5 minutos; (2) un cambio en una subcarpeta hace recorrer el origen entero: medir cuánto tarda con una carpeta del tamaño de la de prueba y con 10 veces más, y si conviene recorrer solo la subcarpeta; (3) una carpeta que se escribe sin parar nunca se calma: la ve solo el barrido de resguardo; (4) lo que la app escribe en una carpeta vigilada (la carpeta de trabajo, los portales) cuesta un recorrido más; (5) que la calma de 3 segundos alcance para una copia lenta por red; si no, llevarla a la configuración.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
