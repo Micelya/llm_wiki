@@ -77,7 +77,7 @@ impl StepState {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessState {
-    /// The steps counted, in order: all 18, or up to the first incomplete
+    /// The steps counted, in order: all 19, or up to the first incomplete
     /// one (`first_only`).
     pub steps: Vec<StepState>,
     /// The first step with something pending: the one the process works on.
@@ -137,7 +137,10 @@ impl DocBase {
                 // al modelo»: they wait only for the automatic reading
                 // (D-775); what a person asked goes out with it off. Their
                 // failures hold each document (`recognize::scan_free_sql`).
-                Class::Asks if step == Step::Scans => {
+                // The vectors of Micelya Core too (C1 of 2 nov): they are no
+                // question to the model, and wait only for the automatic
+                // reading, as everything that goes to the cloud by itself.
+                Class::Asks if step == Step::Scans || step == Step::Vectors => {
                     (!reading_on && !looking.allowed.contains(&step)).then_some("la lectura automática está apagada")
                 }
                 Class::Asks => held_for(step),

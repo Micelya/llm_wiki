@@ -68,6 +68,7 @@ const STAGES: Record<string, string> = {
   matters: "al proponer asuntos",
   pages: "al escribir las páginas",
   recognition: "al leer un escaneo",
+  vectors: "al calcular los vectores de los documentos (Micelya Core)",
   sweep: "al revisar una carpeta",
   thread: "en el trabajo de fondo",
   "process-back": "al volver a un paso anterior del proceso",

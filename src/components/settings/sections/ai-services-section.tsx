@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Cpu, Globe, ScanText, Sparkles } from "lucide-react"
+import { Cpu, Globe, Network, ScanText, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,7 +25,7 @@ export type ConnectionsPlace = "llm" | "web-search" | "connections"
 /** The shared connections of Ajustes → Conexiones, by the name the catalog gives them. */
 const SHARED_CONNECTIONS: Record<string, string> = { "micelya-core": "Micelya Core" }
 
-const ICONS: Record<AiServiceId, typeof Cpu> = { ask: Sparkles, recognize: ScanText, research: Globe }
+const ICONS: Record<AiServiceId, typeof Cpu> = { ask: Sparkles, recognize: ScanText, research: Globe, embed: Network }
 
 /**
  * Ajustes → Servicios de IA (P-141, D-443): one row per service with its
@@ -113,6 +113,9 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
         const byDefault = catalog.engines.find((entry) => entry.service === service.id && entry.byDefault) ?? null
         const engine = choice.engine ? catalogEngine(catalog, service.id, choice.engine.engine) : byDefault
         const reader = service.id === "recognize"
+        // «Calcular vectores» (C1 of 2 nov): Micelya Core by default, or «Ninguno».
+        const vectors = service.id === "embed"
+        const vectorsOff = vectors && choice.engine?.engine === "none"
         return (
           <section key={service.id} className="space-y-4 rounded-md border p-4">
             <div className="flex items-start gap-3">
@@ -149,7 +152,14 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                 computadora.
               </p>
             )}
-            {choice.engine && engine?.connection && !connected(engine.connection) && (
+            {vectors && (
+              <p className="text-xs text-muted-foreground">
+                {vectorsOff
+                  ? "Sin vectores, el paso «Vectores» del proceso queda completo y nada sale de esta computadora; la sugerencia de tipos por parecido no tiene esta señal."
+                  : "Es un paso del proceso, después de la firma de parecidos y antes de las familias y el tipo: un vector por documento, de a 96 por llamada (unas 0,013 llamadas por documento, ninguna pregunta a un modelo de lenguaje). Una copia no pide nada; un texto que cambió vuelve a pedir; otro modelo vuelve a pedir todo. Espera a la lectura automática y, si Core no responde, espera y lo vuelve a intentar solo."}
+              </p>
+            )}
+            {(choice.engine || byDefault) && engine?.connection && !connected(engine.connection) && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-warn">
                 <span>
                   Falta la conexión con {SHARED_CONNECTIONS[engine.connection] ?? engine.connection}: sin ella no se lee
@@ -173,9 +183,14 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                   : "La base todavía no reconoce escaneos con este motor."}
               </p>
             )}
-            {!choice.engine && byDefault && (
+            {!choice.engine && byDefault && !byDefault.connection && (
               <p className="text-xs text-muted-foreground">
                 Sin elegir otro, se usa {byDefault.name} (por omisión): no sale nada de esta computadora.
+              </p>
+            )}
+            {!choice.engine && byDefault?.connection && (
+              <p className="text-xs text-muted-foreground">
+                Sin elegir otro, se usa {byDefault.name} (por omisión). Para apagarlo, elegí «Ninguno».
               </p>
             )}
             {!choice.engine && !byDefault && (
@@ -199,6 +214,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               </p>
             )}
 
+            {!vectors && (
             <details className="rounded-md bg-muted/30 px-3 py-2" open={!!choice.alternative}>
               <summary className="cursor-pointer text-sm">
                 {reader ? "Lector de IA para «Leer con IA» (opcional)" : "Motor alternativo (opcional)"}:{" "}
@@ -224,6 +240,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                 />
               </div>
             </details>
+            )}
           </section>
         )
       })}
@@ -262,7 +279,7 @@ function presetLabel(choice: EngineChoice | null, presets: LlmPreset[]): string 
 /** The connections the registry uses, with the services that use each one. */
 function connectionsInUse(services: AiServices, presets: LlmPreset[], catalog: EnginesCatalog) {
   const found = new Map<string, { id: string; label: string; place: ConnectionsPlace; services: string[] }>()
-  for (const id of ["ask", "recognize", "research"] as const) {
+  for (const id of ["ask", "recognize", "research", "embed"] as const) {
     for (const choice of [services[id].engine, services[id].alternative]) {
       if (!choice?.connection) continue
       const shared = SHARED_CONNECTIONS[choice.connection]

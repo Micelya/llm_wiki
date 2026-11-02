@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -405,6 +405,27 @@ DELETE FROM cut_applied;
 /// older than its last sweep (`last_scan_at`). Null: nothing heard.
 const V11: &str = "
 ALTER TABLE origin ADD COLUMN changed_at INTEGER;
+";
+
+/// The vectors (C1 of 2 nov): one per version that is a document, kept in
+/// the base (C0 of 2 nov measured why here and not in another base: one
+/// transaction writes, deletes or replaces it together with the rest). The
+/// model and its numbers it was made with, the print (SHA-256) of the text
+/// it was made from and the time of that text, the vector (little-endian
+/// `f32`s; null for a document without text) and when it was made. A copy
+/// is the same version, so it has the same vector; another model makes
+/// every one stale. It goes with its version.
+const V12: &str = "
+CREATE TABLE version_vector (
+    version_id  INTEGER PRIMARY KEY REFERENCES version (id) ON DELETE CASCADE,
+    model       TEXT NOT NULL,
+    dimension   INTEGER NOT NULL CHECK (dimension >= 1),
+    text_hash   TEXT NOT NULL,
+    text_at     INTEGER NOT NULL,
+    vector      BLOB,
+    computed_at INTEGER NOT NULL
+);
+CREATE INDEX version_vector_by_text ON version_vector (text_hash, model, dimension);
 ";
 
 /// The version of a base: 0 for one just created.

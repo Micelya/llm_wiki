@@ -2,7 +2,7 @@ import type { ProcessView, StepState } from "@/commands/docbase"
 import { formatCount, plural } from "@/components/docbase/format"
 
 /**
- * «En curso» with the 18 steps of the process (A3 of 2 nov; point 8 of the
+ * «En curso» with the 19 steps of the process (A3 of 2 nov; point 8 of the
  * redesign): the line of how the loop stands, why it went back the last
  * time, and each step in words. Pure: the screen draws what these say.
  */

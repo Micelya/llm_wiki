@@ -27,9 +27,10 @@
 //! - **The questions** go out only when every step before is complete
 //!   (D-774, point 1, D-781): the question of the cut waits for the work
 //!   without AI of its file. The round with a cap (D-484, D-606) is their
-//!   permission in the steps 8, 16 and 18: past its cap, the step is set
-//!   aside waiting for a person (in the 16 also the 17 and the 18), and the
-//!   rest goes on.
+//!   permission in the steps 8, 17 and 19: past its cap, the step is set
+//!   aside waiting for a person (in the 17 also the 18 and the 19), and the
+//!   rest goes on. The vectors (step 11, C1 of 2 nov) are no question: they
+//!   are not in the round.
 //! - **The failures** stay over their element with their class and their
 //!   waits (D-714, P-533): what failed is set aside until its next attempt,
 //!   or until a person; a failure of the whole engine sets aside every
@@ -495,7 +496,7 @@ impl DocBase {
         }
         memory.status.state = "working";
         memory.status.step = Some(step.number());
-        memory.status.operation = Some(format!("paso {} de 18, {}", step.number(), step.about().name.to_lowercase()));
+        memory.status.operation = Some(format!("paso {} de {}, {}", step.number(), STEPS.len(), step.about().name.to_lowercase()));
         memory.status.scope = Some(scope.to_string());
         memory.status.waiting_for = None;
         memory.status.turns += 1;
@@ -613,6 +614,8 @@ impl DocBase {
             Step::CutRules => Done::when(self.local_or_note("cut", self.cut_pending(CUT_BATCH))),
             Step::Parts => Done::when(self.local_or_note("parts", self.cut_parts_pending(CUT_BATCH))),
             Step::Signature | Step::Similar => Done::when(self.similar_step(SIMILAR_BATCH)? > 0),
+            // Up to 96 documents, one call to Micelya Core (C1 of 2 nov).
+            Step::Vectors => Done::when(self.vectors_operation()?),
             Step::CutQuestion => {
                 let asker = asker.expect("checked above");
                 // The round is the permission of what goes by itself; what a
@@ -701,8 +704,8 @@ impl DocBase {
     }
 
     /// The round with a cap (D-484, D-606) as the permission of the steps
-    /// 8, 16 and 18: past its cap, the step waits for a person (the 16 also
-    /// holds the 17 and the 18), and the rest goes on.
+    /// 8, 17 and 19: past its cap, the step waits for a person (the 17 also
+    /// holds the 18 and the 19), and the rest goes on.
     fn round_lets(&self, step: Step, stage: &'static str) -> Result<bool, String> {
         if self.auto_questions_go(stage)? {
             return Ok(true);
@@ -1112,7 +1115,7 @@ pub struct ProcessView {
 }
 
 impl DocBase {
-    /// The 18 steps over the whole base and the loop. Reads only.
+    /// The 19 steps over the whole base and the loop. Reads only.
     pub fn process_view(&self) -> Result<ProcessView, String> {
         let reasons: BTreeMap<u8, String> = self.memory().aside.iter().map(|(step, why)| (step.number(), why.clone())).collect();
         let aside: BTreeSet<Step> = self.memory().aside.keys().copied().collect();

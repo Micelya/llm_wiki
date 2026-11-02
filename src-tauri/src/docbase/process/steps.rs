@@ -1,4 +1,4 @@
-//! The 18 steps of the process, in order (A1 of 2 nov): what each one is,
+//! The 19 steps of the process, in order (A1 of 2 nov; the vectors, C1): what each one is,
 //! and how many of its elements are left.
 //!
 //! Every step is told the same way: an element is **pending** when the
@@ -53,6 +53,7 @@ pub enum Step {
     CutQuestion,
     Parts,
     Signature,
+    Vectors,
     Similar,
     Type,
     TypeData,
@@ -88,7 +89,7 @@ pub struct About {
     pub after_the_type: bool,
 }
 
-pub const STEPS: [Step; 18] = [
+pub const STEPS: [Step; 19] = [
     Step::Inventory,
     Step::FileHash,
     Step::Text,
@@ -99,6 +100,7 @@ pub const STEPS: [Step; 18] = [
     Step::CutQuestion,
     Step::Parts,
     Step::Signature,
+    Step::Vectors,
     Step::Similar,
     Step::Type,
     Step::TypeData,
@@ -221,6 +223,16 @@ impl Step {
                     "la hora de su texto y el motor de firmas",
                     "un documento nuevo, el texto de una parte que cambia",
                     &["similar"],
+                ),
+                Step::Vectors => (
+                    "vectors",
+                    "Vectores",
+                    Level::Document,
+                    Class::BySettings,
+                    "los documentos con su texto (una copia es la misma versión: no pide nada)",
+                    "el modelo de «Calcular vectores» y la huella de su texto",
+                    "un documento nuevo, un texto que cambió, otro modelo en Ajustes",
+                    &[],
                 ),
                 Step::Similar => (
                     "similar",
@@ -511,10 +523,15 @@ pub(crate) fn asking_held(conn: &Connection, reading_on: bool) -> Result<Option<
 /// the reader of this computer, and a question with one in the cloud, as
 /// the reader chosen in Ajustes says (E2 of 2 nov, D-764). Then it has its
 /// failures, its round and its quota like any question of the process.
+/// The vectors go to the cloud with Micelya Core, and are nothing with
+/// «Ninguno» (C1 of 2 nov).
 pub(crate) fn class_now(conn: &Connection, step: Step) -> Result<Class, String> {
     let about = step.about();
     if about.class != Class::BySettings {
         return Ok(about.class);
+    }
+    if step == Step::Vectors {
+        return Ok(if super::super::vectors::chosen(conn)?.is_some() { Class::Asks } else { Class::Local });
     }
     let chosen = super::super::services::recognition_choice(conn)?;
     Ok(match chosen {
@@ -701,6 +718,11 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
         }
         Step::Parts => Count::of(super::super::cut::parts::parts_left(conn, &format!("{free} AND {versions}"))?, failed()?),
         Step::Signature => Count::of(super::super::similar::store::unsigned_left(conn, &format!("{free} AND {versions}"))?, failed()?),
+        Step::Vectors => {
+            // A failure of Core holds every document waiting (C1 of 2 nov).
+            let (pending, set_aside, person) = super::super::vectors::left(conn, &free, &versions)?;
+            Count { person, ..Count::of(pending, set_aside) }
+        }
         Step::Similar => {
             // Marked to measure again, and those whose key data changed
             // since they were measured and nobody marked yet: told from

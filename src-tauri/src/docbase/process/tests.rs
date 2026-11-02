@@ -158,21 +158,24 @@ fn compare(base: &DocBase, at: &str) -> usize {
 }
 
 #[test]
-fn the_eighteen_steps_go_in_order_nine_of_the_file_and_nine_of_the_document() {
-    assert_eq!(STEPS.len(), 18);
+fn the_nineteen_steps_go_in_order_nine_of_the_file_and_ten_of_the_document() {
+    assert_eq!(STEPS.len(), 19);
     for (index, step) in STEPS.iter().enumerate() {
         let about = step.about();
         assert_eq!(about.number as usize, index + 1);
         assert_eq!(Step::from_number(about.number), Some(*step));
         assert_eq!(about.level, if index < 9 { Level::File } else { Level::Document }, "{}", about.name);
-        assert_eq!(about.after_the_type, index + 1 > 12, "{}", about.name);
+        assert_eq!(about.after_the_type, index + 1 > 13, "{}", about.name);
         assert!(!about.name.is_empty() && !about.seal.is_empty() && !about.undone_by.is_empty());
     }
     assert_eq!(Step::from_number(0), None);
-    assert_eq!(Step::from_number(19), None);
+    assert_eq!(Step::from_number(20), None);
     let asks: Vec<u8> = STEPS.iter().filter(|s| s.about().class == Class::Asks).map(|s| s.number()).collect();
-    assert_eq!(asks, vec![8, 12, 13, 14, 15, 16, 17, 18]);
+    assert_eq!(asks, vec![8, 13, 14, 15, 16, 17, 18, 19]);
     assert_eq!(Step::Scans.about().class, Class::BySettings);
+    // The vectors (C1 of 2 nov): after the signature, before the families.
+    assert_eq!((Step::Vectors.number(), Step::Vectors.about().class), (11, Class::BySettings));
+    assert!(Step::Signature < Step::Vectors && Step::Vectors < Step::Similar);
 }
 
 #[test]
@@ -312,7 +315,7 @@ fn a_scope_counts_only_its_own_and_a_document_takes_the_steps_of_its_file() {
     for scope in [Scope::Document(version), Scope::File(hash.clone())] {
         let state = base.process_state(&scope, false).unwrap();
         assert_eq!(state.first_incomplete, None, "{scope:?}");
-        assert_eq!(state.steps.len(), 18);
+        assert_eq!(state.steps.len(), 19);
     }
     // `first_only` stops at the first incomplete step.
     assert_eq!(base.process_state(&Scope::All, true).unwrap().steps.len(), 2);

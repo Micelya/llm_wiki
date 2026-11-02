@@ -38,6 +38,7 @@ const services: AiServices = {
   ask: { engine: choice("codex-cli", "codex-cli", "modelo-a", "high"), alternative: null },
   recognize: { engine: choice("codex-cli", "codex-cli", "modelo-a"), alternative: null },
   research: { engine: choice("tavily", "tavily"), alternative: null },
+  embed: { engine: null, alternative: null },
 }
 const coreFields = { api: "https://api.ejemplo.invalid/v1", issuer: "https://emisor.ejemplo.invalid/realms/prueba", tenant: "t", clientId: "c" }
 

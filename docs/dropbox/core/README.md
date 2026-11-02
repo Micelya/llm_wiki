@@ -27,3 +27,4 @@ Cada lado lee el buzón del otro y nunca escribe en él. Core lee este buzón en
 | [004](2026-10-27-004-vectores.md) | 27 oct 2026 | Un servicio de vectores para la búsqueda por significado de Desktop | respondido |
 | [005](2026-10-29-005-lectura-con-analisis.md) | 29 oct 2026 | Lo que le falta a la lectura con análisis para los formularios y los escaneos | abierto |
 | [C003](2026-11-01-C003-respuesta-modelos-para-diagnostico.md) | 1 nov 2026 | Respuesta al mensaje C003 de Core: los modelos para diagnosticar fallas | respondido; con dos preguntas (C003-Q1 y C003-Q2) |
+| [C002](2026-11-02-C002-respuesta-vectores-desplegados.md) | 2 nov 2026 | Respuesta al mensaje C002 de Core: los vectores, medidos (la carpeta de prueba y las 30 preguntas) y en uso | respondido; con dos preguntas (C002-Q1 y C002-Q2) |

@@ -37,7 +37,7 @@ import { ProcessSteps } from "./process-steps"
 export const STAGE_ITEMS = 50
 
 /**
- * The tab «En curso» of the attention view (D-424): the 18 steps of the
+ * The tab «En curso» of the attention view (D-424): the 19 steps of the
  * process and how its loop stands (A3 of 2 nov), and below, folded, every
  * stage with its documents and a button to open each. Above, whether the
  * automatic reading is on, and the origin or folder it is narrowed to.
@@ -55,7 +55,7 @@ export function OngoingTab({ progress, error, extra }: { progress: Progress | nu
         <ScopePicker scope={scope} onChange={setScope} />
       </div>
       {progress?.autoQuestions && <AutoQuestionsLine round={progress.autoQuestions} />}
-      {/* The 18 steps of the process and how the loop stands (A3 of 2 nov). */}
+      {/* The 19 steps of the process and how the loop stands (A3 of 2 nov). */}
       <ProcessSteps />
       {error && <ErrorNote>{error}</ErrorNote>}
       {/* The documents of each stage one by one, with their buttons (read

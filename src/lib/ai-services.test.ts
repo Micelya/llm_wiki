@@ -146,8 +146,10 @@ describe("changing the engine of a service", () => {
       ask: { engine: choice("codex-cli", "codex-cli", "m"), alternative: choice("openai", "openai", "n") },
       recognize: { engine: choice("codex-cli", "codex-cli", "m"), alternative: null },
       research: { engine: choice("tavily", "tavily"), alternative: null },
+      embed: { engine: choice("core", "micelya-core"), alternative: null },
     }
     expect(servicesUsing(services, "codex-cli")).toEqual(["ask", "recognize"])
+    expect(servicesUsing(services, "micelya-core")).toEqual(["embed"])
     expect(servicesUsing(services, "openai")).toEqual(["ask"])
     expect(servicesUsing(services, "tavily")).toEqual(["research"])
     expect(servicesUsing(services, "google")).toEqual([])

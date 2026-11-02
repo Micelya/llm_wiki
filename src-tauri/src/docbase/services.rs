@@ -1,8 +1,9 @@
 //! The registry of the AI services (P-141, D-443): which engine each
 //! service uses, with which model and reasoning, and an alternative engine.
 //!
-//! Three services: asking the model (the reading of the base and the chat),
-//! recognizing the text of scans, and researching on the internet. The
+//! Four services: asking the model (the reading of the base and the chat),
+//! recognizing the text of scans, researching on the internet, and
+//! computing the vectors of the documents (C1 of 2 nov). The
 //! registry is one setting of the base (`docbase_setting`, `ai-services`):
 //! the base reads it at every request, so a change made in Ajustes is used
 //! by the next question without the screens having to push anything. The
@@ -44,13 +45,18 @@ const LEGACY_RECOGNITION_SETTING: &str = "recognition-engine";
 
 const CATALOG: &str = include_str!("../../resources/catalog/ai-engines.json");
 
-/// The three services.
+/// The four services.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Service {
     Ask,
     Recognize,
     Research,
+    /// «Calcular vectores» (C1 of 2 nov): Micelya Core by default, or none.
+    Embed,
 }
+
+/// Every service, in the order of the catalog.
+pub const SERVICES: [Service; 4] = [Service::Ask, Service::Recognize, Service::Research, Service::Embed];
 
 impl Service {
     pub fn id(self) -> &'static str {
@@ -58,6 +64,7 @@ impl Service {
             Service::Ask => "ask",
             Service::Recognize => "recognize",
             Service::Research => "research",
+            Service::Embed => "embed",
         }
     }
 }
@@ -101,6 +108,10 @@ pub struct AiServices {
     pub recognize: ServiceChoice,
     #[serde(default)]
     pub research: ServiceChoice,
+    /// A registry saved before C1 has none: the vectors use the engine by
+    /// default, Micelya Core (switched on, D-805).
+    #[serde(default)]
+    pub embed: ServiceChoice,
 }
 
 impl AiServices {
@@ -109,6 +120,16 @@ impl AiServices {
             Service::Ask => &self.ask,
             Service::Recognize => &self.recognize,
             Service::Research => &self.research,
+            Service::Embed => &self.embed,
+        }
+    }
+
+    fn service_mut(&mut self, service: Service) -> &mut ServiceChoice {
+        match service {
+            Service::Ask => &mut self.ask,
+            Service::Recognize => &mut self.recognize,
+            Service::Research => &mut self.research,
+            Service::Embed => &mut self.embed,
         }
     }
 }
@@ -141,6 +162,9 @@ struct CatalogEngine {
     /// scans, the one of this computer).
     #[serde(default)]
     by_default: bool,
+    /// The numbers of each vector, for an engine of vectors.
+    #[serde(default)]
+    dimensions: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -195,6 +219,7 @@ fn legacy(conn: &Connection) -> Result<AiServices, String> {
             alternative: None,
         },
         research: ServiceChoice::default(),
+        embed: ServiceChoice::default(),
     })
 }
 
@@ -246,6 +271,48 @@ pub(crate) fn recognition_choice(conn: &Connection) -> Result<Option<Recognition
         return Ok(None);
     }
     Ok(Some(reader_config(choice.engine, choice.model)))
+}
+
+/// The engine that computes the vectors of the documents, as Ajustes says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VectorsConfig {
+    /// As the catalog names it (`core`).
+    pub engine: String,
+    /// The model the vectors are asked with (`us.cohere.embed-v4:0`).
+    pub model: String,
+    /// The numbers of each vector (1.024).
+    pub dimension: usize,
+}
+
+/// The engine whose «Ninguno» computes no vector.
+pub(crate) const NO_VECTORS: &str = "none";
+
+/// WHERE THE ENGINE OF THE VECTORS IS CHOSEN (C1 of 2 nov): the one of
+/// «Calcular vectores» in Ajustes; when none is chosen, the one the catalog
+/// marks `byDefault`, Micelya Core with Cohere Embed V4 and 1.024 numbers
+/// (switched on by default, decision 4 of 2 nov and D-805). `None` with
+/// «Ninguno», or with an engine the base cannot run: the step of the
+/// vectors is complete then (`vectors.rs`).
+pub(crate) fn vectors_choice(conn: &Connection) -> Result<Option<VectorsConfig>, String> {
+    let (services, _) = ai_services(conn)?;
+    let choice = match services.embed.engine {
+        Some(choice) => choice,
+        None => match default_engine(Service::Embed) {
+            Some(entry) => EngineChoice { engine: entry.id.clone(), ..Default::default() },
+            None => return Ok(None),
+        },
+    };
+    if choice.engine == NO_VECTORS || !runs_in_base(Service::Embed, &choice.engine) {
+        return Ok(None);
+    }
+    let Some(entry) = catalog_engine(Service::Embed, &choice.engine) else {
+        return Ok(None);
+    };
+    let model = match choice.model.trim() {
+        "" => entry.default_model.clone().unwrap_or_default(),
+        model => model.to_string(),
+    };
+    Ok(Some(VectorsConfig { engine: choice.engine, model, dimension: entry.dimensions.unwrap_or(1024) }))
 }
 
 /// The engine of the catalog a service uses when none is chosen.
@@ -396,7 +463,7 @@ impl DocBase {
     /// must be one of the catalog for its service.
     pub fn set_ai_services(&self, services: AiServices) -> Result<(), String> {
         let mut checked = AiServices::default();
-        for service in [Service::Ask, Service::Recognize, Service::Research] {
+        for service in SERVICES {
             let given = services.service(service).clone();
             let engine = given.engine.map(|c| normalized(service, c)).filter(|c| !c.engine.is_empty());
             let alternative = given.alternative.map(|c| normalized(service, c)).filter(|c| !c.engine.is_empty());
@@ -405,28 +472,26 @@ impl DocBase {
                     return Err(error);
                 }
             }
-            let choice = ServiceChoice { engine, alternative };
-            match service {
-                Service::Ask => checked.ask = choice,
-                Service::Recognize => checked.recognize = choice,
-                Service::Research => checked.research = choice,
-            }
+            *checked.service_mut(service) = ServiceChoice { engine, alternative };
         }
-        store(&self.conn(), &checked)
+        let conn = self.conn();
+        // Another engine of the vectors: what failed with the one before
+        // waits no more (the step asks again with the new one, C1 of 2 nov).
+        let before = vectors_choice(&conn)?;
+        store(&conn, &checked)?;
+        if vectors_choice(&conn)? != before {
+            super::failures::resolve(&conn, super::vectors::STAGE, &super::vectors::about())?;
+        }
+        Ok(())
     }
 
     /// Changes only the engine of one service, keeping the rest of the
     /// registry (and, before it was saved, what the base had). The app
     /// saves the whole registry (`set_ai_services`); these are for tests.
     #[cfg(test)]
-    fn set_engine_of(&self, service: Service, engine: Option<EngineChoice>) -> Result<(), String> {
+    pub(crate) fn set_engine_of(&self, service: Service, engine: Option<EngineChoice>) -> Result<(), String> {
         let (mut services, _) = ai_services(&self.conn())?;
-        let target = match service {
-            Service::Ask => &mut services.ask,
-            Service::Recognize => &mut services.recognize,
-            Service::Research => &mut services.research,
-        };
-        target.engine = engine;
+        services.service_mut(service).engine = engine;
         self.set_ai_services(services)
     }
 
@@ -486,7 +551,8 @@ mod tests {
             .iter()
             .map(|s| s["id"].as_str().unwrap().to_string())
             .collect();
-        assert_eq!(services, ["ask", "recognize", "research"]);
+        assert_eq!(services, ["ask", "recognize", "research", "embed"]);
+        assert_eq!(SERVICES.map(Service::id), ["ask", "recognize", "research", "embed"]);
         assert!(runs_in_base(Service::Ask, "codex-cli"));
         assert!(runs_in_base(Service::Recognize, "codex-cli"));
         assert!(runs_in_base(Service::Recognize, "core"));
@@ -510,6 +576,8 @@ mod tests {
                     model: String::new()
                 })
                 .is_ok()),
+                // The vectors: Micelya Core (`vectors.rs`), or none.
+                "embed" => assert!(["core", NO_VECTORS].contains(&entry.id.as_str()), "{}", entry.id),
                 other => panic!("the base runs nothing for {other}"),
             }
         }
@@ -581,11 +649,7 @@ mod tests {
         let with = |service: Service, choice: EngineChoice| {
             let mut services = AiServices::default();
             let target = ServiceChoice { engine: Some(choice), alternative: None };
-            match service {
-                Service::Ask => services.ask = target,
-                Service::Recognize => services.recognize = target,
-                Service::Research => services.research = target,
-            }
+            *services.service_mut(service) = target;
             base.set_ai_services(services)
         };
         assert!(with(Service::Ask, EngineChoice { engine: "nada".into(), ..Default::default() }).is_err());
@@ -700,5 +764,26 @@ mod tests {
         assert_eq!(engine_id(&ask_engine(&base.conn()).unwrap().unwrap()), "codex-cli:m2");
         base.set_ask_engine(None).unwrap();
         assert_eq!(ask_engine(&base.conn()).unwrap(), None);
+    }
+
+    #[test]
+    fn the_vectors_come_from_micelya_core_by_default_with_1024_numbers_and_none_turns_them_off() {
+        let base = DocBase::in_memory().unwrap();
+        let core = VectorsConfig { engine: "core".into(), model: "us.cohere.embed-v4:0".into(), dimension: 1024 };
+        // A new base, and one whose registry was saved before C1: switched on.
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), Some(core.clone()));
+        put(&base, AI_SERVICES_SETTING, r#"{"ask":{"engine":null},"recognize":{"engine":null},"research":{"engine":null}}"#);
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), Some(core.clone()));
+        // «Ninguno»: no vector.
+        let none = EngineChoice { engine: NO_VECTORS.into(), ..Default::default() };
+        base.set_engine_of(Service::Embed, Some(none)).unwrap();
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), None);
+        assert_eq!(ai_services(&base.conn()).unwrap().0.embed.engine.unwrap().engine, NO_VECTORS);
+        // Core chosen again, with its connection: the model of the catalog.
+        let chosen = EngineChoice { engine: "core".into(), connection: "micelya-core".into(), ..Default::default() };
+        base.set_engine_of(Service::Embed, Some(chosen)).unwrap();
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), Some(core));
+        // An engine of another service is not one of the vectors.
+        assert!(base.set_engine_of(Service::Embed, Some(codex("m", ""))).is_err());
     }
 }

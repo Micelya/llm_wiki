@@ -241,7 +241,7 @@ fn the_gap_an_answer_that_changes_the_parties_of_several_documents_makes_the_nex
     let next = turn(&base, &model);
     assert_eq!(next.step, Some(Step::Similar), "the next operation measures, it never asks");
     assert_eq!(model.asked(), asked);
-    assert!(base.process_status().back.is_some_and(|why| why.contains("paso 11")), "«En curso» says why it went back");
+    assert!(base.process_status().back.is_some_and(|why| why.contains("paso 12")), "«En curso» says why it went back");
     until_idle(&base, &model);
     assert_eq!(first(&base), None);
 }

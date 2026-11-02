@@ -14,6 +14,7 @@ const NAMES: [StepState["about"]["key"], string, "file" | "document"][] = [
   ["cut-question", "Pregunta del corte", "file"],
   ["parts", "Partes", "file"],
   ["signature", "Firma", "document"],
+  ["vectors", "Vectores", "document"],
   ["similar", "Parecidos y familias", "document"],
   ["type", "Tipo", "document"],
   ["type-data", "Datos del tipo", "document"],
@@ -44,16 +45,16 @@ function view(over: Partial<ProcessView> = {}, steps: StepState[] = NAMES.map((_
   }
 }
 
-describe("«En curso» with the 18 steps", () => {
+describe("«En curso» with the 19 steps", () => {
   it("says how the loop stands in the line above", () => {
     expect(statusLine(view())).toEqual({
       state: "Detenido",
       detail: "todo completo · sigue solo cuando aparezca un archivo nuevo o si pedís volver a procesar",
     })
     const working = view({
-      status: { state: "working", step: 8, operation: "paso 8 de 18, pregunta del corte", scope: "todo", back: null, waitingFor: null, turns: 9 },
+      status: { state: "working", step: 8, operation: "paso 8 de 19, pregunta del corte", scope: "todo", back: null, waitingFor: null, turns: 9 },
     })
-    expect(statusLine(working)).toEqual({ state: "Procesando", detail: "paso 8 de 18, pregunta del corte" })
+    expect(statusLine(working)).toEqual({ state: "Procesando", detail: "paso 8 de 19, pregunta del corte" })
     const person = view({
       status: { state: "waiting-person", step: 8, operation: null, scope: null, back: null, waitingFor: "esperando a una persona: la ronda de preguntas llegó a su tope (¿seguir?)", turns: 9 },
     })
@@ -75,11 +76,11 @@ describe("«En curso» with the 18 steps", () => {
     )
   })
 
-  it("puts the 18 steps in two groups, with the same totals as Inicio, and no line of the barrier", () => {
+  it("puts the 19 steps in two groups, with the same totals as Inicio, and no line of the barrier", () => {
     const groups = stepGroups(view())
     expect(groups.map((g) => [g.title, g.steps.length])).toEqual([
       ["Cada archivo", 9],
-      ["Cada documento", 9],
+      ["Cada documento", 10],
     ])
     expect(groups[0].counts).toBe("2 archivos distintos en 3 lugares")
     // A file of 3 parts and a file alone: 4 documents, not 5.

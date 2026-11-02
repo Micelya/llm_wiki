@@ -62,6 +62,9 @@ pub mod text;
 pub mod thresholds;
 pub mod tree;
 pub mod upgrade;
+pub mod vectors;
+#[cfg(test)]
+mod vectors_tests;
 pub mod watch;
 pub mod work_origin;
 

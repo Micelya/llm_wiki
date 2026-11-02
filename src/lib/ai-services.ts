@@ -30,6 +30,7 @@ export const NO_SERVICES: AiServices = {
   ask: { engine: null, alternative: null },
   recognize: { engine: null, alternative: null },
   research: { engine: null, alternative: null },
+  embed: { engine: null, alternative: null },
 }
 
 /** The engine of the catalog that a connection of a provider is. */
@@ -85,6 +86,8 @@ export function servicesFromSettings(settings: Pick<ServiceSettings, "llmConfig"
     ask: { engine: ask, alternative: null },
     recognize: { engine: recognize, alternative: null },
     research: { engine: research, alternative: null },
+    // The vectors: none chosen is Micelya Core, the one by default (C1 of 2 nov).
+    embed: { engine: null, alternative: null },
   }
 }
 
@@ -178,7 +181,7 @@ export function servicesAfterConnectionChange(
 
 /** The services that use a connection, by their id. */
 export function servicesUsing(services: AiServices, connection: string): AiServiceId[] {
-  return (["ask", "recognize", "research"] as const).filter((id) => {
+  return (["ask", "recognize", "research", "embed"] as const).filter((id) => {
     const { engine, alternative } = services[id]
     return engine?.connection === connection || alternative?.connection === connection
   })

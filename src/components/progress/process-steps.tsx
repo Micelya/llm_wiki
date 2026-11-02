@@ -26,7 +26,7 @@ const STATE_TONES: Record<string, Tone> = {
 
 /**
  * The process in «En curso» (A3 of 2 nov): above, how the loop stands and
- * why it went back the last time; below, the 18 steps in two groups, «Cada
+ * why it went back the last time; below, the 19 steps in two groups, «Cada
  * archivo» and «Cada documento», each complete, working, with what is
  * pending or set aside (by a failure, a person or a type of low confidence,
  * with a link to Atención). The documents are counted with the one rule of

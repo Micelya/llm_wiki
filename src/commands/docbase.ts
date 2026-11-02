@@ -77,9 +77,9 @@ export interface Totals {
 
 export type StepKey =
   | "inventory" | "file-hash" | "text" | "scans" | "shapes" | "zones" | "cut-rules" | "cut-question" | "parts"
-  | "signature" | "similar" | "type" | "type-data" | "template-fields" | "reading" | "identity" | "matters" | "pages"
+  | "signature" | "vectors" | "similar" | "type" | "type-data" | "template-fields" | "reading" | "identity" | "matters" | "pages"
 
-/** One of the 18 steps of the process, as the base counts it now. */
+/** One of the 19 steps of the process, as the base counts it now. */
 export interface StepState {
   about: { number: number; key: StepKey; name: string; level: "file" | "document"; class: "local" | "asks" | "bySettings" }
   class: "local" | "asks" | "bySettings"
@@ -99,7 +99,7 @@ export interface LoopStatus {
   turns: number
 }
 
-/** What «En curso» shows: the 18 steps, the loop and the totals. */
+/** What «En curso» shows: the 19 steps, the loop and the totals. */
 export interface ProcessView {
   status: LoopStatus
   state: { steps: StepState[]; firstIncomplete: string | null; unknown: string[] }
@@ -1045,7 +1045,7 @@ export interface RecognitionConfig {
 }
 
 /** The AI services of the registry (P-141, `docbase/services.rs`). */
-export type AiServiceId = "ask" | "recognize" | "research"
+export type AiServiceId = "ask" | "recognize" | "research" | "embed"
 
 /** One engine chosen for a service. */
 export interface EngineChoice {
@@ -1069,6 +1069,8 @@ export interface AiServices {
   ask: ServiceChoice
   recognize: ServiceChoice
   research: ServiceChoice
+  /** «Calcular vectores» (C1 of 2 nov): none chosen is Micelya Core, by default. */
+  embed: ServiceChoice
 }
 
 export type CapabilityLevel = "yes" | "partial" | "no"
@@ -1092,6 +1094,8 @@ export interface CatalogEngine {
   byDefault?: boolean
   /** False: the person does not choose the model (the provider says which one reads). */
   modelChoice?: boolean
+  /** The numbers of each vector, for an engine of «Calcular vectores». */
+  dimensions?: number
   /** How it reads, in words. */
   notes?: string
   /** What it says it can do, when it declares it. */
