@@ -298,7 +298,9 @@ fn parties_of(vocabulary: &Vocabulary, record: &Record, content: i64) -> String 
         not.extend(to);
         let between = named(&roles.between, &not);
         match between.len() {
-            1 => parts.push(format!("{} {}", words.word("docTitleFrom"), between[0])),
+            // One party alone is not who the document is from (E6 of 2
+            // nov): the title says it is with it, without a direction.
+            1 => parts.push(format!("{} {}", words.word("docTitleWith"), between[0])),
             2 => parts.push(format!("{} {}", words.word("docTitleBetween"), and(&between))),
             _ => {}
         }

@@ -146,6 +146,9 @@ pub struct DocumentDetail {
     /// When it is a document a joined file includes: which one and its
     /// pages; the rest of the detail (where, the hash) is of that file.
     pub part: Option<PartOf>,
+    /// Of a type of low confidence: why (E6 of 2 nov). Its reading exists,
+    /// and is shown marked: it is only for queries.
+    pub low_confidence: Option<String>,
 }
 
 /// Where a document included in a joined file is in it.
@@ -541,6 +544,10 @@ impl DocBase {
             locations,
             generated,
             part: None,
+            low_confidence: match row.content_id {
+                Some(content_id) => super::safe_words::mark_of(&conn, content_id)?,
+                None => None,
+            },
             row,
         }))
     }
@@ -604,6 +611,7 @@ impl DocBase {
         detail.text_engine = text.as_ref().map(|(_, engine, _)| engine.clone());
         detail.text_at = text.map(|(.., at)| at);
         detail.generated = None;
+        detail.low_confidence = super::safe_words::mark_of(&conn, version_id)?;
         detail.part = Some(PartOf {
             ordinal: ordinal as i64 + 1,
             count: parts.len() as i64,

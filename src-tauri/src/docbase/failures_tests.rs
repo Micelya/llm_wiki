@@ -20,6 +20,26 @@ macro_rules! row {
     };
 }
 
+/// The words of a failure are looked for in what its message says, never in
+/// the paths it names (E6 of 2 nov): a folder of a random name with «401»
+/// made the model of zones look like a credential one time in thirty.
+#[test]
+fn the_paths_a_message_names_do_not_change_its_class() {
+    for folder in ["micelya-layout-empty-0d401f3a-1c2b", "caso 413 timeout", "connection-429", "login"] {
+        let message = format!(
+            "The model of zones of this computer is not installed: pp_doc_layoutv2.onnx is missing in 'C:\\Temp\\{folder}\\models' (scripts/fetch-ocr-models.mjs)"
+        );
+        assert_eq!(classify(&message).code, "engine-missing", "{message}");
+    }
+    assert_eq!(classify("Failed to open PDF 'C:\\Docs\\Factura 429\\x.pdf': PdfiumLibraryInternalError(PasswordError)").code, "pdf-encrypted");
+    assert_eq!(classify("error 429 Too Many Requests").code, "rate-limit");
+    assert_eq!(classify("HTTP 413: payload").code, "too-large");
+    assert_eq!(classify("status: 401").code, "credential");
+    assert_eq!(classify("request id a4019f3e failed").code, "unknown");
+    // A web address in quotes is not a path.
+    assert_eq!(classify("error 'https://api.example.com/v1': 429").code, "rate-limit");
+}
+
 // 1, 8 and 10. The base does not answer: busy, full or damaged.
 row!(row_1_the_base_busy_is_transient, "Document base error: database is locked", "db-busy", Transient, Item);
 row!(row_1_the_disk_full_is_transient, "Document base error: database or disk is full", "disk-full", Transient, Item);

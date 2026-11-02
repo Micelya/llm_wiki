@@ -1273,13 +1273,11 @@ impl DocBase {
         };
         let mut written = 0;
         let mut pending = Vec::new();
-        // The data of a document of a type of low confidence are not looked
-        // for, by the rules nor by the model (D-769, E3 of 2 nov).
-        let low = crate::docbase::safe_words::low_confidence(&conn)?;
+        // The data of a document of a type of low confidence are looked for
+        // too, and kept: the model is never skipped. They are only for
+        // queries, marked; nothing derived takes them (the matters, the
+        // pages, the hints for others), E6 of 2 nov over E3.
         for (content_id, doc_type, proposed) in typed {
-            if low.contains(&content_id) {
-                continue;
-            }
             let Some(doc) = docs.get(&content_id) else { continue };
             let own = (!proposed).then_some(doc_type.as_str());
             let rules = data_rules(catalog, own, &doc.marks);

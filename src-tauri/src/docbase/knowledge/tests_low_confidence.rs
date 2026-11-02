@@ -1,7 +1,8 @@
 //! The one rule of the steps that ask and the documents of a type of low
 //! confidence (E3 of 2 nov; D-769, D-775): a document with one word is
 //! asked, and what comes out of one of low confidence is set aside, with its
-//! reason, from every step and use that makes information. Invented texts
+//! reason, from every step and use that makes information. Since E6 of 2
+//! nov it is read too, and its reading kept, marked: only for queries. Invented texts
 //! and a stand-in model (R-24): nothing here comes from the test folder or
 //! from an answer kept by another run.
 
@@ -144,7 +145,9 @@ fn a_document_of_low_confidence_is_set_aside_from_each_step_with_its_reason() {
     assert!(!families.iter().any(|(_, members)| members.contains(&act)), "{families:?}");
 
     // A new one of low confidence: its type is asked, with its approximate
-    // words; its data and its reading are not, and «En curso» says why.
+    // words; its data and its reading are too, and kept, marked (E6 of 2
+    // nov, over E3: the model is never skipped). It is only for queries:
+    // none of its entities joins the identities nor has a page.
     dir.write("o/nota.txt", NOTE.as_bytes());
     let origin: String = base.conn().query_row("SELECT id FROM origin", [], |row| row.get(0)).unwrap();
     refresh(&base, &origin);
@@ -152,23 +155,40 @@ fn a_document_of_low_confidence_is_set_aside_from_each_step_with_its_reason() {
     base.types_run(&model, 10).unwrap();
     let typed = model.asked.lock().unwrap().iter().filter(|q| !is_knowledge(q) && q.contains("[aproximado] mancha alfa")).count();
     assert_eq!(typed, 1, "its type is asked with its approximate words");
-    let data: i64 = base.conn().query_row("SELECT count(*) FROM document_data WHERE version_id = ?1", [note], |row| row.get(0)).unwrap();
-    assert_eq!(data, 0, "the data of its type are not looked for");
     let count = count_step(&base.conn(), Step::TypeData, &Scope::Document(note)).unwrap();
-    assert_eq!((count.pending, count.set_aside), (0, 1));
+    assert_eq!(count.set_aside, 0, "the data of its type are looked for");
     let count = count_step(&base.conn(), Step::Reading, &Scope::Document(note)).unwrap();
-    assert_eq!((count.pending, count.set_aside), (0, 1));
+    assert_eq!((count.pending, count.set_aside), (1, 0), "it is read like the others");
     base.knowledge_run(&model, 10).unwrap();
-    assert_eq!(asked_about(&model, "NOTA DE PRUEBA Ocho", true), 0, "it is not read");
+    assert_eq!(asked_about(&model, "NOTA DE PRUEBA Ocho", true), 1, "it is read");
+    let read: String = base.conn().query_row("SELECT state FROM knowledge_extraction WHERE version_id = ?1", [note], |row| row.get(0)).unwrap();
+    assert_eq!(read, "done", "its reading is kept");
     let items = base.progress_items("reading", &Default::default(), 50).unwrap().items;
-    let out = items.iter().find(|i| i.content_id == Some(note)).unwrap();
-    assert_eq!(out.status, "out");
-    assert!(out.detail.as_deref().unwrap().starts_with("no legible: 20 % de palabras seguras"), "{:?}", out.detail);
+    let item = items.iter().find(|i| i.content_id == Some(note)).unwrap();
+    assert_eq!(item.status, "done");
+    assert!(item.detail.as_deref().unwrap().starts_with("no legible: 20 % de palabras seguras"), "{:?}", item.detail);
+    base.knowledge_resolve(None, 0).unwrap();
+    let joined: i64 = base
+        .conn()
+        .query_row("SELECT count(*) FROM knowledge_mention WHERE version_id = ?1 AND entity_id IS NOT NULL", [note], |row| row.get(0))
+        .unwrap();
+    assert_eq!(joined, 0, "its mentions join no identity");
+    let families = crate::docbase::knowledge::pages::document_families(&base).unwrap();
+    assert!(!families.iter().any(|(_, members)| members.contains(&note)), "no page of its own");
+    // The queries show it marked: the sheet of the document and the search.
+    let location: i64 = base.conn().query_row("SELECT id FROM location WHERE name = 'nota.txt'", [], |row| row.get(0)).unwrap();
+    let detail = base.document(&crate::docbase::Visible::All, location).unwrap().unwrap();
+    assert!(detail.low_confidence.as_deref().is_some_and(|m| m.starts_with("no legible: 20 %")), "{:?}", detail.low_confidence);
+    let found = base.search_documents(&crate::docbase::Visible::All, "NOTA DE PRUEBA Ocho", 10, None).unwrap();
+    let hit = found.hits.iter().find(|h| h.content_id == note).expect("it is found");
+    assert!(hit.low_confidence.is_some(), "and shown marked");
 
-    // Lowering the threshold lets them in: pending, like any other.
+    // Lowering the threshold lets them in: no mark, and nothing asked again.
     set_shares(&base, 0.10, 0.10);
     let count = count_step(&base.conn(), Step::Reading, &Scope::Document(note)).unwrap();
-    assert_eq!((count.pending, count.set_aside), (1, 0));
+    assert_eq!((count.pending, count.set_aside), (0, 0));
+    let detail = base.document(&crate::docbase::Visible::All, location).unwrap().unwrap();
+    assert_eq!(detail.low_confidence, None);
 }
 
 /// The same act, 50 words: two firm copies and one read with low confidence.

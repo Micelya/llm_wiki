@@ -1352,6 +1352,8 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
                     "attribution" => Some("la cita nombra a otra persona u organización"),
                     "states" => Some("los documentos dicen estados distintos"),
                     "contradicted" => Some("el mismo documento dice un estado civil que no corresponde"),
+                    "backwards" => Some("otra afirmación dice la relación al revés"),
+                    "far" => Some("el documento no nombra cerca de la cita a quién corresponde el dato"),
                     _ => None,
                 })
                 .collect();
@@ -1864,9 +1866,13 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
     // documents say, each with its quote. Nothing is derived (R-02).
     // A claim and its inverse said from the other side ("deudor de" here,
     // "acreedor de" there) are one line, with the quotes of both (D-239).
+    // Two relations between the same two said the other way round are in
+    // conflict: listed apart, never as a fact (E6 of 2 nov).
     let mut ties: Vec<((String, String), Vec<String>)> = Vec::new();
-    let mut tie = |label: &str, other: &str, quotes: Vec<String>| {
+    let mut contested: Vec<((String, String), Vec<String>)> = Vec::new();
+    let mut tie = |label: &str, other: &str, quotes: Vec<String>, conflict: bool| {
         let key = (label.to_string(), other.to_string());
+        let ties = if conflict { &mut contested } else { &mut ties };
         match ties.iter_mut().find(|(k, _)| *k == key) {
             Some((_, list)) => {
                 for quote in quotes {
@@ -1901,7 +1907,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         if let Some(object) = &claim.object_entity {
             if record.entities.get(object).is_some_and(|o| o.kind != "asunto") {
                 let label = format!("{}{}", vocabulary.predicate_label(&claim.predicate), certainty_mark(vocabulary, claim));
-                tie(&label, object, quotes_of(claim));
+                tie(&label, object, quotes_of(claim), claim.state == "conflict");
             }
         }
     }
@@ -1912,13 +1918,22 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 continue;
             }
             let label = format!("{inverse}{}", certainty_mark(vocabulary, claim));
-            tie(&label, &other.id, quotes_of(claim));
+            tie(&label, &other.id, quotes_of(claim), claim.state == "conflict");
         }
     }
-    if !ties.is_empty() {
+    if !ties.is_empty() || !contested.is_empty() {
         out.push_str(&format!("## {}\n\n", words.word("relations")));
         for ((label, other), quotes) in &ties {
             out.push_str(&format!("- {label} {}{}\n", name_of(other), notes.mark(&quotes.join("; "))));
+        }
+        if !contested.is_empty() {
+            if !ties.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&format!("**{}**\n\n", words.word("relationsInConflict")));
+            for ((label, other), quotes) in &contested {
+                out.push_str(&format!("- {label} {}{}\n", name_of(other), notes.mark(&quotes.join("; "))));
+            }
         }
         out.push('\n');
     }

@@ -460,6 +460,26 @@ pub struct ReadingRules {
     /// Words there can be between the label of a form and its value.
     #[serde(default = "sixty")]
     pub label_window: usize,
+    /// How many words before a colon make the label of a form ("Apellido
+    /// y Nombre del Padre:"): the words of a label of another person
+    /// (`other_person_labels`) or of a parent (`filiation.labels`) are
+    /// looked for among them (E6 of 2 nov).
+    #[serde(default = "four")]
+    pub form_label_words: usize,
+    /// The roles of a mention that say it sends the document ("remitente"):
+    /// its quote has to say so too, with one of `sender_cues` right before
+    /// the name, or the same entity signs the document; if not, the role is
+    /// in doubt and becomes `doubtful_sender_role` (E6 of 2 nov).
+    #[serde(default)]
+    pub sender_roles: Vec<String>,
+    #[serde(default)]
+    pub sender_cues: Vec<String>,
+    #[serde(default)]
+    pub doubtful_sender_role: String,
+    /// How many words before the quote of a value its subject can be named
+    /// for the value to be the subject's without doubt (E6 of 2 nov).
+    #[serde(default)]
+    pub subject_window: usize,
     /// Predicates whose object, when the quote does not name it, may be
     /// the organization the text names last before the quote, within
     /// `objectWindow` words (a signature block, "X S.A., representada por
@@ -561,6 +581,12 @@ pub struct Filiation {
     /// How many words before the filiation the child can be named.
     #[serde(default)]
     pub window: usize,
+    /// By language, beginnings of the words of a label of a form that holds
+    /// a parent («Apellido y Nombre del Padre:», «Madre:»): the name under
+    /// it is the parent, even when the quote does not say «hijo de» (E6 of
+    /// 2 nov).
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 impl Filiation {
@@ -575,6 +601,14 @@ impl Filiation {
     pub fn other_words(&self) -> Vec<Vec<String>> {
         self.others.values().flatten().map(|c| super::quote::words(c)).filter(|w| !w.is_empty()).collect()
     }
+
+    pub fn label_words(&self) -> Vec<String> {
+        self.labels.values().flatten().map(|c| super::quote::words(c).join(" ")).filter(|w| !w.is_empty()).collect()
+    }
+}
+
+fn four() -> usize {
+    4
 }
 
 fn sixty() -> usize {
@@ -862,6 +896,18 @@ pub struct Predicate {
     /// doubtful (D-434).
     #[serde(default)]
     pub contradicted_by: Option<Contradiction>,
+    /// A relation that cannot be said both ways between the same two
+    /// (A represents B and B represents A): said both ways, the two are in
+    /// conflict (E6 of 2 nov).
+    #[serde(default)]
+    pub one_way: bool,
+    /// The generations from the subject down to the object of a kinship
+    /// (a parent 1, a grandparent 2, an uncle 1): two relations between the
+    /// same two people, each with a generation and given the other way
+    /// round (A parent of B, B grandparent of A), are in conflict (E6 of 2
+    /// nov).
+    #[serde(default)]
+    pub generation: u8,
     /// A relation with the matter of the document (being the person whose
     /// succession it is): when the reading gives no matter as its object
     /// (none, or the person herself), the object is the matter of the
@@ -897,6 +943,14 @@ impl Contradiction {
             }
         })
     }
+}
+
+/// Whether a relation said from A to B (`ahead`) and another one said from
+/// B to A (`back`) cannot both be true (E6 of 2 nov): the same relation
+/// that goes one way only, or two kinships that each put the other one
+/// generations below (A parent of B and B parent or grandparent of A).
+pub fn backwards_contradict(ahead: &Predicate, back: &Predicate) -> bool {
+    (ahead.id == back.id && (ahead.one_way || ahead.generation > 0)) || (ahead.generation > 0 && back.generation > 0)
 }
 
 /// Whether a name (normalized words) has one of `list` (each one word or

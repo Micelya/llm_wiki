@@ -73,6 +73,12 @@ pub struct RelationDef {
     /// one (D-497).
     #[serde(default)]
     pub asks_person: bool,
+    /// A copy that is not the same text (a scan of the same letter, its
+    /// signed copy): it takes the reading of its original, and is not read
+    /// again by the model (D-708, P-537; E6 of 2 nov). Until a person says
+    /// the two are not the same.
+    #[serde(default)]
+    pub inherits_reading: bool,
 }
 
 /// How a part cut from a file certifies another part of the same file

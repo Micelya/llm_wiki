@@ -68,6 +68,8 @@ mod tests_bands;
 #[cfg(test)]
 mod tests_low_confidence;
 #[cfg(test)]
+mod tests_backwards;
+#[cfg(test)]
 mod tests_changes;
 #[cfg(test)]
 mod tests_filiations;

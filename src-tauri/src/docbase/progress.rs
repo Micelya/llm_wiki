@@ -799,14 +799,12 @@ fn types_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, bool>(2)?)),
         )
         .map_err(sql_err)?;
-    // The data of a document of a type of low confidence are not looked
-    // for (D-769, E3 of 2 nov): typed, it is done.
-    let low = super::safe_words::low_confidence(conn)?;
+    // The data of a document of a type of low confidence are looked for
+    // too (E6 of 2 nov, over E3).
     let mut members = Members::new("documents");
     for row in rows {
         let (content, typed, data_waiting) = row.map_err(sql_err)?;
         if facts.active.contains(&content) {
-            let data_waiting = data_waiting && !low.contains(&content);
             members.push(Key::Content(content), if typed && !data_waiting { DONE } else { PENDING });
         }
     }
@@ -834,8 +832,9 @@ fn templates_members(conn: &Connection, facts: &Facts) -> Result<Members, String
 }
 
 /// Each document read by the model to know whom it names.
-/// A document of a type of low confidence is out of the reading, with its
-/// reason (`low`, D-769, E3 of 2 nov).
+/// A document of a type of low confidence is read like the others, and
+/// shown with its mark and reason (`low`, D-769; E6 of 2 nov over E3): its
+/// reading is only for queries.
 fn reading_members(
     facts: &Facts,
     standings: &[super::knowledge::extract::Standing],
@@ -844,15 +843,15 @@ fn reading_members(
     let mut members = Members::new("documents");
     let (mut outdated, mut requested) = (0, 0);
     for standing in standings.iter().filter(|s| facts.active.contains(&s.content_id)) {
-        if let Some(why) = low.get(&standing.content_id) {
-            members.items.push((Key::Content(standing.content_id), OUT, Some(why.clone())));
-            continue;
-        }
         let status = match &standing.reading {
             Some(reading) if reading.current && reading.state == "done" => DONE,
             Some(reading) if reading.current => FAILED,
             _ => PENDING,
         };
+        if let Some(why) = low.get(&standing.content_id) {
+            members.items.push((Key::Content(standing.content_id), status, Some(why.clone())));
+            continue;
+        }
         // Read with another version of the question or another model, kept
         // as they are (D-465); and asked by a person to read again (D-432).
         if let Some(reading) = &standing.reading {

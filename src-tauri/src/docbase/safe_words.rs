@@ -210,6 +210,15 @@ pub(crate) fn reason(words: &SafeWords, low_confidence_type: f64, quality: f64) 
     }
 }
 
+/// The mark of one document of a type of low confidence now, with its
+/// reason; `None` when it is not one. What the queries show (the search,
+/// the sheet of the document): its reading exists and is only for queries
+/// (E6 of 2 nov).
+pub fn mark_of(conn: &Connection, version: i64) -> Result<Option<String>, String> {
+    let t = super::thresholds::thresholds(conn)?;
+    Ok(of(conn, version)?.and_then(|words| reason(&words, t.low_confidence_type, t.quality)))
+}
+
 /// The reason of each document of a type of low confidence now.
 pub(crate) fn reasons(conn: &Connection) -> Result<BTreeMap<i64, String>, String> {
     let t = super::thresholds::thresholds(conn)?;

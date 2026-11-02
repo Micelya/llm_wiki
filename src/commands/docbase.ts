@@ -245,6 +245,11 @@ export interface DocumentDetail extends DocumentRow {
   generated: GeneratedLine | null
   /** When it is a document a joined file includes: which one and its pages; the rest is of that file. */
   part: PartOf | null
+  /**
+   * Of a type of low confidence: why (E6 of 2 nov). Its reading exists and
+   * is shown marked: it is only for queries, nothing derived takes it.
+   */
+  lowConfidence?: string | null
 }
 
 /** Who said where a document of a joined file starts. */

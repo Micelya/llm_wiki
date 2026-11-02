@@ -25,8 +25,11 @@
 //!   not processed (`base-documental.md`): its mentions do not count, but
 //!   its reading is kept, so taking the exclusion back costs nothing. A
 //!   document joined as the same document with another one chosen as the
-//!   wiki's source still counts (its text is real evidence); its pages
-//!   name the chosen one (`pages.rs`).
+//!   wiki's source still counts; its pages name the chosen one
+//!   (`pages.rs`). A copy the search of similar documents finds (almost
+//!   the same text, its signed copy) is not read again by the model: it
+//!   takes the reading of its original, checked against its own text
+//!   (D-708, P-537; `extract::copy_originals`, E6 of 2 nov).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 

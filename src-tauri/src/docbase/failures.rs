@@ -160,8 +160,12 @@ pub fn cause(code: &str) -> Cause {
 /// pdfium and of Windows; the order matters (a question too large before
 /// the limit, the engine missing before a file not found).
 pub fn classify(message: &str) -> Cause {
-    let m = message.to_lowercase();
-    let any = |words: &[&str]| words.iter().any(|w| m.contains(w));
+    // The words are looked for in what the message says, never in the
+    // paths of files it names: a folder or a file whose name has «401»,
+    // «429» or «connection» says nothing of the failure (E6 of 2 nov: why
+    // a test failed one time in thirty, with a folder of a random name).
+    let m = without_paths(&message.to_lowercase());
+    let any = |words: &[&str]| words.iter().any(|w| says(&m, w));
     let code = if any(&["413", "too large", "too long", "context length", "context_length", "maximum context", "context window"]) {
         "too-large"
     } else if any(&["usage limit", "hit your limit", "rate limit", "rate_limit", "429", "quota", "too many requests"]) {
@@ -223,6 +227,44 @@ pub fn classify(message: &str) -> Cause {
         "unknown"
     };
     cause(code)
+}
+
+/// A message without the paths of the files it names: the spans in single
+/// quotes that are a path of this computer ('C:\…', '/home/…'; a web
+/// address is not one), and the words with a separator of folders.
+fn without_paths(message: &str) -> String {
+    let is_path = |span: &str| span.contains('\\') || (span.starts_with('/') && !span.contains("://"));
+    let mut out = String::with_capacity(message.len());
+    let mut rest = message;
+    while let Some(start) = rest.find('\'') {
+        let after = &rest[start + 1..];
+        match after.find('\'') {
+            Some(end) if is_path(&after[..end]) => {
+                out.push_str(&rest[..start]);
+                out.push(' ');
+                rest = &after[end + 1..];
+            }
+            _ => {
+                out.push_str(&rest[..start + 1]);
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out.split(' ').filter(|w| !w.contains('\\')).collect::<Vec<_>>().join(" ")
+}
+
+/// Whether the message says these words; a code of numbers alone, as a
+/// number of its own (the «401» of «a4019f» is not one).
+fn says(message: &str, words: &str) -> bool {
+    if !words.chars().all(|c| c.is_ascii_digit()) {
+        return message.contains(words);
+    }
+    message.match_indices(words).any(|(at, _)| {
+        let before = message[..at].chars().next_back();
+        let after = message[at + words.len()..].chars().next();
+        !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
+    })
 }
 
 /// How long after its attempt `attempt` (1 the first) a transient failure

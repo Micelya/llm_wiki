@@ -520,25 +520,24 @@ pub(crate) fn class_now(conn: &Connection, step: Step) -> Result<Class, String> 
 /// The documents of a type of low confidence (decision 5 of 2 nov, D-769):
 /// their share of safe words is below the threshold of the type of low
 /// confidence or below the one of «no legible», now (`safe_words.rs`, E3
-/// of 2 nov). What comes out of them is used in no process and for no
-/// information derived from them: they are only for queries. Set aside,
-/// with their reason (`safe_words::reasons`, in «En curso»):
-/// - by document, in the steps after the type: the data of the type
-///   (`classify::pass5_refresh`), the fields of the templates whose
-///   principal is one (`naming::templates_naming_run`) and the reading
-///   (`extract::knowledge_pending`);
-/// - by what the others take from them: the identities (their mentions,
+/// of 2 nov). They serve only for queries: their readings exist, marked
+/// (E6 of 2 nov, over E3, as the principal decided at 04:55).
+/// - **Read like the others,** because the model is never skipped: the
+///   type, the data of the type (`classify::pass5_refresh`) and the reading
+///   of entities (`extract::knowledge_pending`). «En curso» shows them with
+///   their mark and reason (`safe_words::reasons`).
+/// - **Taken by nothing derived:** the identities (their mentions,
 ///   `resolve::load_rows`, and left out as an excluded document is,
-///   `changes::left_out`), the matters (`matters::documents`) and the pages
+///   `changes::left_out`), the matters (`matters::documents`), the pages
 ///   (their page of document, `pages::family::families`, and every claim,
-///   which comes from the mentions);
-/// - as a hint for other documents: a family does not take their type, nor
-///   are they described in its question (`classify::load_units`), so a new
-///   member does not inherit it either (D-766). The vectors, when they come
-///   (C1 and C2), must not take them as an example: this is their filter.
-///
-/// Their type is still asked, with their approximate words: the type is
-/// what lets a person find them.
+///   which comes from the mentions), the inheritance of the type (a family
+///   does not take their type, nor are they described in its question,
+///   `classify::load_units`, D-766), the fields of the templates whose
+///   principal is one (`naming::templates_naming_run`), the reading a copy
+///   inherits (`extract::copy_originals`), and the vectors when they come
+///   (C1 and C2): this is their filter.
+/// - **Shown marked in the queries:** the search (`search.rs`) and the
+///   sheet of the document say they are of low confidence.
 pub(crate) fn low_confidence(conn: &Connection) -> Result<BTreeSet<i64>, String> {
     super::super::safe_words::low_confidence(conn)
 }
@@ -706,10 +705,10 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
             Count { without_asking: left.by_marks + left.by_inheritance, ..Count::of(left.units, left.held) }
         }
         Step::TypeData => {
-            let only = in_scope_but_low(conn, scope)?;
-            let set_aside = low_in_scope(conn, scope)?;
-            let (pending, held) = super::super::similar::classify::data_left(conn, Some(&only))?;
-            Count::of(pending, set_aside + held)
+            // The documents of low confidence are read too (E6 of 2 nov).
+            let only = scope.versions(conn)?;
+            let (pending, held) = super::super::similar::classify::data_left(conn, only.as_ref())?;
+            Count::of(pending, held)
         }
         Step::TemplateFields => {
             let only = scope.versions(conn)?;
@@ -730,9 +729,9 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
         }
         Step::Reading => {
             let only = scope.versions(conn)?;
-            let low = low_confidence(conn)?;
             // A document whose reading failed waits for its next attempt,
-            // or for a person (P-533): set aside.
+            // or for a person (P-533): set aside. One of low confidence is
+            // read like the others (E6 of 2 nov).
             let held = super::super::failures::held_versions(conn, "reading")?;
             let (mut pending, mut checks, mut set_aside) = (0, 0, 0);
             let standings = super::super::knowledge::extract::standings(conn, &super::super::Visible::All, None)?;
@@ -747,7 +746,7 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
                 }
                 // What a person asked to read again is never held.
                 let asked_again = reading.is_some_and(|r| r.reread);
-                if low.contains(&standing.content_id) || (!to_check && !asked_again && held.contains(&standing.content_id)) {
+                if !to_check && !asked_again && held.contains(&standing.content_id) {
                     set_aside += 1;
                 } else {
                     pending += 1;
@@ -768,26 +767,3 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
     })
 }
 
-/// The documents of the scope that are not of a type of low confidence.
-fn in_scope_but_low(conn: &Connection, scope: &Scope) -> Result<BTreeSet<i64>, String> {
-    let low = low_confidence(conn)?;
-    let all: BTreeSet<i64> = match scope.versions(conn)? {
-        Some(only) => only,
-        None => {
-            let mut statement = conn.prepare("SELECT version_id FROM document_type").map_err(sql_err)?;
-            let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
-            rows.collect::<Result<_, _>>().map_err(sql_err)?
-        }
-    };
-    Ok(all.difference(&low).copied().collect())
-}
-
-/// How many typed documents of the scope are of a type of low confidence.
-fn low_in_scope(conn: &Connection, scope: &Scope) -> Result<usize, String> {
-    let low = low_confidence(conn)?;
-    if low.is_empty() {
-        return Ok(0);
-    }
-    let only = scope.versions(conn)?;
-    Ok(low.iter().filter(|id| only.as_ref().is_none_or(|o| o.contains(id))).count())
-}

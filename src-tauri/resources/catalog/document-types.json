@@ -27,14 +27,16 @@
       "sameDocument": true,
       "directed": false,
       "measured": true,
-      "asksPerson": true
+      "asksPerson": true,
+      "inheritsReading": true
     },
     {
       "id": "signed-copy",
       "sameDocument": true,
       "directed": true,
       "measured": true,
-      "asksPerson": true
+      "asksPerson": true,
+      "inheritsReading": true
     },
     {
       "id": "preview",
