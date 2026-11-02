@@ -160,11 +160,15 @@ pub struct CutAskReport {
 /// documents, and the doubt is where each one ends. In the others a
 /// doubtful step goes on uncertain (D-603) and is asked only when a person
 /// asks (`cut_ask_file`). `s` is the step.
-const ASKED_BY_ITSELF: &str =
+pub(crate) const ASKED_BY_ITSELF: &str =
     "EXISTS (SELECT 1 FROM cut_step r WHERE r.resource_hash = s.resource_hash AND r.verdict = 'new' AND r.after_page > 0)";
 
-/// A doubtful step still without an answer, with the key of its question.
-const WITHOUT_ANSWER: &str = "s.verdict = 'doubtful' AND s.model_says IS NULL AND s.question IS NOT NULL";
+/// A doubtful step still without an answer, with the key of its question,
+/// that no person decided: a step a person decided is never asked again
+/// (the step of the question of the cut, A1 of 2 nov). A person decides the
+/// page after the step (`cut_decision`).
+pub(crate) const WITHOUT_ANSWER: &str = "s.verdict = 'doubtful' AND s.model_says IS NULL AND s.question IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM cut_decision k WHERE k.resource_hash = s.resource_hash AND k.page = s.after_page + 1)";
 
 /// What `note_failure` writes down for the cut of a file and for its parts.
 const CUT_STAGE: &str = "cut";

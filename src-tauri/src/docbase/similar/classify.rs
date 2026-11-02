@@ -738,6 +738,178 @@ fn rows_from_answer(
     Ok(rows)
 }
 
+/// A row of `document_type` as it is kept: what a document new to a
+/// family takes from it (decision 3 of 2 nov).
+#[derive(Debug, Clone)]
+struct KeptType {
+    doc_type: String,
+    stage: Option<String>,
+    proposed: bool,
+    proposed_name: Option<String>,
+    proposed_description: Option<String>,
+    source: String,
+    principal: Option<i64>,
+    confidence: Option<f64>,
+    reason: Option<String>,
+    question: Option<String>,
+    basis: String,
+}
+
+fn kept_types(conn: &Connection) -> Result<HashMap<i64, KeptType>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT version_id, doc_type, stage, proposed, proposed_name, proposed_description, source, principal,
+                    confidence, reason, question, basis FROM document_type",
+        )
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                KeptType {
+                    doc_type: row.get(1)?,
+                    stage: row.get(2)?,
+                    proposed: row.get(3)?,
+                    proposed_name: row.get(4)?,
+                    proposed_description: row.get(5)?,
+                    source: row.get(6)?,
+                    principal: row.get(7)?,
+                    confidence: row.get(8)?,
+                    reason: row.get(9)?,
+                    question: row.get(10)?,
+                    basis: row.get(11)?,
+                },
+            ))
+        })
+        .map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
+}
+
+/// Decision 3 of 2 nov: a document new to a family whose type the model
+/// already gave takes the family's type, without asking again. Only when
+/// nothing else of the family changed: the same principal, and the members
+/// it had keep the basis they were typed on (their text, their marks, their
+/// relation, the catalog). Not when the marks of a new one say another type
+/// (decisive or not: the prudent reading, assumed, D-500). Returns the rows
+/// of the new members; `None` when the family is asked again.
+fn inherited_rows(catalog: &Catalog, unit: &Unit, docs: &BTreeMap<i64, DocInfo>, kept: &HashMap<i64, KeptType>) -> Option<Vec<TypeRow>> {
+    let head = kept.get(&unit.principal)?;
+    if head.source != "model" || head.principal != Some(unit.principal) {
+        return None;
+    }
+    let (had, new): (Vec<_>, Vec<_>) =
+        unit.members.iter().cloned().partition(|(m, _)| kept.get(m).is_some_and(|k| k.principal == Some(unit.principal)));
+    if new.is_empty() {
+        return None;
+    }
+    let before = Unit { principal: unit.principal, members: had };
+    let basis = unit_basis(catalog, &before, docs);
+    if std::iter::once(unit.principal).chain(before.members.iter().map(|(m, _)| *m)).any(|id| kept.get(&id).map(|k| &k.basis) != Some(&basis)) {
+        return None;
+    }
+    let mut rows = Vec::new();
+    for (member, relation) in &new {
+        if type_by_marks(catalog, &docs[member].marks).is_some_and(|by| by.doc_type != head.doc_type) {
+            return None;
+        }
+        let stage = own_stage(catalog, &docs[member].marks, &head.doc_type)
+            .or_else(|| relation.as_deref().is_some_and(|r| SAME_STAGE.contains(&r)).then(|| head.stage.clone()).flatten());
+        rows.push(TypeRow {
+            content_id: *member,
+            doc_type: head.doc_type.clone(),
+            stage,
+            proposed: head.proposed,
+            proposed_name: head.proposed_name.clone(),
+            proposed_description: head.proposed_description.clone(),
+            source: "family",
+            principal: Some(unit.principal),
+            confidence: head.confidence,
+            reason: head.reason.clone(),
+            question: head.question.clone(),
+        });
+    }
+    Some(rows)
+}
+
+/// What the step of the type has left (the process, A1 of 2 nov). Reads
+/// only.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct TypesLeft {
+    /// Units (a family, or a document alone) whose type is not decided on
+    /// what they are now (`unit_basis`).
+    pub units: usize,
+    /// Of them, those their marks decide, without asking.
+    pub by_marks: usize,
+    /// Of them, those a document new to a family already asked closes,
+    /// without asking (decision 3 of 2 nov).
+    pub by_inheritance: usize,
+}
+
+/// `TypesLeft` over the units with a document in `only` (all, without it).
+pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Result<TypesLeft, String> {
+    let catalog = types::catalog();
+    let docs = load_docs(conn)?;
+    let units = load_units(conn, catalog, &docs)?;
+    let kept = kept_types(conn)?;
+    let mut left = TypesLeft::default();
+    for unit in units {
+        let all: Vec<i64> = std::iter::once(unit.principal).chain(unit.members.iter().map(|(m, _)| *m)).collect();
+        if only.is_some_and(|o| !all.iter().any(|id| o.contains(id))) {
+            continue;
+        }
+        let basis = unit_basis(catalog, &unit, &docs);
+        if all.iter().all(|id| kept.get(id).is_some_and(|k| k.basis == basis)) {
+            continue;
+        }
+        left.units += 1;
+        if rows_by_marks(catalog, &unit, &docs).is_some() {
+            left.by_marks += 1;
+        } else if inherited_rows(catalog, &unit, &docs, &kept).is_some() {
+            left.by_inheritance += 1;
+        }
+    }
+    Ok(left)
+}
+
+/// How many typed documents (of `only`, or all) still have their data to
+/// find (the step of the data of the type, A1 of 2 nov): found over
+/// another basis, or waiting for the answer to their question. Reads only.
+pub(crate) fn data_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Result<usize, String> {
+    let catalog = types::catalog();
+    let engine = answering_engine(conn)?;
+    let docs = load_docs(conn)?;
+    let rows: Vec<(i64, String, Option<String>, Option<String>)> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT t.version_id, t.doc_type, dd.basis, dd.question FROM document_type t
+                 LEFT JOIN document_data dd ON dd.version_id = t.version_id",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        rows
+    };
+    let mut left = 0;
+    for (content_id, doc_type, kept, question) in rows {
+        if only.is_some_and(|o| !o.contains(&content_id)) {
+            continue;
+        }
+        let Some(doc) = docs.get(&content_id) else { continue };
+        let basis = fingerprint(&[DATA_PROMPT, &catalog.digest, &doc_type, &doc.text_at.to_string(), &doc.marks_json]);
+        if kept.as_deref() != Some(basis.as_str()) {
+            left += 1;
+        } else if let Some(key) = question {
+            if cached_answer(conn, &key, engine.as_deref())?.is_none() {
+                left += 1;
+            }
+        }
+    }
+    Ok(left)
+}
+
 fn write_type_rows(conn: &Connection, rows: &[TypeRow], basis: &str) -> Result<usize, String> {
     let now = now_ms();
     let mut changed = 0;
@@ -980,6 +1152,7 @@ impl DocBase {
         let docs = load_docs(&conn)?;
         let units = load_units(&conn, catalog, &docs)?;
         let decisions = read_type_decisions(&conn)?;
+        let kept = kept_types(&conn)?;
         let current: HashMap<i64, String> = {
             let mut statement = conn.prepare("SELECT version_id, basis FROM document_type").map_err(sql_err)?;
             let rows = statement
@@ -1006,6 +1179,15 @@ impl DocBase {
             }
             if let Some(rows) = rows_by_marks(catalog, &unit, &docs) {
                 written += write_type_rows(&conn, &rows, &basis)?;
+                continue;
+            }
+            // A document new to a family already asked takes its type
+            // (decision 3 of 2 nov); the family keeps it, on its basis now.
+            if let Some(rows) = inherited_rows(catalog, &unit, &docs, &kept) {
+                written += write_type_rows(&conn, &rows, &basis)?;
+                for id in all.clone() {
+                    conn.execute("UPDATE document_type SET basis = ?1 WHERE version_id = ?2", params![basis, id]).map_err(sql_err)?;
+                }
                 continue;
             }
             let question = type_question(&conn, catalog, &decisions, &unit, &docs)?;

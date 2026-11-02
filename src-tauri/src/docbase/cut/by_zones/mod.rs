@@ -88,8 +88,12 @@ pub(crate) fn zones_waiting_sql() -> String {
     )
 }
 
-/// SQL: a window `w` still without an answer.
-pub(crate) const WINDOW_WITHOUT_ANSWER: &str = "NOT EXISTS (SELECT 1 FROM model_answer m WHERE m.question = w.question)";
+/// SQL: a window `w` still without an answer, and with a page in it whose
+/// start no person decided: a window a person decided whole is never asked
+/// (the step of the question of the cut, A1 of 2 nov).
+pub(crate) const WINDOW_WITHOUT_ANSWER: &str = "NOT EXISTS (SELECT 1 FROM model_answer m WHERE m.question = w.question)
+     AND (SELECT count(*) FROM cut_decision k WHERE k.resource_hash = w.resource_hash
+          AND k.page > w.first_page AND k.page <= w.last_page) < w.last_page - w.first_page";
 
 /// What the cut by zones says of a file, before any answer.
 #[derive(Debug, Clone)]

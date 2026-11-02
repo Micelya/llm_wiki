@@ -1,0 +1,732 @@
+//! The 18 steps of the process, in order (A1 of 2 nov): what each one is,
+//! and how many of its elements are left.
+//!
+//! Every step is told the same way: an element is **pending** when the
+//! seal it keeps (what its result was made with) is not the seal of today,
+//! and it is not set aside; the step is complete when none is pending. An
+//! element **set aside** waits for a known reason (a failure until its next
+//! attempt, a folder not connected, the asking held) and holds back only
+//! what is its own: it is shown, and does not hold the step.
+//!
+//! The counts reuse the queries the base already had (`rules_left`,
+//! `parts_left`, `zones_left`, the signature and the families, the type,
+//! the reading): nothing here does the work of a step.
+
+use std::collections::BTreeSet;
+
+use rusqlite::{params, Connection};
+use serde::Serialize;
+
+use super::super::barrier::free_sql;
+use super::super::{excluded_sql, sql_err};
+use crate::source_volume::page_shape::SHAPES_ENGINE;
+
+/// Whether a step goes over the files or over the documents (D-718).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Level {
+    File,
+    Document,
+}
+
+/// Whether a step works without AI, asks the model, or one or the other
+/// as the configuration says (the reading of the scans: the engine of this
+/// computer, or one in the cloud).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Class {
+    Local,
+    Asks,
+    BySettings,
+}
+
+/// The steps, in the order the process looks at them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Step {
+    Inventory = 1,
+    FileHash,
+    Text,
+    Scans,
+    Shapes,
+    Zones,
+    CutRules,
+    CutQuestion,
+    Parts,
+    Signature,
+    Similar,
+    Type,
+    TypeData,
+    TemplateFields,
+    Reading,
+    Identity,
+    Matters,
+    Pages,
+}
+
+/// What is known of a step without doing it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct About {
+    pub step: Step,
+    pub number: u8,
+    pub key: &'static str,
+    /// Its name, as «En curso» says it.
+    pub name: &'static str,
+    pub level: Level,
+    pub class: Class,
+    /// What its elements are.
+    pub elements: &'static str,
+    /// The seal: what its result keeps of what it was made with.
+    pub seal: &'static str,
+    /// What makes it incomplete again.
+    pub undone_by: &'static str,
+    /// The stages of the record of failures (`failures.rs`) of its
+    /// elements: a failure of these sets an element aside.
+    pub failure_stages: &'static [&'static str],
+    /// A step after the type: where the documents of a type of low
+    /// confidence are set aside (decision 5 of 2 nov; stage B builds it,
+    /// `low_confidence`).
+    pub after_the_type: bool,
+}
+
+pub const STEPS: [Step; 18] = [
+    Step::Inventory,
+    Step::FileHash,
+    Step::Text,
+    Step::Scans,
+    Step::Shapes,
+    Step::Zones,
+    Step::CutRules,
+    Step::CutQuestion,
+    Step::Parts,
+    Step::Signature,
+    Step::Similar,
+    Step::Type,
+    Step::TypeData,
+    Step::TemplateFields,
+    Step::Reading,
+    Step::Identity,
+    Step::Matters,
+    Step::Pages,
+];
+
+impl Step {
+    pub fn number(self) -> u8 {
+        self as u8
+    }
+
+    pub fn from_number(number: u8) -> Option<Step> {
+        STEPS.get((number as usize).checked_sub(1)?).copied()
+    }
+
+    pub fn about(self) -> About {
+        let (key, name, level, class, elements, seal, undone_by, failure_stages): (_, _, _, _, _, _, _, &'static [&'static str]) =
+            match self {
+                Step::Inventory => (
+                    "inventory",
+                    "Inventario de las carpetas",
+                    Level::File,
+                    Class::Local,
+                    "las carpetas conectadas",
+                    "la hora de su último recorrido (la del último cambio avisado llega con el vigilante, A3)",
+                    "el vigilante, una carpeta nueva, «Volver a procesar», excluir o volver a incluir algo, el barrido de resguardo",
+                    &["sweep"],
+                ),
+                Step::FileHash => (
+                    "file-hash",
+                    "Huella del archivo",
+                    Level::File,
+                    Class::Local,
+                    "los lugares de tipo archivo, no excluidos",
+                    "la huella de sus bytes (`hash_state`)",
+                    "un archivo nuevo o cambiado",
+                    &[],
+                ),
+                Step::Text => (
+                    "text",
+                    "Texto",
+                    Level::File,
+                    Class::Local,
+                    "las versiones",
+                    "su estado y el extractor que hizo el texto",
+                    "una versión nueva, o un extractor nuevo",
+                    &[],
+                ),
+                Step::Scans => (
+                    "scans",
+                    "Lectura de escaneos",
+                    Level::File,
+                    Class::BySettings,
+                    "las versiones que esperan su reconocimiento",
+                    "el texto reconocido de sus páginas",
+                    "un texto nuevo con páginas sin texto, o una persona que pide leer de nuevo",
+                    &["recognition"],
+                ),
+                Step::Shapes => (
+                    "shapes",
+                    "Ficha de las páginas",
+                    Level::File,
+                    Class::Local,
+                    "los PDF leídos",
+                    "el motor de fichas",
+                    "un PDF nuevo, o un motor de fichas nuevo",
+                    &["shapes"],
+                ),
+                Step::Zones => (
+                    "zones",
+                    "Lectura por zonas",
+                    Level::File,
+                    Class::Local,
+                    "los PDF de dos páginas o más",
+                    "su lectura por zonas (un cambio de umbrales no vuelve a leer, D-747)",
+                    "un PDF nuevo",
+                    &["zones"],
+                ),
+                Step::CutRules => (
+                    "cut-rules",
+                    "Corte con reglas",
+                    Level::File,
+                    Class::Local,
+                    "los PDF de dos páginas o más",
+                    "la versión de las reglas y el sello del texto o de las zonas",
+                    "un PDF nuevo, reglas nuevas, otro texto de sus páginas",
+                    &["cut"],
+                ),
+                Step::CutQuestion => (
+                    "cut-question",
+                    "Pregunta del corte",
+                    Level::File,
+                    Class::Asks,
+                    "los saltos dudosos y los tramos que la app pregunta sola, salvo los que una persona ya decidió",
+                    "la respuesta guardada para la clave de sus páginas",
+                    "un corte nuevo",
+                    &["cut-question"],
+                ),
+                Step::Parts => (
+                    "parts",
+                    "Partes",
+                    Level::File,
+                    Class::Local,
+                    "los archivos cortados",
+                    "los saltos, las respuestas y las decisiones de una persona",
+                    "una respuesta del corte, una persona que corta o une",
+                    &["parts"],
+                ),
+                Step::Signature => (
+                    "signature",
+                    "Firma",
+                    Level::Document,
+                    Class::Local,
+                    "los documentos",
+                    "la hora de su texto y el motor de firmas",
+                    "un documento nuevo, el texto de una parte que cambia",
+                    &["similar"],
+                ),
+                Step::Similar => (
+                    "similar",
+                    "Parecidos y familias",
+                    Level::Document,
+                    Class::Local,
+                    "los documentos firmados",
+                    "la huella de sus datos clave al medirlos",
+                    "una firma nueva; una respuesta que cambia partes, identificadores, montos o fechas; una decisión sobre un par",
+                    &[],
+                ),
+                Step::Type => (
+                    "type",
+                    "Tipo",
+                    Level::Document,
+                    Class::Asks,
+                    "las unidades: una familia, o un documento suelto con palabras suficientes",
+                    "la base de su unidad (sus miembros, sus textos, sus marcas y el catálogo)",
+                    "un cambio en su familia (no un miembro nuevo, que hereda el tipo, decisión 3), un texto nuevo, un catálogo nuevo",
+                    &["types"],
+                ),
+                Step::TypeData => (
+                    "type-data",
+                    "Datos del tipo",
+                    Level::Document,
+                    Class::Asks,
+                    "los documentos con tipo",
+                    "la base de sus datos y la respuesta a su pregunta",
+                    "un tipo nuevo",
+                    &["types"],
+                ),
+                Step::TemplateFields => (
+                    "template-fields",
+                    "Nombres de los campos de las plantillas",
+                    Level::Document,
+                    Class::Asks,
+                    "las plantillas",
+                    "la respuesta a la pregunta de sus campos",
+                    "una familia de la misma plantilla que cambia",
+                    &["templates"],
+                ),
+                Step::Reading => (
+                    "reading",
+                    "Lectura de entidades",
+                    Level::Document,
+                    Class::Asks,
+                    "los documentos",
+                    "el texto, las instrucciones y el control con que se leyó",
+                    "un documento nuevo, el pedido de una persona",
+                    &["reading"],
+                ),
+                Step::Identity => (
+                    "identity",
+                    "Identidad",
+                    Level::Document,
+                    Class::Asks,
+                    "la resolución",
+                    "las lecturas y decisiones de su última resolución completa",
+                    "lecturas nuevas, decisiones de una persona",
+                    &["resolve"],
+                ),
+                Step::Matters => (
+                    "matters",
+                    "Asuntos",
+                    Level::Document,
+                    Class::Asks,
+                    "los documentos sin asunto que comparten partes con uno",
+                    "la respuesta guardada",
+                    "identidades nuevas",
+                    &["matters"],
+                ),
+                Step::Pages => (
+                    "pages",
+                    "Páginas",
+                    Level::Document,
+                    Class::Asks,
+                    "las páginas marcadas para escribir y las síntesis que faltan",
+                    "lo que muestra la página",
+                    "cualquier cambio en lo que la página muestra",
+                    &["pages"],
+                ),
+            };
+        About {
+            step: self,
+            number: self.number(),
+            key,
+            name,
+            level,
+            class,
+            elements,
+            seal,
+            undone_by,
+            failure_stages,
+            after_the_type: self > Step::Type,
+        }
+    }
+}
+
+/// What part of the base a count looks at: everything, one document, one
+/// file or one folder. A document takes also the steps of the file it is
+/// in: what a person asks for waits only for the steps before of its own
+/// document (decision 2 of 2 nov).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Scope {
+    All,
+    /// A document, by its version.
+    Document(i64),
+    /// A file, by the hash of its bytes.
+    File(String),
+    /// A folder of an origin, with forward slashes; empty, the whole origin.
+    Folder { origin: String, folder: String },
+}
+
+fn quoted(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "''"))
+}
+
+impl Scope {
+    /// SQL: the hashes of the files of the scope (`None`: all).
+    fn files_sql(&self) -> Option<String> {
+        match self {
+            Scope::All => None,
+            Scope::Document(version) => Some(format!(
+                "SELECT sa.resource_hash FROM appearance sa WHERE sa.version_id = {version}
+                 UNION SELECT sf.hash FROM file sf WHERE sf.version_id = {version}"
+            )),
+            Scope::File(hash) => Some(format!("SELECT {}", quoted(hash))),
+            Scope::Folder { origin, .. } => {
+                Some(format!("SELECT sl.file_hash FROM location sl WHERE sl.file_hash IS NOT NULL AND {}", self.location_where("sl", origin)))
+            }
+        }
+    }
+
+    /// SQL over a location `alias` of the folder `origin` of the scope.
+    fn location_where(&self, alias: &str, origin: &str) -> String {
+        let folder = match self {
+            Scope::Folder { folder, .. } => folder.trim_matches('/'),
+            _ => "",
+        };
+        let inside = if folder.is_empty() {
+            "1".to_string()
+        } else {
+            format!("substr({alias}.rel_path, 1, length({f}) + 1) = {f} || '/'", f = quoted(folder))
+        };
+        format!("{alias}.origin_id = {} AND {inside}", quoted(origin))
+    }
+
+    /// SQL: the version in `column` is of the scope: the documents, and
+    /// the versions of the whole files they are in.
+    pub(crate) fn version_sql(&self, column: &str) -> String {
+        match (self, self.files_sql()) {
+            (Scope::All, _) | (_, None) => "1".to_string(),
+            (Scope::Document(version), Some(files)) => format!(
+                "({column} = {version} OR {column} IN (SELECT sv.version_id FROM file sv WHERE sv.hash IN ({files})))"
+            ),
+            (_, Some(files)) => format!(
+                "({column} IN (SELECT sv.version_id FROM file sv WHERE sv.hash IN ({files}))
+                  OR {column} IN (SELECT sw.version_id FROM appearance sw WHERE sw.resource_hash IN ({files})))"
+            ),
+        }
+    }
+
+    /// SQL: the file hash in `column` is of the scope.
+    pub(crate) fn file_sql(&self, column: &str) -> String {
+        match self.files_sql() {
+            None => "1".to_string(),
+            Some(files) => format!("{column} IN ({files})"),
+        }
+    }
+
+    /// SQL over a location `l`.
+    fn location_sql(&self) -> String {
+        match self {
+            Scope::All => "1".to_string(),
+            Scope::Folder { origin, .. } => self.location_where("l", origin),
+            _ => self.file_sql("l.file_hash"),
+        }
+    }
+
+    /// SQL over an origin `o`.
+    fn origin_sql(&self) -> String {
+        match self {
+            Scope::All => "1".to_string(),
+            Scope::Folder { origin, .. } => format!("o.id = {}", quoted(origin)),
+            _ => format!("o.id IN (SELECT so.origin_id FROM location so WHERE {})", self.file_sql("so.file_hash")),
+        }
+    }
+
+    /// SQL over a failure `fz`: it is about something of the scope.
+    fn failure_sql(&self) -> String {
+        match self {
+            Scope::All => "1".to_string(),
+            Scope::Folder { origin, .. } if self.files_sql().is_some() => format!(
+                "(({}) OR ({}) OR (fz.item_kind = 'origin' AND fz.item = {}))",
+                self.file_sql("fz.file_hash"),
+                self.version_sql("fz.version_id"),
+                quoted(origin)
+            ),
+            _ => format!("(({}) OR ({}))", self.file_sql("fz.file_hash"), self.version_sql("fz.version_id")),
+        }
+    }
+
+    /// The versions of the scope (`None`: all), for the steps counted in
+    /// Rust.
+    pub(crate) fn versions(&self, conn: &Connection) -> Result<Option<BTreeSet<i64>>, String> {
+        if *self == Scope::All {
+            return Ok(None);
+        }
+        let mut statement = conn.prepare(&format!("SELECT c.id FROM version c WHERE {}", self.version_sql("c.id"))).map_err(sql_err)?;
+        let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+        Ok(Some(rows.collect::<Result<_, _>>().map_err(sql_err)?))
+    }
+}
+
+/// How many elements of a step are left.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Count {
+    /// Elements whose seal is not today's, not set aside.
+    pub pending: usize,
+    /// Elements that wait for a known reason; they do not hold the step.
+    pub set_aside: usize,
+    /// Of the pending, those the step closes without asking (the marks
+    /// or the inheritance of the type, the check of a reading kept).
+    pub without_asking: usize,
+    /// Whether the base can count the step by itself. The identities, the
+    /// matters and the syntheses of the pages know what they have left only
+    /// once a pass goes through them (D-452): when nothing they mark is
+    /// pending, they say they do not know.
+    pub known: bool,
+}
+
+impl Count {
+    fn of(pending: usize, set_aside: usize) -> Count {
+        Count { pending, set_aside, without_asking: 0, known: true }
+    }
+}
+
+/// What holds back every question to the model now, if anything does: the
+/// automatic reading off, or the engine paused after a failure of the
+/// whole engine (D-714). Its pending elements are set aside.
+pub(crate) fn asking_held(conn: &Connection, reading_on: bool) -> Result<Option<&'static str>, String> {
+    if !reading_on {
+        return Ok(Some("la lectura automática está apagada"));
+    }
+    let paused: i64 = conn
+        .query_row(
+            &format!(
+                "SELECT count(*) FROM failure WHERE item_kind = 'engine' AND scope = 'engine' AND state <> 'resolved'
+                   AND (next_at IS NULL OR next_at > {})",
+                super::super::failures::NOW_SQL
+            ),
+            [],
+            |row| row.get(0),
+        )
+        .map_err(sql_err)?;
+    Ok((paused > 0).then_some("el motor está en pausa"))
+}
+
+/// The class a step has now: the reading of the scans asks when the
+/// configuration chose an engine in the cloud.
+pub(crate) fn class_now(conn: &Connection, step: Step) -> Result<Class, String> {
+    let about = step.about();
+    if about.class != Class::BySettings {
+        return Ok(about.class);
+    }
+    let engine = super::super::recognize::recognition_engine(conn)?;
+    Ok(match engine {
+        Some(config) if config.engine != crate::source_volume::recognition_local::ENGINE => Class::Asks,
+        _ => Class::Local,
+    })
+}
+
+/// The documents of a type of low confidence (decision 5 of 2 nov): what
+/// comes out of them is used in no process and for no information derived
+/// from them. Stage B builds it; until then, none. Every step after the
+/// type (`About::after_the_type`) sets them aside here: the data of the
+/// type, the fields of the templates and the reading, by document; the
+/// identities, the matters and the pages, by what they take from them
+/// (B filters their inputs).
+pub(crate) fn low_confidence(_conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    Ok(BTreeSet::new())
+}
+
+fn count(conn: &Connection, sql: &str) -> Result<usize, String> {
+    conn.query_row(sql, [], |row| row.get::<_, i64>(0)).map(|n| n.max(0) as usize).map_err(sql_err)
+}
+
+/// Open failures of the stages of `step` about something of the scope.
+fn failures_of(conn: &Connection, step: Step, scope: &Scope) -> Result<usize, String> {
+    let stages = step.about().failure_stages;
+    if stages.is_empty() {
+        return Ok(0);
+    }
+    let list: Vec<String> = stages.iter().map(|s| quoted(s)).collect();
+    count(
+        conn,
+        &format!(
+            "SELECT count(*) FROM failure fz WHERE fz.state <> 'resolved' AND fz.item_kind NOT IN ('engine', 'thread')
+               AND fz.stage IN ({}) AND {}",
+            list.join(", "),
+            scope.failure_sql()
+        ),
+    )
+}
+
+/// How many elements of `step` are left in `scope`, before the asking is
+/// held (`asking_held`): `state` in `mod.rs` sets them aside then.
+pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result<Count, String> {
+    let free = free_sql("c.id");
+    let versions = scope.version_sql("c.id");
+    let excluded = excluded_sql!();
+    let failed = || failures_of(conn, step, scope);
+    Ok(match step {
+        Step::Inventory => {
+            let origins = scope.origin_sql();
+            Count::of(
+                count(conn, &format!("SELECT count(*) FROM origin o WHERE o.last_scan_at IS NULL AND o.reachable IS NOT 0 AND {origins}"))?,
+                count(conn, &format!("SELECT count(*) FROM origin o WHERE o.reachable = 0 AND {origins}"))? + failed()?,
+            )
+        }
+        Step::FileHash => {
+            let left = |reachable: &str| {
+                count(
+                    conn,
+                    &format!(
+                        "SELECT count(*) FROM location l JOIN origin o ON o.id = l.origin_id AND {reachable}
+                         WHERE l.hash_state = 'pending' AND l.kind = 'file' AND NOT {excluded} AND {}",
+                        scope.location_sql()
+                    ),
+                )
+            };
+            // A folder not connected: its files wait, set aside.
+            Count::of(left("o.reachable = 1")?, left("o.reachable IS NOT 1")?)
+        }
+        Step::Text => {
+            let left = |held: &str| {
+                count(
+                    conn,
+                    &format!(
+                        "SELECT count(DISTINCT c.id) FROM version c JOIN file f ON f.version_id = c.id
+                         JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
+                         JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+                         WHERE c.state = 'pending' AND NOT {excluded} AND {held} AND {versions}"
+                    ),
+                )
+            };
+            Count::of(left(&free)?, left(&format!("NOT {free}"))?)
+        }
+        Step::Scans => {
+            let left = |held: &str| {
+                count(
+                    conn,
+                    &format!(
+                        "SELECT count(*) FROM version c WHERE c.state = 'needs-recognition' AND {} AND {held} AND {versions}",
+                        super::super::recognize::reachable_sql()
+                    ),
+                )
+            };
+            // A scan whose recognition failed (`error`) waits for a person.
+            Count::of(left(&format!("c.error IS NULL AND {free}"))?, left(&format!("(c.error IS NOT NULL OR NOT {free})"))?)
+        }
+        Step::Shapes => {
+            let left = |held: &str| -> Result<usize, String> {
+                conn.query_row(
+                    &format!(
+                        "SELECT count(DISTINCT c.id) FROM version c JOIN file f ON f.version_id = c.id
+                         JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
+                         JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+                         WHERE c.state IN ('processed', 'needs-recognition') AND NOT {excluded} AND {held} AND {versions}
+                           AND NOT EXISTS (SELECT 1 FROM derivative d WHERE d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2)"
+                    ),
+                    params![super::super::page_shapes::SHAPES_KIND, SHAPES_ENGINE],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map(|n| n.max(0) as usize)
+                .map_err(sql_err)
+            };
+            Count::of(left(&free)?, left(&format!("NOT {free}"))?)
+        }
+        Step::Zones => {
+            let thresholds = super::super::thresholds::thresholds(conn)?;
+            let bands = super::super::structure::page::Bands { high: thresholds.high, low: thresholds.low };
+            Count::of(super::super::structure::zones_left(conn, &format!("{free} AND {versions}"), bands)?, failed()?)
+        }
+        Step::CutRules => Count::of(super::super::cut::rules_left(conn, &format!("{free} AND {versions}"))?, failed()?),
+        Step::CutQuestion => {
+            let cut = super::super::cut::by_zones::by_itself_sql();
+            let holds = super::super::failures::holds_any_sql("cut-question", "s.resource_hash || '#' || s.after_page");
+            let steps = |held: &str| {
+                count(
+                    conn,
+                    &format!(
+                        "SELECT count(*) FROM cut_step s WHERE {} AND {} AND {held} AND {}",
+                        super::super::cut::WITHOUT_ANSWER,
+                        super::super::cut::ASKED_BY_ITSELF,
+                        scope.file_sql("s.resource_hash")
+                    ),
+                )
+            };
+            let windows = count(
+                conn,
+                &format!(
+                    "SELECT count(*) FROM cut_window w WHERE {} AND {cut} AND {}",
+                    super::super::cut::by_zones::WINDOW_WITHOUT_ANSWER,
+                    scope.file_sql("w.resource_hash")
+                ),
+            )?;
+            Count::of(steps(&format!("NOT {holds}"))? + windows, steps(&holds)?)
+        }
+        Step::Parts => Count::of(super::super::cut::parts::parts_left(conn, &format!("{free} AND {versions}"))?, failed()?),
+        Step::Signature => Count::of(super::super::similar::store::unsigned_left(conn, &format!("{free} AND {versions}"))?, failed()?),
+        Step::Similar => {
+            // Marked to measure again, and those whose key data changed
+            // since they were measured and nobody marked yet: told from
+            // the base, in the same moment an answer is kept.
+            let marked = super::super::similar::store::dirty_left(conn, &format!("{free} AND {versions}"))?;
+            let only = scope.versions(conn)?;
+            let stale = super::super::similar::store::stale_by_key_data_now(conn)?
+                .into_iter()
+                .filter(|id| only.as_ref().is_none_or(|o| o.contains(id)))
+                .count();
+            Count::of(marked + stale, 0)
+        }
+        Step::Type => {
+            let only = scope.versions(conn)?;
+            let left = super::super::similar::classify::types_left(conn, only.as_ref())?;
+            Count { without_asking: left.by_marks + left.by_inheritance, ..Count::of(left.units, failed()?) }
+        }
+        Step::TypeData => {
+            let only = in_scope_but_low(conn, scope)?;
+            let set_aside = low_in_scope(conn, scope)?;
+            Count::of(super::super::similar::classify::data_left(conn, Some(&only))?, set_aside)
+        }
+        Step::TemplateFields => {
+            let only = scope.versions(conn)?;
+            let low = low_confidence(conn)?;
+            let (mut pending, mut set_aside) = (0, 0);
+            for (principal, waiting) in super::super::similar::naming::waiting_templates(conn)? {
+                if waiting == 0 || only.as_ref().is_some_and(|o| !o.contains(&principal)) {
+                    continue;
+                }
+                if low.contains(&principal) {
+                    set_aside += 1;
+                } else {
+                    pending += 1;
+                }
+            }
+            Count::of(pending, set_aside)
+        }
+        Step::Reading => {
+            let only = scope.versions(conn)?;
+            let low = low_confidence(conn)?;
+            let (mut pending, mut checks, mut set_aside) = (0, 0, 0);
+            let standings = super::super::knowledge::extract::standings(conn, &super::super::Visible::All, None)?;
+            for standing in standings {
+                if only.as_ref().is_some_and(|o| !o.contains(&standing.content_id)) {
+                    continue;
+                }
+                let reading = standing.reading.as_ref();
+                let to_check = reading.is_some_and(|r| r.current && r.to_check);
+                if reading.is_some_and(|r| r.current) && !to_check {
+                    continue;
+                }
+                if low.contains(&standing.content_id) {
+                    set_aside += 1;
+                } else {
+                    pending += 1;
+                    checks += usize::from(to_check);
+                }
+            }
+            Count { without_asking: checks, ..Count::of(pending, set_aside + failed()?) }
+        }
+        Step::Identity => {
+            let marked = count(conn, "SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')")?;
+            Count { known: marked > 0, ..Count::of(marked, 0) }
+        }
+        Step::Matters => Count { known: false, ..Count::default() },
+        Step::Pages => {
+            let marked = count(conn, "SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'")?;
+            Count { known: marked > 0, ..Count::of(marked, 0) }
+        }
+    })
+}
+
+/// The documents of the scope that are not of a type of low confidence.
+fn in_scope_but_low(conn: &Connection, scope: &Scope) -> Result<BTreeSet<i64>, String> {
+    let low = low_confidence(conn)?;
+    let all: BTreeSet<i64> = match scope.versions(conn)? {
+        Some(only) => only,
+        None => {
+            let mut statement = conn.prepare("SELECT version_id FROM document_type").map_err(sql_err)?;
+            let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+            rows.collect::<Result<_, _>>().map_err(sql_err)?
+        }
+    };
+    Ok(all.difference(&low).copied().collect())
+}
+
+/// How many typed documents of the scope are of a type of low confidence.
+fn low_in_scope(conn: &Connection, scope: &Scope) -> Result<usize, String> {
+    let low = low_confidence(conn)?;
+    if low.is_empty() {
+        return Ok(0);
+    }
+    let only = scope.versions(conn)?;
+    Ok(low.iter().filter(|id| only.as_ref().is_none_or(|o| o.contains(id))).count())
+}

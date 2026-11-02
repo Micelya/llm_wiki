@@ -328,9 +328,21 @@ fn unsigned_or_failed_where() -> String {
 /// `free` (an SQL condition over the version `c`) saying they hold the
 /// barrier (`barrier.rs`).
 pub(crate) fn similar_left(conn: &Connection, free: &str) -> Result<usize, String> {
+    Ok(unsigned_left(conn, free)? + dirty_left(conn, free)?)
+}
+
+/// How many documents are still to sign, `free` (an SQL condition over the
+/// version `c`) saying which count: the step of the signature (A1 of 2 nov).
+pub(crate) fn unsigned_left(conn: &Connection, free: &str) -> Result<usize, String> {
     let unsigned: i64 = conn
         .query_row(&format!("SELECT count(*) FROM {UNSIGNED_FROM} WHERE {} AND {free}", unsigned_or_failed_where()), [engine_id()], |row| row.get(0))
         .map_err(sql_err)?;
+    Ok(unsigned.max(0) as usize)
+}
+
+/// How many documents are marked to measure again (`similar_dirty`),
+/// `free` (an SQL condition over the version `c`) saying which count.
+pub(crate) fn dirty_left(conn: &Connection, free: &str) -> Result<usize, String> {
     let dirty: i64 = conn
         .query_row(
             &format!("SELECT count(*) FROM similar_dirty x WHERE {}", free.replace("c.id", "x.version_id")),
@@ -338,7 +350,67 @@ pub(crate) fn similar_left(conn: &Connection, free: &str) -> Result<usize, Strin
             |row| row.get(0),
         )
         .map_err(sql_err)?;
-    Ok((unsigned + dirty).max(0) as usize)
+    Ok(dirty.max(0) as usize)
+}
+
+/// What the base knows now that the key data come from, in a few counts:
+/// when it is the one written down at the last check, no key datum changed.
+fn key_data_now(conn: &Connection) -> Result<String, String> {
+    conn.query_row(
+        "SELECT (SELECT count(*) || ':' || coalesce(max(id), 0) || ':' || count(entity_id) || ':' || coalesce(max(entity_id), '')
+                 FROM knowledge_mention)
+             || '|' || (SELECT count(*) FROM knowledge_identifier)
+             || '|' || (SELECT count(*) || ':' || coalesce(max(id), 0) FROM knowledge_evidence)
+             || '|' || (SELECT count(*) || ':' || coalesce(max(computed_at), 0) FROM document_data)
+             || '|' || (SELECT count(*) || ':' || count(merged_into) || ':' || coalesce(max(updated_at), 0) FROM knowledge_entity)",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(sql_err)
+}
+
+/// The documents measured with other key data than the ones they have now,
+/// not yet marked to measure again (R-15). Reads only: the step of the
+/// similar documents counts them from the base, in the same moment an
+/// answer changes them (A1 of 2 nov; it closes the gap of the barrier).
+/// `now` is `key_data_now`: when it is the one of the last check, none.
+pub(crate) fn stale_by_key_data(conn: &Connection, now: &str) -> Result<Vec<i64>, String> {
+    let then: Option<String> = conn
+        .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [KEY_DATA_SETTING], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?;
+    if then.as_deref() == Some(now) {
+        return Ok(Vec::new());
+    }
+    let measured: Vec<(i64, String)> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT k.version_id, k.print FROM similar_key_data k
+                 WHERE k.version_id NOT IN (SELECT version_id FROM similar_dirty)",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        rows
+    };
+    if measured.is_empty() {
+        return Ok(Vec::new());
+    }
+    let current = key_data::load_all(conn, None)?;
+    let empty = KeyData::default().print();
+    Ok(measured
+        .into_iter()
+        .filter(|(content_id, print)| &current.get(content_id).map(KeyData::print).unwrap_or_else(|| empty.clone()) != print)
+        .map(|(content_id, _)| content_id)
+        .collect())
+}
+
+/// `stale_by_key_data` with what the base knows now.
+pub(crate) fn stale_by_key_data_now(conn: &Connection) -> Result<Vec<i64>, String> {
+    stale_by_key_data(conn, &key_data_now(conn)?)
 }
 
 impl DocBase {
@@ -687,50 +759,12 @@ impl DocBase {
     /// datum of the archive each time). Returns how many it left to measure.
     fn similar_key_data_check(&self) -> Result<usize, String> {
         let conn = self.conn();
-        let now: String = conn
-            .query_row(
-                "SELECT (SELECT count(*) || ':' || coalesce(max(id), 0) || ':' || count(entity_id) || ':' || coalesce(max(entity_id), '')
-                         FROM knowledge_mention)
-                     || '|' || (SELECT count(*) FROM knowledge_identifier)
-                     || '|' || (SELECT count(*) || ':' || coalesce(max(id), 0) FROM knowledge_evidence)
-                     || '|' || (SELECT count(*) || ':' || coalesce(max(computed_at), 0) FROM document_data)
-                     || '|' || (SELECT count(*) || ':' || count(merged_into) || ':' || coalesce(max(updated_at), 0) FROM knowledge_entity)",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(sql_err)?;
-        let then: Option<String> = conn
-            .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [KEY_DATA_SETTING], |row| row.get(0))
-            .optional()
-            .map_err(sql_err)?;
-        if then.as_deref() == Some(now.as_str()) {
-            return Ok(0);
-        }
-        let measured: Vec<(i64, String)> = {
-            let mut statement = conn
-                .prepare(
-                    "SELECT k.version_id, k.print FROM similar_key_data k
-                     WHERE k.version_id NOT IN (SELECT version_id FROM similar_dirty)",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(sql_err)?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(sql_err)?;
-            rows
-        };
-        let current = key_data::load_all(&conn, None)?;
-        let empty = KeyData::default().print();
+        let now = key_data_now(&conn)?;
+        let stale = stale_by_key_data(&conn, &now)?;
         let at = now_ms();
-        let mut stale = 0;
-        for (content_id, print) in measured {
-            let print_now = current.get(&content_id).map(KeyData::print).unwrap_or_else(|| empty.clone());
-            if print_now != print {
-                conn.execute("INSERT OR REPLACE INTO similar_dirty (version_id, since) VALUES (?1, ?2)", params![content_id, at])
-                    .map_err(sql_err)?;
-                stale += 1;
-            }
+        for content_id in &stale {
+            conn.execute("INSERT OR REPLACE INTO similar_dirty (version_id, since) VALUES (?1, ?2)", params![content_id, at])
+                .map_err(sql_err)?;
         }
         conn.execute("DELETE FROM similar_key_data WHERE version_id NOT IN (SELECT id FROM version)", [])
             .map_err(sql_err)?;
@@ -739,7 +773,7 @@ impl DocBase {
             params![KEY_DATA_SETTING, now],
         )
         .map_err(sql_err)?;
-        Ok(stale)
+        Ok(stale.len())
     }
 
     /// Pass 3: families against a principal document (R-14), from the

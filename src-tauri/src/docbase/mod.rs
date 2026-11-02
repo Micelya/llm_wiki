@@ -42,6 +42,7 @@ pub mod knowledge;
 pub mod labels;
 pub mod origins;
 pub(crate) mod page_shapes;
+pub mod process;
 pub mod progress;
 pub mod query;
 pub mod questions;
