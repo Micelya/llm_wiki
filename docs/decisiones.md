@@ -699,6 +699,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-780 | 1 nov | pruebas y calidad | La app de revisión: la rama se abre con otro identificador y su propia carpeta de datos, sin la IA | vigente; la copia sin motores y la negativa a abrir, asumidas en la corrida desatendida (D-500): el dueño las revisa |
 | D-778 | 1 nov | pruebas y calidad | Las hojas provisorias para medir el tipo hasta el final: el catálogo legal y el tipo de cada documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-779 | 1 nov | pruebas y calidad | Cómo se cuentan los aciertos del tipo con los nombres que inventa la app | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-805 | 2 nov | Servicios de IA | «Calcular vectores» queda encendido, y el efecto de la pista del tipo se mide en la corrida de control antes de darlo por bueno | decidida |
 
 ---
 
@@ -7493,3 +7494,10 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** La app no pregunta con el catálogo nuevo: inventa nombres. Para medir hay que traducir cada nombre al catálogo, y algunos abarcan varios tipos (por ejemplo, «providencia judicial» no dice si es de mero trámite) o no dicen nada (por ejemplo, «documento administrativo»).
 - **Qué se decidió y por qué:** Una traducción solo para medir, armada después de cerrar la hoja de tipos: cada nombre con un solo equivalente es un acierto si coincide; un nombre que abarca varios tipos se cuenta aparte, como «acierto por nombre genérico», y no entra en el acierto principal; un nombre demasiado vago cuenta como error. El acierto se da sobre los documentos que la app cortó igual que la hoja (el corte se mide aparte) y también sobre toda la hoja. Resultado de la corrida del 1 nov: 248 aciertos de 333 documentos cortados igual (74 %), y 89 % contando los nombres genéricos. Consultas de producción por documento (D-672): igual, 0.
 - **Quién decidió:** el agente de la etapa G1, en la corrida desatendida; lo revisa el dueño
+
+### D-805 · «Calcular vectores» queda encendido, y el efecto de la pista del tipo se mide en la corrida de control antes de darlo por bueno
+
+- **Fecha:** 2 nov 2026 · **Tema:** Servicios de IA · **Estado:** decidida
+- **El problema:** La medición de los vectores (etapa C0, D-795) dijo cuántas veces acierta la pista de los vecinos: el 77 % con sinónimos, y el 54 % en los documentos sin familia de parecidos. No midió si la pista mejora o empeora el tipo que elige el modelo. En los documentos sin familia la pista apunta a otro tipo casi la mitad de las veces, y puede arrastrar al modelo.
+- **Qué se decidió y por qué:** «Calcular vectores» queda encendido por omisión (completa D-767). En la corrida de control nueva, el tipo de los documentos sin familia se pregunta dos veces, con la pista y sin ella, y las dos respuestas se miden contra la hoja provisoria de tipos y su catálogo: los aciertos de cada versión y los casos en que la pista cambió la respuesta, a mejor y a peor. Si alcanza el tope, también los documentos con familia. Si la pista empeora el tipo, se apaga solo la pista y siguen el rescate de los documentos sin tipo y los grupos por parecido. Por eso la pista es un ajuste aparte, que se puede apagar sola.
+- **Quién decidió:** El dueño, por el chat que coordina la tanda, el 1 nov a la noche
