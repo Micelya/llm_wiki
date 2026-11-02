@@ -5132,6 +5132,54 @@
       "detalle": "La etapa G1 armó la lista de las páginas que debería tener la wiki, sacada de las hojas sin leer nada nuevo: 186 de entidades (personas y organizaciones), 23 de asuntos y 319 de documentos (las copias van en la página de su original). Falta el guion que la cruce con las páginas que escribe la app: cada página de entidad por sus formas escritas, cada asunto por sus documentos, cada documento por su archivo y sus páginas; y que cuente las que faltan, las que sobran y las repetidas (la etapa F encontró 25 repetidas en la corrida de control). Dos límites a tener en cuenta: los asuntos están por archivo, así que en un compuesto pueden abarcar documentos que no son del asunto; y el examen no tiene hoja de entidades ni de asuntos. Va con la etapa que mira la wiki o con el arnés. Consultas de producción por documento (D-672): igual, 0.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-591",
+      "titulo": "Las partes de un archivo compuesto no tienen página en la wiki, y sus enlaces llevan a la página del archivo, que dice «todavía no se leyó»",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "páginas",
+      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4 de la tanda del 2 nov). Un archivo cortado en partes (por ejemplo, una digitalización de 93 páginas con 74 documentos, o un escrito con 3 partidas) tiene una sola página de documento, la del archivo entero, y esa página dice «Este documento todavía no se leyó: la app arma esta página cuando lo lea», aunque la lista lo muestra como procesado y la misma página dice «Lo escribió la app hace 15 h». Las páginas de personas y de casos enlazan las partes como «archivo, pág. 3»; el enlace lleva a esa misma página vacía, no a la parte. En la base hay 132 páginas de documento para 296 documentos leídos. Para un usuario, todo lo que sale de los escaneos compuestos (la mayor parte de la sucesión) no tiene dónde verse. Arreglo: una página por documento real (cada parte), con su tipo, su resumen y sus datos, y que el archivo compuesto muestre la lista de sus partes con enlaces. Consultas de producción por documento (D-672): igual, si la página de la parte usa lo que ya se extrajo; si se escribe un resumen por parte con la IA, suma una por parte, y eso necesita una decisión del dueño.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-592",
+      "titulo": "La wiki muestra como datos errores de dirección y de papel de la extracción: un parentesco invertido, el remitente equivocado de una carta y el domicilio de la contraparte",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "lectura y relaciones",
+      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). Cuatro casos, todos con su cita: (1) en una partida de defunción, el renglón «Apellido y nombre del padre: X» se extrajo como que el fallecido es padre de X; la página del fallecido dice a la vez «hijo de X» y «padre de X», y la de X igual, sin marcar el conflicto; (2) el título de una carta documento la pone como enviada por la empresa a la que va dirigida, cuando la manda el apoderado de la otra; (3) el domicilio de una empresa aparece también como domicilio de su contraparte, porque las facturas de una llevan el domicilio del cliente; (4) un CUIL con 6 cifras en el medio (formato inválido) se tomó de una lectura de escaneo y figura en la ficha. Arreglo propuesto: (a) que dos parentescos que se contradicen (A padre de B y B padre de A, o A hijo y padre de B) queden en conflicto y no se escriban como hechos; (b) que el emisor de un documento salga de quien firma o del membrete, no de quien se nombra; (c) que un identificador con formato o dígito verificador inválido no dé datos (va con P-582 y P-583). Consultas de producción por documento (D-672): igual; son reglas sin IA.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-593",
+      "titulo": "Los números de una misma cosa no coinciden entre pantallas: personas, documentos y menciones",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pantallas",
+      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). Personas: Inicio dice 122 personas con página; la lista de Personas y organizaciones, 527 resultados (personas y organizaciones, con y sin página); el Grafo, 343 personas. Documentos: 296 leídos, 136 distintos, 148 archivos, 284 con tipo, 101 con tipo y datos, 132 en el Grafo. Menciones: en «Los más nombrados» de Inicio, la persona más nombrada figura con 48 documentos y la de la sucesión con 32; en la lista, con 77 y 83. Atención dice «1 problema · 176 decisiones» y sus pestañas, «Problemas 2 · Decisiones 5». Cada número puede ser correcto en su definición, pero ninguna pantalla dice qué cuenta, y un usuario cree que la app se contradice. Arreglo: una sola definición por número, o una aclaración corta al lado de cada uno (por ejemplo, «con página» frente a «nombradas»). Consultas de producción por documento (D-672): igual.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-594",
+      "titulo": "Detalles de las páginas que confunden a un usuario: códigos de tipo sin tildes, tipos propuestos repetidos, nombres de caso mal armados, títulos partidos y alias basura",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "páginas",
+      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). (1) Las tablas de documentos de las páginas de personas y casos muestran el tipo como código interno, en minúscula y sin tildes («correo electronico», «resolucion judicial», «escrito inicio sucesion intestada»), mientras la lista de Documentos usa el nombre bien escrito. (2) La lista de tipos propuestos tiene nombres repetidos (dos «Acta de defunción», dos «Oficio judicial electrónico») y casi iguales («Acta» y «Partida» de defunción, «Providencia» y «Proveído» judicial), y las plantillas se llaman «Carta documento (2)» y «(3)» sin decir en qué difieren. (3) Los nombres de caso usan «entre A y B» donde no hay dos partes (una sucesión «entre» la madre y el hijo fallecidos), hay dos casos con el mismo nombre y un «Caso sin nombre» que junta dos copias de la misma escritura. (4) Los títulos largos (el nombre de archivo de un compuesto) se parten en una columna angosta junto a los botones. (5) Alias que no son nombres: la línea de lectura mecánica de un pasaporte, el nombre de un área de una empresa, un apellido solo; y personas con el apellido primero o pegado («Dr.nombreapellido»). (6) La pantalla Habilidades lista las habilidades de programación de la máquina, en inglés. (7) El panel de Investigación aprieta la pantalla de abajo en una columna angosta; el Grafo es una nube de cientos de nodos sin filtro; el origen de prueba se muestra como «1»; la lista de Documentos muestra la fecha del archivo y no la del documento. Consultas de producción por documento (D-672): igual.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }
