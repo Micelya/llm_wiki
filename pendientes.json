@@ -4996,6 +4996,32 @@
       "referencia": "D-769",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-610",
+      "titulo": "Medir la búsqueda por significado con un vector por página o por pedazo, y contestar a Core su prueba de 30 preguntas",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En la etapa C0 de la tanda del 2 nov, con Cohere Embed V4 por Micelya Core (1.024 números) y un vector por documento entero, la prueba de 30 preguntas trajo el 54 % de los documentos esperados entre los 5 primeros (56 de 104; 47 de 87 sin los de Word) y el 78 % entre los 10 primeros. La prueba del 26 oct, con un modelo local y un vector por página promediado por documento, dio 83 % y 90 %; la búsqueda por palabras, 50 % y 62 %. La sospecha, sin medir, es que el vector de un documento largo diluye lo que pregunta una persona. Antes de llevar la búsqueda por significado al chat (P-289), medir con un vector por página o por pedazo, con la misma prueba y los guiones de la etapa C0. Después, contestar el mensaje de Core de vectores desplegados: para la pista del tipo y los grupos el modelo sirve; para la búsqueda, todavía no con un vector por documento entero.",
+      "referencia": "D-795",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-611",
+      "titulo": "Tener los vectores en memoria cuando la búsqueda en base.sqlite3 pase de unos 50 ms",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Medido en la etapa C0 con numpy: buscar los 10 vecinos leyendo los vectores de base.sqlite3 en cada búsqueda tarda 2 ms con 297 documentos, 26 ms con 2.970 y 252 ms con 29.700. Con los vectores ya en memoria, 4,4 ms con 29.700 (unos 120 MB); LanceDB con índice, 8 ms. Cuando la base pase de unos 5.000 documentos, cargar los vectores en memoria una vez y actualizarlos al escribir, o guardarlos con menos precisión para que ocupen menos. Volver a medir en Rust, que es donde corre la app.",
+      "referencia": "D-795",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }
