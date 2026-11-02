@@ -5336,6 +5336,30 @@
       "detalle": "Dos cosas que la etapa E5 del 2 nov (D-808) no hizo. 1) La página de una entidad y sus contactos agrupan los identificadores por cómo están escritos: una persona con su matrícula leída de varias formas («T° 12, F° 345», «T212-F2345») muestra varias matrículas. Falta agruparlas por la forma común, con la misma tolerancia que la identidad, y mostrar la más usada (la auditoría 1C, sección 4). 2) Separar una mención de una entidad («no es la misma») guarda la separación contra un solo grupo que representa a la entidad. Si la entidad tiene tres grupos o más, otro de ellos puede volver a traer la mención (por un número cerca o por el nombre). Pasaba antes con un número igual, y con la tolerancia puede pasar más seguido. Lo encontraron las pruebas de la etapa; para no cambiar lo que miden, las pruebas que lo usan siguen con un número a dos cifras.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-629",
+      "titulo": "Lo que queda de los datos al revés: las frases de filiación sin «hijo de», la búsqueda que no muestra los documentos de confianza baja y el aviso de Atención para dos relaciones",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura",
+      "detalle": "Tres cosas que la etapa E6 del 2 nov (D-810 y D-811) dejó. 1) En la base del 1 nov quedan 4 pares de filiación dichos al revés que el rótulo no arregla: salen de frases como «de cuya unión nacieron X e Y» y «en representación de su padre premuerto Z», que el modelo leyó al revés. Con E6 quedan en conflicto, no como hechos, pero también la dirección correcta deja de verse como hecho hasta que una persona decida. Falta una regla general para esas frases (las palabras de nacer de una unión como señal de hijo, y «su padre» antes de un nombre), medida en la prueba chica. 2) La búsqueda de la pantalla lista páginas, y un documento de confianza baja no tiene página: la búsqueda del motor ya lo encuentra y lo marca, pero la pantalla no lo muestra. Falta un resultado que abra el documento, con la marca (etapa P, junto a P-601). 3) El aviso de Atención usa el texto de los datos que difieren («para el mismo momento») también para dos relaciones dichas al revés; conviene un texto propio.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-630",
+      "titulo": "Medir en la prueba chica las reglas nuevas de E6: el valor lejos de su sujeto, el remitente sin cita y la copia que hereda",
+      "tipo": "medicion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura",
+      "detalle": "La etapa E6 del 2 nov (D-810 y D-811) agregó reglas que solo se probaron con datos armados y, en parte, sobre una copia de la base del 1 nov. Falta mirar en la prueba chica y en la corrida larga: cuántos datos de valor quedan en duda por tener el sujeto lejos (40 palabras, en la configuración del vocabulario, «subjectWindow») y si alguno era un hecho bueno; cuántos remitentes pasan a «otro» y si alguno lo era; y que las copias por parecido tomen la lectura del original sin perder datos cuando su texto escaneado difiere (la lectura heredada se controla contra el texto de la copia).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
     }
   ]
 }
