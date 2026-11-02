@@ -246,7 +246,7 @@ fn the_model_proposes_the_matter_of_a_loose_document_and_it_stays_a_proposal() {
     let names: Vec<String> = detail.documents.iter().flat_map(|d| d.reasons.iter().filter_map(|r| r.value_name.clone())).collect();
     assert!(names.iter().any(|n| n.eq_ignore_ascii_case("Factura 0001-00012345")), "{names:?}");
     let person = page_of(&pages, "Persona Dos");
-    assert!(person.contains("|p.txt]] — remitente · contrato (propuesto)"), "{person}");
+    assert!(person.contains("|p.txt]] — remitente · Contrato (propuesto)"), "{person}");
     // Asking again asks nothing.
     base.knowledge_propose_matters(Some(&asker), 50).unwrap();
     assert_eq!(asked(&asker), 2);

@@ -315,3 +315,24 @@ fn open_a_copy_for_the_two_levels() {
         refuses.asked.lock().unwrap().len()
     );
 }
+
+/// The page of a file of several documents lists each one with its pages
+/// and its type, from what the base already has (P-591, etapa P): the link
+/// «archivo, pág. N» of a person leads to something useful, without a
+/// page written by the model for each part.
+#[test]
+fn the_page_of_a_cut_file_lists_its_documents_with_their_pages_and_types() {
+    let (_dir, base) = open();
+    let model = model();
+    add_file(&base, 1, "h1", "pdf", &[50, 2, 3]);
+    let whole = version_of(&base, "h1");
+    cut(&base, "h1", 3, &[3]);
+    settle(&base, &model);
+    base.knowledge_resolve(Some(&model), 50).unwrap();
+    base.knowledge_project(Some(&model), 50).unwrap();
+    let page = base.knowledge_document_article(whole).unwrap().expect("the file has its page");
+    assert!(page.body.contains("## Los documentos de este archivo"), "{}", page.body);
+    assert!(page.body.contains("- **Págs. 1–2** · Contrato"), "{}", page.body);
+    assert!(page.body.contains("- **Pág. 3** · Contrato"), "{}", page.body);
+    assert!(!page.body.contains("todavía no se leyó"), "{}", page.body);
+}

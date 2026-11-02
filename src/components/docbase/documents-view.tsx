@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, Copy } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Copy, Gauge } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LongName } from "@/components/ui/long-name"
@@ -17,6 +17,7 @@ import {
   type LocationRef,
 } from "@/commands/docbase"
 import { useDocbaseStore } from "@/stores/docbase-store"
+import { useWikiStore } from "@/stores/wiki-store"
 import { DocumentDetailView } from "./document-detail"
 import { IncludedNote } from "./page-strip"
 import { DOCUMENT_STATES, DOCUMENT_STATE_ORDER, DocumentStateBadge } from "./document-state"
@@ -100,6 +101,7 @@ function DocumentList() {
   const labelGroups = useDocbaseQuery("label-groups", listLabelGroups)
   const similarGroups = useDocbaseQuery("similar-groups", listSimilarGroups)
   const documentTypes = useDocbaseQuery("document-types", listDocumentTypes)
+  const setActiveView = useWikiStore((s) => s.setActiveView)
   const words = vocabulary()
   const request: DocumentFilter = { ...filter, onePerDocument: true, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
   const documents = useDocbaseQuery(JSON.stringify(request), () => listDocuments(request))
@@ -114,6 +116,11 @@ function DocumentList() {
     <DocbasePage
       title="Documentos"
       subtitle="Todo lo que hay en las carpetas incorporadas, una fila por documento: en qué estado está y dónde tiene copias."
+      actions={
+        <Button variant="outline" onClick={() => setActiveView("reading-quality")}>
+          <Gauge /> Calidad de la lectura
+        </Button>
+      }
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">

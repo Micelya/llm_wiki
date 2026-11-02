@@ -210,6 +210,8 @@ interface WikiState {
     | "home" | "origins" | "documents"
     // What needs a person, and the screens made to resolve it.
     | "attention" | "similar" | "document-types"
+    // How well the documents were read, to choose the thresholds with data (P-544).
+    | "reading-quality"
     // Who and what the documents name (the knowledge layer).
     | "entities" | "identity-doubts" | "matters"
     // The templates the documents share (D-466).

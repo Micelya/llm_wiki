@@ -129,7 +129,11 @@ fn the_app_from_zero() {
     let named = settings_of_the_script(&base);
     if new {
         for (index, folder) in folders.split(';').filter(|f| !f.trim().is_empty()).enumerate() {
-            base.add_origin(&format!("{}", index + 1), Path::new(folder.trim()), &[]).unwrap();
+            // Named by its folder, as the screen of Orígenes names it: not «1» (F4, row 7).
+            let folder = Path::new(folder.trim());
+            let name = folder.file_name().map(|n| n.to_string_lossy().to_string()).filter(|n| !n.is_empty()).unwrap_or_else(|| "Origen".into());
+            let name = if index == 0 { name } else { format!("{name} ({})", index + 1) };
+            base.add_origin(&name, folder, &[]).unwrap();
         }
     }
     let settings: Vec<(String, String)> = {

@@ -243,6 +243,27 @@ fn type_name(conn: &Connection, content: i64) -> Result<Option<String>, String> 
     }))
 }
 
+/// The documents a file of several includes, in order: (version, first
+/// page, last page). None for a file of one document.
+fn parts_of(conn: &Connection, whole: i64) -> Result<Vec<(i64, u32, u32)>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT a.version_id, a.selector FROM appearance a JOIN file f ON f.hash = a.resource_hash
+             WHERE f.version_id = ?1 AND a.selector GLOB 'pages:*' ORDER BY a.position",
+        )
+        .map_err(sql_err)?;
+    let rows = statement.query_map([whole], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (version, selector) = row.map_err(sql_err)?;
+        let pages = selector.strip_prefix("pages:").and_then(|r| r.split_once('-')).and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?)));
+        if let Some((first, last)) = pages {
+            out.push((version, first, last));
+        }
+    }
+    Ok(out)
+}
+
 /// The data of a document as the base keeps it: (field, value), in order.
 fn data_of(conn: &Connection, content: i64) -> Result<Vec<(String, String)>, String> {
     let row: Option<String> =
@@ -629,6 +650,62 @@ pub(super) fn render_document(
         }
     }
 
+    // A file of several documents (P-591, etapa P): each one with its
+    // pages in the file, its type and what its one reading summed up,
+    // from what the base already has: no question. A part of low
+    // confidence says only so: what it says is only for queries (D-769).
+    let parts = parts_of(conn, principal)?;
+    if !parts.is_empty() {
+        let low = crate::docbase::safe_words::low_confidence(conn)?;
+        out.push_str(&format!("## {}\n\n", words.word("docParts")));
+        for (part, first, last) in &parts {
+            let pages = if first == last {
+                format!("{} {first}", words.word("docPartPage"))
+            } else {
+                format!("{} {first}–{last}", words.word("docPartPages"))
+            };
+            let mut line = format!("- **{pages}**");
+            let mut points: Vec<super::super::extract::SummaryPoint> = Vec::new();
+            if low.contains(part) {
+                line.push_str(&format!(" — {}", words.word("docPartLow")));
+            } else {
+                if let Some(kind) = type_name(conn, *part)? {
+                    line.push_str(&format!(" · {kind}"));
+                }
+                let summary: Option<(Option<String>, String)> = conn
+                    .query_row("SELECT topic, points FROM knowledge_summary WHERE version_id = ?1", [part], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()
+                    .map_err(sql_err)?;
+                match summary {
+                    Some((topic, said)) => {
+                        if let Some(topic) = topic.map(|t| localized_dates(vocabulary, &one_line(&t))).filter(|t| !t.is_empty()) {
+                            line.push_str(&format!(" — {topic}"));
+                        }
+                        points = serde_json::from_str(&said).unwrap_or_default();
+                    }
+                    None => {
+                        let read: bool = conn
+                            .query_row(
+                                "SELECT EXISTS (SELECT 1 FROM knowledge_extraction WHERE version_id = ?1 AND state = 'done')",
+                                [part],
+                                |row| row.get(0),
+                            )
+                            .map_err(sql_err)?;
+                        if !read {
+                            line.push_str(&format!(" — {}", words.word("docPartUnread")));
+                        }
+                    }
+                }
+            }
+            out.push_str(&line);
+            out.push('\n');
+            for point in points {
+                out.push_str(&format!("  - {}\n", localized_dates(vocabulary, &one_line(&point.text))));
+            }
+        }
+        out.push_str(&format!("\n*{}*\n\n", words.word("docPartsNote")));
+    }
+
     // The data of its type, each with the versions that have it.
     let mut data: BTreeMap<(String, String), BTreeSet<i64>> = BTreeMap::new();
     let mut order: Vec<(String, String)> = Vec::new();
@@ -715,7 +792,7 @@ pub(super) fn render_document(
     }
     if !lines.is_empty() {
         out.push_str(&format!("## {}\n\n{}\n", words.word("docSummary"), lines.concat()));
-    } else if summaries.is_empty() {
+    } else if summaries.is_empty() && parts.is_empty() {
         out.push_str(&format!("{}\n\n", words.word("docPending")));
     }
 

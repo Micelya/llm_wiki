@@ -43,7 +43,10 @@ pub mod process;
 pub mod progress;
 pub mod query;
 pub mod questions;
+pub mod reading_quality;
 pub mod recognize;
+#[cfg(test)]
+mod look_writes_nothing;
 pub mod safe_words;
 #[cfg(test)]
 mod check_forms;

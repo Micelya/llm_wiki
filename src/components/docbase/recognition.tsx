@@ -34,7 +34,7 @@ export function useRecognitionEngine(): { id: string | null; name: string | null
  * request the process reads like any other, with the reader of AI chosen in
  * Ajustes. Without one, it says where to choose it.
  */
-function ReadWithAi({ contentId, textEngine }: { contentId: number; textEngine: string | null }) {
+export function ReadWithAi({ contentId, textEngine }: { contentId: number; textEngine: string | null }) {
   const services = useAiServicesStore((s) => s.services)
   const catalog = useAiServicesStore((s) => s.catalog)
   const refresh = useProgressStore((s) => s.refresh)

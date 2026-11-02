@@ -10,6 +10,7 @@ import { DocumentsView } from "@/components/docbase/documents-view"
 import { AttentionView } from "@/components/attention/attention-view"
 import { SimilarView } from "@/components/docbase/similar-view"
 import { DocumentTypesReview } from "@/components/docbase/document-types-review"
+import { ReadingQualityView } from "@/components/docbase/reading-quality-view"
 import { EntitiesView } from "@/components/knowledge/entities-view"
 import { IdentityDoubtsView } from "@/components/knowledge/doubts-view"
 import { MattersView } from "@/components/knowledge/matters-view"
@@ -40,6 +41,8 @@ export function ContentArea() {
       return <SimilarView />
     case "document-types":
       return <DocumentTypesReview />
+    case "reading-quality":
+      return <ReadingQualityView />
     case "entities":
       return <EntitiesView />
     case "identity-doubts":

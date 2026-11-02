@@ -1244,9 +1244,36 @@ pub fn docbase_thresholds(state: State<'_, DocBaseState>) -> Result<super::thres
 }
 
 /// Keeps the thresholds of the base; the next step that uses one reads it.
+/// The loop is woken: moving the thresholds of the confidence changes what
+/// the identity, the matters and the pages take (etapa P).
 #[tauri::command(async)]
-pub fn docbase_set_thresholds(state: State<'_, DocBaseState>, thresholds: super::thresholds::Thresholds) -> Result<(), String> {
-    state.base()?.set_thresholds(&thresholds)
+pub fn docbase_set_thresholds(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    thresholds: super::thresholds::Thresholds,
+) -> Result<(), String> {
+    state.base()?.set_thresholds(&thresholds)?;
+    state.wake.request();
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// «Calidad de la lectura» (P-544): the documents with few safe words, and
+/// how many stay below each value. Looking writes nothing.
+#[tauri::command(async)]
+pub fn docbase_reading_quality(state: State<'_, DocBaseState>) -> Result<super::reading_quality::ReadingQuality, String> {
+    state.base()?.reading_quality()
+}
+
+/// What keeping these two thresholds of the confidence would change, before
+/// it is kept (P-542). Looking writes nothing.
+#[tauri::command(async)]
+pub fn docbase_confidence_effect(
+    state: State<'_, DocBaseState>,
+    quality: f64,
+    low_confidence_type: f64,
+) -> Result<super::reading_quality::ConfidenceEffect, String> {
+    state.base()?.confidence_effect(quality, low_confidence_type)
 }
 
 /// The matters of the archive, the largest first.

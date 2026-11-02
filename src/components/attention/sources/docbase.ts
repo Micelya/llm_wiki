@@ -1,6 +1,7 @@
 import {
   getDocument,
   getHome,
+  getReadingQuality,
   getSimilarPending,
   listDocuments,
   listProposedTypes,
@@ -10,6 +11,7 @@ import {
   type DocumentState,
   type Home,
   type ProposedType,
+  type ReadingQuality,
   type SimilarGroup,
   type SimilarPending,
 } from "@/commands/docbase"
@@ -43,6 +45,8 @@ export interface DocbaseFacts {
   newClips?: NewFiles | null
   /** The readings of this computer that Micelya Core refused to delete (P-294). */
   coreLeft?: CoreLeftReading[] | null
+  /** How well the documents were read (P-544). */
+  readingQuality?: ReadingQuality | null
 }
 
 export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabulary()): AttentionNotice[] {
@@ -147,6 +151,9 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
   // ── Decisions ───────────────────────────────────────────────────────
   const similar = similarNotice(facts.similarPending, facts.groups, words)
   if (similar) out.push(similar)
+
+  const quality = readingQualityNotice(facts.readingQuality)
+  if (quality) out.push(quality)
 
   const proposed = facts.proposedTypes ?? []
   if (proposed.length > 0) {
@@ -295,6 +302,35 @@ export function similarNotice(
  * them: they are already documents of the base, in «Recortes web» of the
  * work folder; the line is there so someone sees what came in.
  */
+/**
+ * The documents read with few safe words (P-544): below «no legible» or
+ * below the type of low confidence they are only for queries. A low line:
+ * the thresholds are provisional, and it asks a person only to look.
+ */
+export function readingQualityNotice(quality: ReadingQuality | null | undefined): AttentionNotice | null {
+  const low = (quality?.belowOne ?? []).filter((document) => document.verdict !== null)
+  if (!quality || low.length === 0) return null
+  const share = (x: number) => `${Math.round(x * 100)} %`
+  return {
+    source: DOCBASE_SOURCE,
+    id: `${DOCBASE_SOURCE}:reading-quality`,
+    kind: "decision",
+    topic: "reading-quality",
+    priority: "low",
+    count: low.length,
+    title: plural(low.length, "documento leído con pocas palabras seguras", "documentos leídos con pocas palabras seguras"),
+    explanation: `Quedan debajo de «no legible» (${share(quality.quality)}) o del tipo de confianza baja (${share(quality.lowConfidenceType)}): sirven solo para consultas y no dan datos. Los dos umbrales son provisorios.`,
+    todo: "Mirá la lista y elegí los umbrales con datos. Si uno importa, «Leer con IA» dice antes cuántas consultas son.",
+    resolvedWhen: "Desaparece cuando ningún documento queda debajo de los umbrales.",
+    actions: [{ kind: "go", label: "Ver la calidad de la lectura", target: { view: "reading-quality" } }],
+    cases: low.slice(0, DOCUMENT_CASES).map((document) => ({
+      id: String(document.versionId),
+      title: document.name || document.path,
+      detail: `${share(document.share)} de palabras seguras · ${document.verdict === "no-legible" ? "no legible" : "tipo de confianza baja"}`,
+    })),
+  }
+}
+
 export function clipsNotice(clips: NewFiles | null | undefined): AttentionNotice | null {
   if (!clips || clips.total === 0) return null
   return {
@@ -363,6 +399,7 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
   const types = useDocbaseQuery("attention:proposed-types", listProposedTypes)
   const clips = useDocbaseQuery("attention:new-clips", listNewClips)
   const coreLeft = useDocbaseQuery("attention:core-left", listCoreLeftReadings)
+  const quality = useDocbaseQuery("attention:reading-quality", getReadingQuality)
   if (home.error) throw new Error(home.error)
   if (!home.data) return null
   return docbaseNotices({
@@ -372,6 +409,7 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
     proposedTypes: types.data,
     newClips: clips.data,
     coreLeft: coreLeft.data,
+    readingQuality: quality.data,
   })
 }
 

@@ -7,6 +7,7 @@ import {
   Globe,
   Languages,
   MessageSquareText,
+  SlidersHorizontal,
   Palette,
   Info,
   Network,
@@ -47,6 +48,7 @@ import { ModelQuestionsSection } from "./sections/model-questions-section"
 import { ConnectionsSection } from "./sections/connections-section"
 import { DataSection } from "./sections/data-section"
 import { ProgramsSection } from "./sections/programs-section"
+import { ThresholdsSection } from "./sections/thresholds-section"
 
 type CategoryId =
   | "general"
@@ -54,6 +56,7 @@ type CategoryId =
   | "ai-services"
   | "connections"
   | "model-questions"
+  | "thresholds"
   | "programs"
   | "llm"
   | "web-search"
@@ -86,6 +89,8 @@ const CATEGORIES: Category[] = [
   { id: "connections", labelKey: "", label: "Conexiones", icon: Plug },
   // What the base and the chat ask the model, read only (P-278).
   { id: "model-questions", labelKey: "", label: "Lo que se le pregunta al modelo", icon: MessageSquareText },
+  // The thresholds of the base, with what changing each one does (P-542).
+  { id: "thresholds", labelKey: "", label: "Umbrales", icon: SlidersHorizontal },
   // Other programs of the machine that use the base through the server (D-495).
   { id: "programs", labelKey: "", label: "Programas conectados", icon: Cable },
   { id: "llm", labelKey: "settings.categories.llm", label: "Conexiones con modelos", icon: Bot },
@@ -387,6 +392,9 @@ export function SettingsView() {
       case "model-questions":
         // Read only: nothing to save.
         return <ModelQuestionsSection />
+      case "thresholds":
+        // Saves on its own button, after saying what the change does.
+        return <ThresholdsSection />
       case "programs":
         // Applies at once: the programs are in the base, their tokens in the keychain.
         return <ProgramsSection />
@@ -473,7 +481,7 @@ export function SettingsView() {
         {/* Global Save bar hidden for sections that persist inline:
             - "llm" saves per-row on every edit (independent per-preset state)
             - "about" has no draft-bound fields */}
-        {active !== "about" && active !== "data" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && active !== "connections" && active !== "model-questions" && active !== "programs" && (
+        {active !== "about" && active !== "data" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && active !== "connections" && active !== "model-questions" && active !== "thresholds" && active !== "programs" && (
           <div className="shrink-0 border-t bg-bar px-10 py-3">
             <div className="flex max-w-3xl items-center justify-between gap-4">
               <p className={`text-[0.8125rem] ${saveError ? "text-err" : "text-muted-foreground"}`}>

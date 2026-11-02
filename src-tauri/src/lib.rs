@@ -577,6 +577,8 @@ pub fn run() {
             docbase::commands::docbase_failures,
             docbase::commands::docbase_thresholds,
             docbase::commands::docbase_set_thresholds,
+            docbase::commands::docbase_reading_quality,
+            docbase::commands::docbase_confidence_effect,
             docbase::commands::docbase_knowledge_matters,
             docbase::commands::docbase_knowledge_matter,
             docbase::commands::docbase_knowledge_document_entities,

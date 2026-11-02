@@ -150,6 +150,12 @@ pub const WORDS: &[&str] = &[
     "docKind",
     "docDate",
     "docPending",
+    "docParts",
+    "docPartsNote",
+    "docPartPage",
+    "docPartPages",
+    "docPartLow",
+    "docPartUnread",
     "docAmounts",
     "docVersions",
     "docVersionsNote",
@@ -340,6 +346,10 @@ struct Document {
     /// the page of the whole file.
     page: Option<String>,
     doc_type: Option<String>,
+    /// How the tables of the pages name its type (P-594, etapa P): the name
+    /// the model proposed, with its accents, or the type of the catalog in
+    /// words; never its code.
+    type_shown: Option<String>,
     /// Joined with another one as the same document, and that one chosen
     /// as the wiki's source.
     chosen: Option<i64>,
@@ -1110,11 +1120,14 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
         );
     }
     {
-        let mut statement = conn.prepare("SELECT version_id, doc_type FROM document_type").map_err(sql_err)?;
-        let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT version_id, doc_type, proposed_name FROM document_type").map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)))
+            .map_err(sql_err)?;
         for row in rows {
-            let (content, doc_type) = row.map_err(sql_err)?;
+            let (content, doc_type, proposed) = row.map_err(sql_err)?;
             if let Some(document) = documents.get_mut(&content) {
+                document.type_shown = Some(type_shown(&doc_type, proposed.as_deref()));
                 document.doc_type = Some(doc_type);
             }
         }
@@ -1557,6 +1570,20 @@ struct Rendered {
     discarded: usize,
 }
 
+/// How a page names a type: the name proposed for it (it has its accents),
+/// or the name the catalog gives it in words, with its first letter in
+/// capitals. The same as the title of a document (`family::type_name`).
+fn type_shown(doc_type: &str, proposed: Option<&str>) -> String {
+    match proposed.map(one_line).filter(|p| !p.trim().is_empty()) {
+        Some(name) => name,
+        None => {
+            let words = doc_type.replace('-', " ");
+            let mut chars = words.chars();
+            chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default()
+        }
+    }
+}
+
 /// A document as a page names it, linked to its page; `pages`: with the
 /// pages of a document cut from a file (`Document::shown`).
 fn document_link(record: &Record, content: i64, pages: bool) -> String {
@@ -1795,8 +1822,8 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         let kind = record
             .documents
             .get(&content)
-            .and_then(|d| d.doc_type.as_deref())
-            .map(|t| format!(" · {}", t.replace('-', " ")))
+            .and_then(|d| d.type_shown.as_deref())
+            .map(|t| format!(" · {t}"))
             .unwrap_or_default();
         format!("- {} — {}{kind}\n", document_link(record, content, true), roles.join(", "))
     };
@@ -2443,8 +2470,8 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         let kind = record
             .documents
             .get(content)
-            .and_then(|d| d.doc_type.as_deref())
-            .map(|t| format!(" · {}", t.replace('-', " ")))
+            .and_then(|d| d.type_shown.as_deref())
+            .map(|t| format!(" · {t}"))
             .unwrap_or_default();
         out.push_str(&format!("- {}{kind}\n", document_link(record, *content, true)));
     }

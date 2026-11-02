@@ -36,6 +36,8 @@ export type AttentionTarget =
   /** The similar documents, on one family when `principal` (its principal's content id) is given. */
   | { view: "similar"; principal?: number | null }
   | { view: "document-types" }
+  /** «Calidad de la lectura»: the documents read with few safe words (P-544). */
+  | { view: "reading-quality" }
   | { view: "settings" }
   /** The attention view, on one of its tabs when `tab` is given. */
   | { view: "attention"; tab?: "problem" | "decision" | "ongoing" }

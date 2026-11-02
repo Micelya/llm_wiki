@@ -2241,6 +2241,90 @@ export function listFailures(): Promise<FailureView[]> {
   return invoke<FailureView[]>("docbase_failures")
 }
 
+/** The thresholds of the base (D-722): settings of the base, each with its value by default (`thresholds.rs`). */
+export interface Thresholds {
+  /** The low and the high threshold of the bands of a reading by zones (0..1). */
+  low: number
+  high: number
+  /** «No legible»: the share of safe words below which a document cannot be read (0..1). */
+  quality: number
+  /** The share of safe words below which a document is of a type of low confidence (0..1). */
+  lowConfidenceType: number
+  indicatorAttempts: number
+  indicatorHours: number
+  roundCap: number
+  retryMinutes: number[]
+  /** How far two names may be to join two mentions with the same number: letters, and share of the name. */
+  nameLetters: number
+  nameShare: number
+}
+
+export function getThresholds(): Promise<Thresholds> {
+  return invoke<Thresholds>("docbase_thresholds")
+}
+
+/** Keeps the thresholds; the base says why when they cannot be kept. */
+export function setThresholds(thresholds: Thresholds): Promise<void> {
+  return invoke<void>("docbase_set_thresholds", { thresholds })
+}
+
+/** A document as «Calidad de la lectura» lists it. */
+export interface QualityDocument {
+  versionId: number
+  locationId: number | null
+  name: string
+  /** `<origin>/<path inside it>`. */
+  path: string
+  /** A part of a file of several: its pages in the file. */
+  firstPage: number | null
+  lastPage: number | null
+  pages: number | null
+  firm: number
+  approximate: number
+  discarded: number
+  /** The firm words over every word read. */
+  share: number
+  /** With the thresholds of now. */
+  verdict: "no-legible" | "low-confidence" | null
+}
+
+export interface QualityStep {
+  value: number
+  documents: number
+  pages: number
+}
+
+/** «Calidad de la lectura» (P-544): looking writes nothing. */
+export interface ReadingQuality {
+  quality: number
+  lowConfidenceType: number
+  documents: number
+  measured: number
+  /** The measured ones with a share below 1, the worst first. */
+  belowOne: QualityDocument[]
+  steps: QualityStep[]
+  unmeasured: QualityDocument[]
+  withoutText: QualityDocument[]
+}
+
+export function getReadingQuality(): Promise<ReadingQuality> {
+  return invoke<ReadingQuality>("docbase_reading_quality")
+}
+
+/** What keeping these two thresholds of the confidence would change, by the shares kept now. */
+export interface ConfidenceEffect {
+  toLow: number
+  toLowPages: number
+  fromLow: number
+  fromLowPages: number
+  /** At most how many pages of people, organizations and matters are written again (a question each). */
+  pagesWrittenAgain: number
+}
+
+export function getConfidenceEffect(quality: number, lowConfidenceType: number): Promise<ConfidenceEffect> {
+  return invoke<ConfidenceEffect>("docbase_confidence_effect", { quality, lowConfidenceType })
+}
+
 export function getKnowledgeAttention(): Promise<KnowledgeAttention> {
   return invoke<KnowledgeAttention>("docbase_knowledge_attention")
 }
