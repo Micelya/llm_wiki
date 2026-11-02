@@ -5096,6 +5096,42 @@
       "referencia": "D-780",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-586",
+      "titulo": "Revisar el catálogo provisorio de tipos para lo legal y la hoja de tipos de cada documento",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "La etapa G1 armó, sin consultas a la IA, un catálogo provisorio de 49 tipos en castellano (los 10 de hoy, los 28 nombres de la hoja de partes traducidos y los que pidieron los documentos) y la hoja con el tipo de cada documento de la carpeta de prueba y del examen (347 documentos: 318 vistos y 29 deducidos). Son hojas para medir (R-25): no se cargaron en la app (D-778). Dudas para el dueño, con ejemplos en el cambios de las hojas: si comprobante de pago, recibo y boleta quedan separados; si se mantiene la providencia simple aparte de la providencia, como en la hoja de partes; qué tipo lleva una página con el informe de secretaría y la providencia que lo sigue; si hacen falta los tipos nuevos de una sola aparición (rúbrica de libro, seguimiento de un envío, declaración jurada). Cuando el dueño lo corrija, decidir si se carga en la app: eso vuelve a preguntar el tipo de todo una sola vez (unas 205 preguntas en la carpeta, 0,7 por documento; después, en producción, igual que hoy).",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-587",
+      "titulo": "La medición del corte tiene que aceptar las dos respuestas en los saltos marcados en las etiquetas nuevas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "La etapa G1 aplicó las correcciones de la etapa F en etiquetas nuevas (versión 2 de las de entrenamiento y del examen): cada salto corregido lleva una marca («anuncio» o «vale igual»), un grupo y la respuesta alternativa. Un guion de prueba ya mide con esa tolerancia (la diferencia con N baja de 3 documentos a 1 en el entrenamiento y en el examen), pero la medición que usa el arnés y la corrida de control todavía compara salto por salto con las etiquetas de hoy (P-584). Falta que la medición del arnés use las etiquetas nuevas, acepte el grupo entero con los valores de hoy o con los alternativos, y no cuente como documento la página que solo anuncia un anexo. Consultas de producción por documento (D-672): igual, 0; es medición.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-588",
+      "titulo": "Medir las páginas de la wiki contra la lista de páginas esperadas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "páginas",
+      "detalle": "La etapa G1 armó la lista de las páginas que debería tener la wiki, sacada de las hojas sin leer nada nuevo: 186 de entidades (personas y organizaciones), 23 de asuntos y 319 de documentos (las copias van en la página de su original). Falta el guion que la cruce con las páginas que escribe la app: cada página de entidad por sus formas escritas, cada asunto por sus documentos, cada documento por su archivo y sus páginas; y que cuente las que faltan, las que sobran y las repetidas (la etapa F encontró 25 repetidas en la corrida de control). Dos límites a tener en cuenta: los asuntos están por archivo, así que en un compuesto pueden abarcar documentos que no son del asunto; y el examen no tiene hoja de entidades ni de asuntos. Va con la etapa que mira la wiki o con el arnés. Consultas de producción por documento (D-672): igual, 0.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }
