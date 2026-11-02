@@ -975,8 +975,8 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
 
 /** Which engine recognizes the text of scans, and with which model. */
 export interface RecognitionConfig {
-  /** Codex, or Micelya Core (Textract, page by page). */
-  engine: "codex-cli" | "core"
+  /** The reader, as the catalog names it: the one of this computer (`rapidocr-onnx`, by default), Codex or Micelya Core; adding a reader is adding an entry to the catalog (D-764). */
+  engine: string
   model: string
 }
 
@@ -1024,6 +1024,8 @@ export interface CatalogEngine {
   connection?: string
   /** The model it is saved with when none is chosen. */
   defaultModel?: string
+  /** The engine the service uses when none is chosen (for the scans, the one of this computer, D-764). */
+  byDefault?: boolean
   /** False: the person does not choose the model (the provider says which one reads). */
   modelChoice?: boolean
   /** How it reads, in words. */
@@ -1144,6 +1146,21 @@ export function lastModelQuestion(id: string): Promise<AskedQuestion | null> {
  */
 export function recognizeText(contentIds: number[] | null, onlyFailed = false): Promise<number> {
   return invoke<number>("docbase_recognize_text", { contentIds, onlyFailed })
+}
+
+/** What «Leer con IA» would cost for a document: its reader and its pages, each a question (E2). */
+export interface AiReadingCost {
+  engine: string
+  pages: number
+}
+
+export function aiReadingCost(contentId: number): Promise<AiReadingCost> {
+  return invoke<AiReadingCost>("docbase_ai_reading_cost", { contentId })
+}
+
+/** «Leer con IA»: a request of a person, read by the process with the reader of AI chosen in Ajustes. */
+export function readWithAi(contentId: number): Promise<number> {
+  return invoke<number>("docbase_read_with_ai", { contentId })
 }
 
 export function getDocumentType(locationId: number): Promise<DocumentTypeView> {

@@ -53,6 +53,7 @@ use super::{Looking, ProcessState};
 use crate::docbase::failures::{self, About, Failure};
 use crate::docbase::{sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
+use crate::source_volume::recognition::TextRecognizer;
 
 const HASH_BATCH: usize = 8;
 const TEXT_BATCH: usize = 2;
@@ -123,6 +124,10 @@ pub enum Ask {
     Types,
     /// Read again what a person asked to read again (D-432).
     Reading,
+    /// Recognize the text of a scan a person asked for, with the reader
+    /// chosen in Ajustes then or the one of «Leer con IA» (E2 of 2 nov).
+    /// Kept in `recognition_request`, with its reader.
+    Recognition,
 }
 
 impl Ask {
@@ -131,11 +136,12 @@ impl Ask {
             Ask::Cut => "cut",
             Ask::Types => "types",
             Ask::Reading => "reading",
+            Ask::Recognition => "recognition",
         }
     }
 
     fn parse(key: &str) -> Option<Ask> {
-        [Ask::Cut, Ask::Types, Ask::Reading].into_iter().find(|a| a.key() == key)
+        [Ask::Cut, Ask::Types, Ask::Reading, Ask::Recognition].into_iter().find(|a| a.key() == key)
     }
 
     /// The steps whose questions it lets go out, with the reading off.
@@ -144,6 +150,7 @@ impl Ask {
             Ask::Cut => &[Step::CutQuestion],
             Ask::Types => &[Step::Type, Step::TypeData],
             Ask::Reading => &[Step::Reading],
+            Ask::Recognition => &[Step::Scans],
         }
     }
 }
@@ -295,6 +302,11 @@ impl DocBase {
                 asks.push(Asked { ask: Ask::Reading, scope: Scope::Document(standing.content_id) });
             }
         }
+        // The scans a person asked to read: each waits only for its own
+        // document (E2 of 2 nov; the ask of a person, decision 2 of 2 nov).
+        for content in crate::docbase::recognize::requested_recognitions(&conn)? {
+            asks.push(Asked { ask: Ask::Recognition, scope: Scope::Document(content) });
+        }
         Ok(asks)
     }
 
@@ -324,7 +336,11 @@ impl DocBase {
             0
         }) + self.refresh_extraction(TEXT_BATCH)?
             + self.purge_orphans()?
-            + self.count_scan_pages(SCAN_PAGES_BATCH)?;
+            + self.count_scan_pages(SCAN_PAGES_BATCH)?
+            // The scans that waited for the models of this computer when
+            // they are not needed any more (another reader chosen, or the
+            // models came): back to their step.
+            + self.scans_models_settle()?;
         if tidy > 0 {
             return Ok(Turn { step: None, worked: true, pages: false });
         }
@@ -568,7 +584,7 @@ impl DocBase {
             })),
             Step::FileHash => Done::when(self.hash_pending(HASH_BATCH)? > 0),
             Step::Text => Done::when(self.extract_pending(TEXT_BATCH)? > 0),
-            Step::Scans => Done::when(self.scans_operation()?),
+            Step::Scans => Done::when(self.scans_operation(scope, ask)?),
             Step::Shapes => Done::when(self.profile_pending(PROFILE_BATCH)? > 0),
             Step::Zones => Done::when(self.zones_operation()?),
             Step::CutRules => Done::when(self.local_or_note("cut", self.cut_pending(CUT_BATCH))),
@@ -704,34 +720,83 @@ impl DocBase {
         }
     }
 
-    /// One scan read. Today with the engine of this computer, the step of
-    /// the configuration or not (D-721); the stage of the reader chosen in
-    /// Ajustes (E2) changes only this. Without its models, each scan waits
-    /// with its failure.
-    fn scans_operation(&self) -> Result<bool, String> {
-        use crate::docbase::recognize::RecognitionStep;
-        let Some(config) = crate::docbase::services::local_recognition_engine() else {
-            let why = crate::source_volume::recognition_local::unavailable().unwrap_or_default();
-            return Ok(self.scans_without_models(&why, false)? > 0);
+    /// One scan read: WHERE THE READER IS USED (E2 of 2 nov, D-764). The
+    /// reader is the one the request of a person was made with, or the one
+    /// chosen in Ajustes (`services::recognition_choice`, the one of this
+    /// computer by default); nothing here names one. With the one of this
+    /// computer it is local work; with one in the cloud it is a question,
+    /// with its failures (over the document, with their class and waits,
+    /// D-714), its round (`round_lets`) and its quota (a limit of the
+    /// provider is a transient failure). The text it gives is the text of
+    /// the document; the shape of the pages (zones and lines, which the cut
+    /// needs) is read on this computer in the step of the zones, whatever
+    /// reader is chosen (`zones_operation`).
+    fn scans_operation(&self, scope: &Scope, ask: Option<Ask>) -> Result<bool, String> {
+        use crate::docbase::recognize::{scan_without_models, RecognitionStep, RECOGNITION_STAGE};
+        use crate::docbase::services::is_local;
+        let only = match (ask, scope) {
+            (Some(Ask::Recognition), Scope::Document(id)) => Some(*id),
+            _ => None,
         };
-        self.scans_with_models()?;
-        let recognizer = crate::source_volume::recognition::recognizer_for(&config)?;
-        // What a person asked to recognize goes first.
-        let step = match self.recognition_step(recognizer.as_ref(), RECOGNITION_RETRY)? {
-            RecognitionStep::Idle => self.local_recognition_step(recognizer.as_ref(), RECOGNITION_RETRY)?,
-            other => other,
+        let Some(content) = self.next_recognition_of(only)? else {
+            return Ok(false);
         };
+        let requested = self.reader_of_request(content)?.is_some();
+        let Some(reader) = self.reader_for(content)? else {
+            return Ok(false);
+        };
+        let local = is_local(&reader.engine);
+        let engine = crate::source_volume::recognition::engine_id(&reader)?;
+        let fake = test_reader(&engine);
+        if local {
+            // Without its models the scans wait with their failure; none
+            // goes to the cloud instead (D-775).
+            if let (None, Some(why)) = (&fake, crate::source_volume::recognition_local::unavailable()) {
+                let noted = self.scans_without_models(&why, false)?;
+                return Ok(noted > 0 || scan_without_models(&self.conn(), content, &why, false)?);
+            }
+        } else if !requested && !self.round_lets(Step::Scans, "recognition")? {
+            // What goes by itself in the cloud needs the round; what a
+            // person asked for goes out (it is counted all the same).
+            return Ok(false);
+        }
+        let real = if fake.is_none() { Some(crate::source_volume::recognition::recognizer_for(&reader)?) } else { None };
+        let recognizer: &dyn TextRecognizer = match (&fake, &real) {
+            (Some(fake), _) => fake.as_ref(),
+            (None, Some(real)) => real.as_ref(),
+            (None, None) => return Ok(false),
+        };
+        let state = self.engine_state();
+        let pages = state.snapshot().scan_pages.get(&content).copied().unwrap_or(1).max(1);
+        let step = self.recognition_step_of(content, recognizer, RECOGNITION_RETRY)?;
+        if !local {
+            if !matches!(step, RecognitionStep::Skipped(_) | RecognitionStep::Idle) {
+                state.auto_asked(pages);
+            }
+            state.ran("recognition", self.scan_questions_left()?);
+        }
         Ok(match step {
             RecognitionStep::Idle => false,
             RecognitionStep::Failed(content) => {
-                let mut failure = Failure::new(crate::docbase::recognize::RECOGNITION_STAGE, About::Version(content), "The text of the document could not be recognized.");
-                failure.cause = failures::cause("unknown");
+                // Marked until a person asks again, with its reason.
+                let error: Option<String> =
+                    self.conn().query_row("SELECT error FROM version WHERE id = ?1", [content], |row| row.get(0)).map_err(sql_err)?;
+                let message = error.unwrap_or_else(|| "The text of the document could not be recognized.".to_string());
+                let mut failure = Failure::new(RECOGNITION_STAGE, About::Version(content), &message);
+                if failure.cause.class == failures::Class::Transient {
+                    failure.cause = failures::cause("unknown");
+                }
+                failure.engine = Some(&engine);
                 self.note(&failure);
                 true
             }
             RecognitionStep::Stopped(error) => {
-                eprintln!("[docbase] text recognition on this computer: {error}");
-                false
+                // The provider failed (its limit, no connection, no answer):
+                // the scan is set aside until its next attempt (D-714).
+                let mut failure = Failure::new(RECOGNITION_STAGE, About::Version(content), &error);
+                failure.engine = Some(&engine);
+                self.note(&failure);
+                true
             }
             _ => true,
         })
@@ -773,6 +838,27 @@ impl DocBase {
         }
         self.engine_state().sweeping(None);
         swept
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The readers of the tests, by the name they keep their text with: the
+    /// step of the scans reads with these instead of the real ones (stand-in
+    /// readers, no real model and no models of this computer).
+    pub(crate) static TEST_READERS: std::cell::RefCell<Vec<std::rc::Rc<dyn TextRecognizer>>> = Default::default();
+}
+
+/// The reader of a test with this name, if one was given.
+fn test_reader(engine: &str) -> Option<std::rc::Rc<dyn TextRecognizer>> {
+    #[cfg(test)]
+    {
+        TEST_READERS.with(|readers| readers.borrow().iter().find(|r| r.engine_id() == engine).cloned())
+    }
+    #[cfg(not(test))]
+    {
+        let _ = engine;
+        None
     }
 }
 

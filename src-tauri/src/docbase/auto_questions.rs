@@ -22,8 +22,9 @@ use super::{sql_err, DocBase};
 pub const CAP: usize = 50;
 
 /// The stages whose questions make the round, in the order they ask: the
+/// pages of the scans read by a reader in the cloud (E2 of 2 nov), the
 /// doubtful steps of the cutter, the identities and the pages.
-pub const STAGES: [&str; 3] = ["cut", "resolve", "pages"];
+pub const STAGES: [&str; 4] = ["recognition", "cut", "resolve", "pages"];
 
 /// What a person said of the round (`docbase_setting`).
 const SETTING: &str = "auto_questions";
@@ -186,7 +187,9 @@ impl DocBase {
             None => true,
         };
         if recount {
-            if stage == "cut" {
+            if stage == "recognition" {
+                state.ran(stage, self.scan_questions_left()?);
+            } else if stage == "cut" {
                 state.ran(stage, self.cut_questions()?.by_itself);
             } else if stage == "resolve" {
                 let report = self.knowledge_resolve(None, 0)?;

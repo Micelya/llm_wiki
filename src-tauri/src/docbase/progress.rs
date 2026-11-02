@@ -741,8 +741,13 @@ fn recognition_state(facts: &Facts, members: &Members, error: bool) -> &'static 
         "paused"
     } else if error {
         "error"
-    } else if requested || facts.reading_on || super::services::local_recognition_engine().is_some() {
-        // The engine of this computer reads with the reading off (D-558).
+    } else if requested
+        || facts.reading_on
+        || facts.recognizer.as_deref().is_some_and(|id| super::services::is_local(id.split(':').next().unwrap_or(id)))
+    {
+        // The reader chosen in Ajustes (E2 of 2 nov): the one of this
+        // computer reads with the reading off (D-775); `recognizer` is it
+        // only while its models are there.
         "running"
     } else {
         "paused"

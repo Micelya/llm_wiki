@@ -108,7 +108,11 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
       {catalog.services.map((service) => {
         const Icon = ICONS[service.id]
         const choice = services[service.id]
-        const engine = catalogEngine(catalog, service.id, choice.engine?.engine)
+        // With none chosen, the engine the catalog marks by default (for the
+        // scans, the one of this computer, D-764).
+        const byDefault = catalog.engines.find((entry) => entry.service === service.id && entry.byDefault) ?? null
+        const engine = choice.engine ? catalogEngine(catalog, service.id, choice.engine.engine) : byDefault
+        const reader = service.id === "recognize"
         return (
           <section key={service.id} className="space-y-4 rounded-md border p-4">
             <div className="flex items-start gap-3">
@@ -131,10 +135,20 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               searchConfigured={searchConfigured}
               connected={connected}
               choice={choice.engine}
+              byDefault={byDefault}
               onChange={(next) => void change(service.id, "engine", next)}
             />
 
-            {choice.engine && engine && <EngineFacts catalog={catalog} engine={engine} model={choice.engine.model} />}
+            {engine && (choice.engine || byDefault) && (
+              <EngineFacts catalog={catalog} engine={engine} model={choice.engine?.model ?? engine.defaultModel ?? ""} />
+            )}
+            {reader && engine && !engine.byDefault && (
+              <p className="text-xs text-muted-foreground">
+                Lee en la nube: cada página es una consulta a ese proveedor. Con la lectura automática apagada, los escaneos se
+                leen solo a pedido. La forma de cada página (zonas y renglones, para el corte) se sigue sacando en esta
+                computadora.
+              </p>
+            )}
             {choice.engine && engine?.connection && !connected(engine.connection) && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-warn">
                 <span>
@@ -148,8 +162,8 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
             )}
             {engine?.unavailable && (
               <p className="text-xs text-warn">
-                No está disponible en esta computadora: faltan sus modelos, que se instalan con la app. Mientras falten,
-                los escaneos los lee el motor elegido, con la lectura automática prendida o a pedido.
+                No está disponible en esta computadora: faltan sus modelos, que se instalan con la app. Mientras falten, los
+                escaneos esperan, con su falla en Atención; si querés, elegí otro lector.
               </p>
             )}
             {choice.engine && engine && !engine.inBase && service.id !== "research" && (
@@ -159,13 +173,16 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                   : "La base todavía no reconoce escaneos con este motor."}
               </p>
             )}
-            {!choice.engine && (
+            {!choice.engine && byDefault && (
+              <p className="text-xs text-muted-foreground">
+                Sin elegir otro, se usa {byDefault.name} (por omisión): no sale nada de esta computadora.
+              </p>
+            )}
+            {!choice.engine && !byDefault && (
               <p className="text-xs text-warn">
                 {service.id === "ask"
                   ? "Sin motor no se lee ningún documento ni contesta el chat."
-                  : service.id === "recognize"
-                    ? "Sin motor, los escaneos quedan sin texto."
-                    : "Sin buscador no se puede investigar en internet."}
+                  : "Sin buscador no se puede investigar en internet."}
               </p>
             )}
             {service.id === "ask" && chatApart && (
@@ -184,15 +201,17 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
 
             <details className="rounded-md bg-muted/30 px-3 py-2" open={!!choice.alternative}>
               <summary className="cursor-pointer text-sm">
-                Motor alternativo (opcional): {choiceName(catalog, service.id, choice.alternative, presetLabel(choice.alternative, presets))}
+                {reader ? "Lector de IA para «Leer con IA» (opcional)" : "Motor alternativo (opcional)"}:{" "}
+                {choiceName(catalog, service.id, choice.alternative, presetLabel(choice.alternative, presets))}
               </summary>
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  Para lo que el principal no hace bien (por ejemplo, manuscrito). Queda guardado; la base todavía no
-                  lo usa sola: hoy hay un solo motor para comparar.
+                  {reader
+                    ? "Lo usa «Leer con IA», que pide una persona para un documento que el lector no leyó bien o un manuscrito viejo: antes dice cuántas páginas y consultas son. Sin elegir, usa el lector de arriba si es de la nube."
+                    : "Para lo que el principal no hace bien (por ejemplo, manuscrito). Queda guardado; la base todavía no lo usa sola: hoy hay un solo motor para comparar."}
                 </p>
                 <ChoiceEditor
-                  label="Alternativo"
+                  label={reader ? "Lector de IA" : "Alternativo"}
                   service={service.id}
                   catalog={catalog}
                   presets={presets}
@@ -200,6 +219,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                   searchConfigured={searchConfigured}
                   connected={connected}
                   choice={choice.alternative}
+                  exclude={reader ? byDefault?.id : undefined}
                   onChange={(next) => void change(service.id, "alternative", next)}
                 />
               </div>
@@ -273,12 +293,16 @@ interface ChoiceEditorProps {
   /** Whether the shared connection an engine needs is loaded. */
   connected: (connection: string | undefined) => boolean
   choice: EngineChoice | null
+  /** The engine used when none is chosen: shown chosen, «(por omisión)», and no «Ninguno». */
+  byDefault?: CatalogEngine | null
+  /** An engine not offered here (the one by default, as the reader of «Leer con IA»). */
+  exclude?: string
   onChange: (choice: EngineChoice | null) => void
 }
 
 /** The engine of a service (or its alternative), with its model and reasoning. */
-function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searchConfigured, connected, choice, onChange }: ChoiceEditorProps) {
-  const options = engineOptions(service, catalog, presets)
+function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searchConfigured, connected, choice, byDefault, exclude, onChange }: ChoiceEditorProps) {
+  const options = engineOptions(service, catalog, presets).filter((option) => option.engine !== exclude)
   const engine = catalogEngine(catalog, service, choice?.engine)
   const [model, setModel] = useState(choice?.model ?? "")
   useEffect(() => setModel(choice?.model ?? ""), [choice?.model, choice?.connection])
@@ -312,11 +336,11 @@ function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searc
         <Label htmlFor={`${id}-engine`}>{label}</Label>
         <select
           id={`${id}-engine`}
-          value={choice ? optionValue(service, choice) : ""}
+          value={choice ? optionValue(service, choice) : byDefault?.id ?? ""}
           onChange={(event) => pick(event.target.value)}
           className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
         >
-          <option value="">Ninguno</option>
+          {!byDefault && <option value="">Ninguno</option>}
           {options.map((option) => {
             // An engine whose shared connection is not loaded cannot be chosen.
             const entry = catalogEngine(catalog, service, option.engine)
@@ -327,9 +351,10 @@ function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searc
               <option
                 key={option.value}
                 value={option.value}
-                disabled={(missing || unavailable) && option.value !== (choice ? optionValue(service, choice) : "")}
+                disabled={(missing || unavailable) && option.value !== (choice ? optionValue(service, choice) : byDefault?.id ?? "")}
               >
                 {option.label}
+                {entry?.byDefault ? " (por omisión)" : ""}
                 {service === "research" && !searchConfigured(option.connection) ? " (faltan sus datos)" : ""}
                 {missing ? " (falta la conexión)" : ""}
                 {unavailable ? " (no disponible)" : ""}

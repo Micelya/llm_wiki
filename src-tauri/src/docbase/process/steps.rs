@@ -464,8 +464,14 @@ impl Count {
 /// SQL value) or about a file it is in: what failed is set aside, and does
 /// not leave its step incomplete.
 pub(crate) fn free_sql(version: &str) -> String {
+    free_sql_except(version, "")
+}
+
+/// The same, except the failures of `stage` (the step of the scans looks
+/// at its own with their next attempt, `recognize::scan_free_sql`).
+pub(crate) fn free_sql_except(version: &str, stage: &str) -> String {
     format!(
-        "NOT EXISTS (SELECT 1 FROM failure fb WHERE fb.state <> 'resolved' AND (
+        "NOT EXISTS (SELECT 1 FROM failure fb WHERE fb.state <> 'resolved' AND fb.stage <> '{stage}' AND (
              (fb.item_kind = 'version' AND fb.item = CAST({version} AS TEXT))
              OR fb.file_hash IN (SELECT fc.hash FROM file fc WHERE fc.version_id = {version})
              OR fb.file_hash IN (SELECT ab.resource_hash FROM appearance ab WHERE ab.version_id = {version})))"
@@ -496,16 +502,18 @@ pub(crate) fn asking_held(conn: &Connection, reading_on: bool) -> Result<Option<
     Ok((paused > 0).then_some("el motor está en pausa"))
 }
 
-/// The class a step has now: the reading of the scans asks when the
-/// configuration chose an engine in the cloud.
+/// The class a step has now: the reading of the scans is local work with
+/// the reader of this computer, and a question with one in the cloud, as
+/// the reader chosen in Ajustes says (E2 of 2 nov, D-764). Then it has its
+/// failures, its round and its quota like any question of the process.
 pub(crate) fn class_now(conn: &Connection, step: Step) -> Result<Class, String> {
     let about = step.about();
     if about.class != Class::BySettings {
         return Ok(about.class);
     }
-    let engine = super::super::recognize::recognition_engine(conn)?;
-    Ok(match engine {
-        Some(config) if config.engine != crate::source_volume::recognition_local::ENGINE => Class::Asks,
+    let chosen = super::super::services::recognition_choice(conn)?;
+    Ok(match chosen {
+        Some(config) if !super::super::services::is_local(&config.engine) => Class::Asks,
         _ => Class::Local,
     })
 }
@@ -587,17 +595,23 @@ pub(crate) fn count_step(conn: &Connection, step: Step, scope: &Scope) -> Result
             Count::of(left(&free)?, left(&format!("NOT {free}"))?)
         }
         Step::Scans => {
+            // The scans waiting, and what a person asked to read (again, or
+            // with the reader of «Leer con IA»).
             let left = |held: &str| {
                 count(
                     conn,
                     &format!(
-                        "SELECT count(*) FROM version c WHERE c.state = 'needs-recognition' AND {} AND {held} AND {versions}",
+                        "SELECT count(*) FROM version c
+                         WHERE (c.state = 'needs-recognition' OR EXISTS (SELECT 1 FROM recognition_request r WHERE r.version_id = c.id))
+                           AND {} AND {held} AND {versions}",
                         super::super::recognize::reachable_sql()
                     ),
                 )
             };
-            // A scan whose recognition failed (`error`) waits for a person.
-            Count::of(left(&format!("c.error IS NULL AND {free}"))?, left(&format!("(c.error IS NOT NULL OR NOT {free})"))?)
+            // A scan whose recognition failed for good (`error`) waits for a
+            // person; one whose failure holds, until its next attempt.
+            let scan_free = super::super::recognize::scan_free_sql();
+            Count::of(left(&format!("c.error IS NULL AND {scan_free}"))?, left(&format!("(c.error IS NOT NULL OR NOT ({scan_free}))"))?)
         }
         Step::Shapes => {
             let left = |held: &str| -> Result<usize, String> {

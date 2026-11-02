@@ -221,6 +221,9 @@ impl DocBase {
             recognized,
         };
         labels::adopt_conventions(&base)?;
+        // Once per base: a reader of the scans left as Codex goes back to
+        // the one of this computer, with a notice (D-775, point 1).
+        services::reader_back_to_local_once(&base.conn())?;
         Ok(base)
     }
 

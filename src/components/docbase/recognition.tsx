@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { Loader2, ScanText } from "lucide-react"
+import { Loader2, ScanText, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { recognizeText, type DocumentDetail } from "@/commands/docbase"
+import { aiReadingCost, readWithAi, recognizeText, type AiReadingCost, type DocumentDetail } from "@/commands/docbase"
 import {
   engineName,
   illegibleParts,
+  isCloudReader,
   isRecognitionEngine,
   pageList,
   RECOGNITION_COST,
@@ -12,17 +13,84 @@ import {
   recognitionFailureText,
 } from "@/lib/text-recognition"
 import { useProgressStore } from "@/stores/progress-store"
-import { recognitionConfigOfServices } from "@/lib/ai-services"
+import { aiReadingConfigOfServices, recognitionConfigOfServices } from "@/lib/ai-services"
 import { useAiServicesStore } from "@/stores/ai-services-store"
 import { vocabulary } from "@/vocabulary"
 import { ErrorNote } from "./page"
 import { formatDate } from "./format"
 
-/** The engine of «Reconocer escaneos» chosen now, and its name in the base. */
+/** The reader of «Reconocer escaneos» chosen now (the one of this computer by default), and its name in the base. */
 export function useRecognitionEngine(): { id: string | null; name: string | null } {
   const services = useAiServicesStore((s) => s.services)
-  const id = recognitionEngineId(recognitionConfigOfServices(services))
+  const catalog = useAiServicesStore((s) => s.catalog)
+  const id = recognitionEngineId(recognitionConfigOfServices(services, catalog))
   return { id, name: id ? engineName(id) : null }
+}
+
+/**
+ * «Leer con IA» (E2 point 6; D-670, D-705): for a document the reader of
+ * this computer did not read well, or an old manuscript. It says the cost
+ * first (its reader and its pages, each a question); confirmed, it leaves a
+ * request the process reads like any other, with the reader of AI chosen in
+ * Ajustes. Without one, it says where to choose it.
+ */
+function ReadWithAi({ contentId, textEngine }: { contentId: number; textEngine: string | null }) {
+  const services = useAiServicesStore((s) => s.services)
+  const catalog = useAiServicesStore((s) => s.catalog)
+  const refresh = useProgressStore((s) => s.refresh)
+  const reader = recognitionEngineId(aiReadingConfigOfServices(services, catalog))
+  const [cost, setCost] = useState<AiReadingCost | null>(null)
+  const [asked, setAsked] = useState<number | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+  if (reader && textEngine && textEngine === reader) return null
+  async function look() {
+    setProblem(null)
+    try {
+      setCost(await aiReadingCost(contentId))
+    } catch (cause) {
+      setProblem(String(cause))
+    }
+  }
+  async function confirm() {
+    setProblem(null)
+    try {
+      setAsked(await readWithAi(contentId))
+      setCost(null)
+      refresh()
+    } catch (cause) {
+      setProblem(String(cause))
+    }
+  }
+  return (
+    <div data-read-with-ai className="mt-2 space-y-1">
+      {!reader ? (
+        <p className="text-muted-foreground">
+          Para leerlo con IA, elegí el lector de IA en Ajustes → Servicios de IA → Reconocer escaneos → «Lector de IA para
+          «Leer con IA»».
+        </p>
+      ) : cost ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span>
+            Leer con {engineName(cost.engine)}: {cost.pages} {cost.pages === 1 ? "página, 1 consulta" : `páginas, ${cost.pages} consultas`}{" "}
+            a ese proveedor.
+          </span>
+          <Button size="sm" onClick={() => void confirm()}>
+            Leer con IA
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setCost(null)}>
+            Cancelar
+          </Button>
+        </div>
+      ) : asked !== null ? (
+        <p>{asked > 0 ? "Pedido: se lee con IA en segundo plano; el avance está en «En curso»." : "No había nada que leer con ese lector."}</p>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => void look()}>
+          <Sparkles className="size-4" /> Leer con IA
+        </Button>
+      )}
+      {problem && <ErrorNote>{problem}</ErrorNote>}
+    </div>
+  )
 }
 
 export interface Recognize {
@@ -65,6 +133,7 @@ export function useRecognize(): Recognize {
  */
 export function DocumentRecognition({ document }: { document: DocumentDetail }) {
   const recognize = useRecognize()
+  const engine = useRecognitionEngine()
   const where = `${vocabulary().attention.name} → En curso`
   if (document.contentId === null) return null
   const contentId = document.contentId
@@ -83,7 +152,8 @@ export function DocumentRecognition({ document }: { document: DocumentDetail }) 
               {partial
                 ? "Parte de sus páginas son un escaneo: falta reconocer el texto de esas páginas."
                 : "Es un escaneo o una foto: hay que reconocer su texto para leerlo, compararlo con los demás y buscarlo."}{" "}
-              {RECOGNITION_COST}
+              {engine.name ? `Lo lee ${engine.name}, el lector elegido en Ajustes.` : ""}{" "}
+              {isCloudReader(engine.id) ? RECOGNITION_COST : ""}
             </p>
             {failed && <p className="mt-1 text-destructive">El último intento falló: {recognitionFailureText(document.error ?? "")}</p>}
             {recognize.asked !== null && (
@@ -110,6 +180,7 @@ export function DocumentRecognition({ document }: { document: DocumentDetail }) 
             <ErrorNote>{recognize.problem}</ErrorNote>
           </div>
         )}
+        <ReadWithAi contentId={contentId} textEngine={null} />
       </section>
     )
   }
@@ -137,6 +208,7 @@ export function DocumentRecognition({ document }: { document: DocumentDetail }) 
           <ErrorNote>{recognize.problem}</ErrorNote>
         </div>
       )}
+      <ReadWithAi contentId={contentId} textEngine={document.textEngine ?? null} />
     </section>
   )
 }

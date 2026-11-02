@@ -4,18 +4,28 @@
  *
  * The reading happens in the base (Rust, `docbase/recognize.rs`), behind
  * an engine-neutral contract (`TextRecognizer`); this module only says
- * which engine is chosen, so callers never name one. It is the engine of
+ * which engine is chosen, so callers never name one. It is the reader of
  * «Reconocer escaneos» in the registry of AI services (Ajustes → Servicios
- * de IA, D-443), when the base can run it: today Codex or Micelya Core.
+ * de IA, D-443, D-764): the one of this computer by default, Codex or
+ * Micelya Core.
  */
 import type { RecognitionConfig } from "@/commands/docbase"
 import { recognitionConfigOfServices } from "@/lib/ai-services"
 import { useAiServicesStore } from "@/stores/ai-services-store"
 
-/** The engine that recognizes scans; null when none the base can run is chosen. */
+/** The reader of the scans; null when the one chosen is not one the base can run. */
 export function getRecognitionConfig(): RecognitionConfig | null {
-  return recognitionConfigOfServices(useAiServicesStore.getState().services)
+  const { services, catalog } = useAiServicesStore.getState()
+  return recognitionConfigOfServices(services, catalog)
 }
+
+/** Whether a reader is one in the cloud, whose pages are questions (not the one of this computer). */
+export function isCloudReader(engineId: string | null | undefined): boolean {
+  return !!engineId && !engineId.startsWith(`${LOCAL_READER}:`) && engineId !== LOCAL_READER
+}
+
+/** The name the reader of this computer keeps its text with (`recognition_local::ENGINE`). */
+const LOCAL_READER = "rapidocr-onnx"
 
 /** The name the base saves the text of that engine with (as `recognition::engine_id` in Rust). */
 export function recognitionEngineId(config: RecognitionConfig | null): string | null {
@@ -24,14 +34,14 @@ export function recognitionEngineId(config: RecognitionConfig | null): string | 
   return model ? `${config.engine}:${model}` : config.engine
 }
 
-/** What a stage or a document says when no engine can recognize scans. */
+/** What a stage or a document says when the reader chosen is not one the base can run. */
 export const MISSING_ENGINE =
-  "Falta elegir el motor que reconoce escaneos: en Ajustes → Servicios de IA, elegí uno para «Reconocer escaneos»."
+  "La base no puede leer escaneos con el lector elegido: en Ajustes → Servicios de IA → «Reconocer escaneos», elegí otro (el de esta computadora es el de por omisión)."
 
 /** What it costs, in words. */
 export const RECOGNITION_COST = "Cada página es una pregunta al modelo: consume cupo o costo de ese proveedor."
 
-const ENGINE_NAMES: Record<string, string> = { "codex-cli": "Codex", core: "Micelya Core" }
+const ENGINE_NAMES: Record<string, string> = { "codex-cli": "Codex", core: "Micelya Core", [LOCAL_READER]: "el lector de esta computadora" }
 
 /** Whether a text was produced by a recognition engine, not by plain extraction. */
 export function isRecognitionEngine(engine: string | null | undefined): engine is string {

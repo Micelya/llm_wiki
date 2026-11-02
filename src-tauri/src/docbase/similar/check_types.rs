@@ -169,10 +169,15 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
             .unwrap(),
         ),
         Ok("local") => Some(
-            recognition::recognizer_for(
-                &crate::docbase::services::local_recognition_engine().expect("the engine of this computer is not available"),
-            )
-            .unwrap(),
+            {
+                use crate::source_volume::recognition_local;
+                assert!(recognition_local::unavailable().is_none(), "the engine of this computer is not available");
+                recognition::recognizer_for(&RecognitionConfig {
+                    engine: recognition_local::ENGINE.into(),
+                    model: recognition_local::catalog().model_set.clone(),
+                })
+                .unwrap()
+            },
         ),
         _ => None,
     };

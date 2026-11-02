@@ -559,6 +559,8 @@ pub fn run() {
             docbase::commands::docbase_progress,
             docbase::commands::docbase_process_state,
             docbase::commands::docbase_recognize_text,
+            docbase::commands::docbase_ai_reading_cost,
+            docbase::commands::docbase_read_with_ai,
             docbase::commands::docbase_progress_items,
             docbase::commands::docbase_progress_folders,
             docbase::commands::docbase_knowledge_doubts,

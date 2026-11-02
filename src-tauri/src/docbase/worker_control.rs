@@ -17,7 +17,11 @@
 //!   engine of «Preguntar al modelo» is the one a person chooses in Ajustes:
 //!   codex-cli with `MICELYA_ASK_MODEL` and `MICELYA_ASK_REASONING`, also
 //!   written in the log. The reading by zones, that a test build leaves off,
-//!   is put as the app comes (`cut:zones-reading=on`), and the log says so.
+//!   is put as the app comes (`ZONES_READING_IN_THE_APP`, the value of the
+//!   app, not one of the script), and the log says so. The reader of the
+//!   scans is never named by the script (E2 of 2 nov): it is the one of
+//!   Ajustes of the base, the one of this computer by default, and the log
+//!   says which (`reader_from_the_base`).
 //! - `MICELYA_CONTROL_BASE`: the base of the run. Made empty when it is not
 //!   there; when it is, it is opened again and the run goes on (D-678).
 //! - `MICELYA_CONTROL_UNTIL`: `cut` ends once the steps up to the parts are
@@ -64,12 +68,27 @@ fn left(base: &DocBase) -> Value {
     }
 }
 
+/// Settings the script may never name: the reader of the scans comes from
+/// Ajustes of the base (E2 of 2 nov; the reader of this computer by
+/// default), never from the script of the run.
+const NOT_FROM_THE_SCRIPT: [&str; 3] = ["ai-services", "recognition-engine", "recognition:"];
+
 /// The settings the script of the run names, written in the base and in the log.
 fn settings_of_the_script(base: &DocBase) -> Vec<(String, String)> {
-    let mut named: Vec<(String, String)> = vec![(crate::docbase::cut::by_zones::ZONES_READING.to_string(), "on".to_string())];
+    // The reading by zones as the app comes (`ZONES_READING_IN_THE_APP`,
+    // `cut/by_zones/mod.rs`): this run is compiled as a test, where it is
+    // off for the unit tests of the cut of before. The value is the app's,
+    // never one of the script.
+    use crate::docbase::cut::by_zones::{ZONES_READING, ZONES_READING_IN_THE_APP};
+    let mut named: Vec<(String, String)> = vec![(ZONES_READING.to_string(), ZONES_READING_IN_THE_APP.to_string())];
     for pair in std::env::var("MICELYA_CONTROL_SETTINGS").unwrap_or_default().split(';') {
         if let Some((key, value)) = pair.split_once('=') {
-            named.push((key.trim().to_string(), value.trim().to_string()));
+            let key = key.trim();
+            assert!(
+                !NOT_FROM_THE_SCRIPT.iter().any(|not| key.starts_with(not)),
+                "MICELYA_CONTROL_SETTINGS names '{key}': the reader of the scans comes from Ajustes of the base, not from the script"
+            );
+            named.push((key.to_string(), value.trim().to_string()));
         }
     }
     for (key, value) in &named {
@@ -83,6 +102,16 @@ fn settings_of_the_script(base: &DocBase) -> Vec<(String, String)> {
         .unwrap();
     named.push(("ask-engine".into(), format!("codex-cli {model} {reasoning}")));
     named
+}
+
+/// The reader of the scans the base uses, as Ajustes of the base says (it
+/// is not named by the script): written in the log.
+fn reader_of_the_base(base: &DocBase) -> String {
+    match crate::docbase::services::recognition_choice(&base.conn()) {
+        Ok(Some(config)) => crate::source_volume::recognition::engine_id(&config).unwrap_or_else(|e| e),
+        Ok(None) => "none".into(),
+        Err(error) => error,
+    }
 }
 
 #[test]
@@ -110,7 +139,7 @@ fn the_app_from_zero() {
         rows.collect::<Result<_, _>>().unwrap()
     };
     log(json!({"t": now_ms(), "event": "open", "new": new, "until": if until_all { "all" } else { "cut" },
-               "named_by_the_script": named, "settings": settings}));
+               "named_by_the_script": named, "reader_from_the_base": reader_of_the_base(&base), "settings": settings}));
 
     let asker = crate::docbase::knowledge::check::recorded();
     let started = Instant::now();

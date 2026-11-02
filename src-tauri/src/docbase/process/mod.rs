@@ -26,6 +26,8 @@ pub mod steps;
 #[cfg(test)]
 mod run_tests;
 #[cfg(test)]
+mod scan_tests;
+#[cfg(test)]
 mod tests;
 
 use std::collections::BTreeSet;
@@ -130,7 +132,17 @@ impl DocBase {
         for step in STEPS {
             let class = steps::class_now(&conn, step)?;
             let mut count = steps::count_step(&conn, step, scope)?;
-            let mut step_held = if class == Class::Asks { held_for(step) } else { None };
+            let mut step_held = match class {
+                // The scans with a reader in the cloud do not ask «Preguntar
+                // al modelo»: they wait only for the automatic reading
+                // (D-775); what a person asked goes out with it off. Their
+                // failures hold each document (`recognize::scan_free_sql`).
+                Class::Asks if step == Step::Scans => {
+                    (!reading_on && !looking.allowed.contains(&step)).then_some("la lectura automática está apagada")
+                }
+                Class::Asks => held_for(step),
+                _ => None,
+            };
             if looking.aside.contains(&step) {
                 step_held = Some("apartado por ahora");
             }

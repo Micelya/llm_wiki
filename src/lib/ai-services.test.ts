@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
-import type { AiServices, EngineChoice } from "@/commands/docbase"
+import type { AiServices, EngineChoice, EnginesCatalog } from "@/commands/docbase"
 import { findLlmPreset } from "@/components/settings/llm-presets"
 import { resolveConfig } from "@/components/settings/preset-resolver"
 import type { LlmConfig, ProviderConfigs, SearchApiConfig } from "@/stores/wiki-store"
 import {
   NO_SERVICES,
+  aiReadingConfigOfServices,
   askConfigOf,
   recognitionConfigOfServices,
   servicesAfterConnectionChange,
@@ -58,7 +59,8 @@ describe("the registry made from the settings of before it", () => {
       const services = servicesFromSettings(settings)
       const old = before(settings.llmConfig)
       expect(askConfigOf(services)).toEqual(old.ask)
-      expect(recognitionConfigOfServices(services)).toEqual(old.recognize)
+      // The scans get no reader from the old settings: never Codex because it asked the questions (E2 of 2 nov, D-764).
+      expect(services.recognize.engine).toBeNull()
     }
   })
 
@@ -70,7 +72,7 @@ describe("the registry made from the settings of before it", () => {
       }),
     )
     expect(codex.ask.engine).toEqual(choice("codex-cli", "codex-cli", "modelo-a", "high"))
-    expect(codex.recognize.engine).toEqual(choice("codex-cli", "codex-cli", "modelo-a"))
+    expect(codex.recognize.engine).toBeNull()
     expect(codex.research.engine).toEqual(choice("tavily", "tavily"))
     expect(codex.ask.alternative).toBeNull()
 
@@ -149,5 +151,33 @@ describe("changing the engine of a service", () => {
     expect(servicesUsing(services, "openai")).toEqual(["ask"])
     expect(servicesUsing(services, "tavily")).toEqual(["research"])
     expect(servicesUsing(services, "google")).toEqual([])
+  })
+})
+
+describe("the reader of the scans (E2 of 2 nov)", () => {
+  // The three readers as the catalog of the app names them; the one of this computer by default.
+  const catalog = {
+    services: [],
+    capabilities: [],
+    engines: [
+      { service: "recognize", id: "rapidocr-onnx", name: "En esta computadora (RapidOCR)", kind: "local", inBase: true, byDefault: true, defaultModel: "ppocrv6-small", processing: "", retention: "" },
+      { service: "recognize", id: "codex-cli", name: "Codex", kind: "local", inBase: true, processing: "", retention: "" },
+      { service: "recognize", id: "core", name: "Micelya Core (Textract)", kind: "api", inBase: true, defaultModel: "textract-1.0", processing: "", retention: "" },
+    ],
+  } as unknown as EnginesCatalog
+  const reading = (engine: EngineChoice | null, alternative: EngineChoice | null = null): AiServices => ({ ...NO_SERVICES, recognize: { engine, alternative } })
+
+  it("is the one of this computer when none is chosen, and the one chosen otherwise", () => {
+    expect(recognitionConfigOfServices(NO_SERVICES, catalog)).toEqual({ engine: "rapidocr-onnx", model: "ppocrv6-small" })
+    expect(recognitionConfigOfServices(reading(choice("codex-cli", "codex-cli", "m")), catalog)).toEqual({ engine: "codex-cli", model: "m" })
+    expect(recognitionConfigOfServices(reading(choice("core", "micelya-core", "")), catalog)).toEqual({ engine: "core", model: "textract-1.0" })
+    expect(recognitionConfigOfServices(reading(choice("otro", "otro", "x")), catalog)).toBeNull()
+  })
+
+  it("reads with AI with the reader of «Leer con IA», or the principal when it is in the cloud, never the one of this computer", () => {
+    expect(aiReadingConfigOfServices(NO_SERVICES, catalog)).toBeNull()
+    expect(aiReadingConfigOfServices(reading(null, choice("codex-cli", "codex-cli", "m")), catalog)).toEqual({ engine: "codex-cli", model: "m" })
+    expect(aiReadingConfigOfServices(reading(choice("core", "micelya-core", "")), catalog)).toEqual({ engine: "core", model: "textract-1.0" })
+    expect(aiReadingConfigOfServices(reading(choice("rapidocr-onnx", "", "")), catalog)).toBeNull()
   })
 })

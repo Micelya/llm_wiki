@@ -2,32 +2,35 @@
 //!
 //! A document whose text is only pixels (a scanned PDF, a photo, or the
 //! pages without text of a mixed PDF) waits in `needs-recognition` after
-//! the extraction (`text.rs`). Here an engine behind the `TextRecognizer`
-//! contract reads it, one document at a time:
+//! the extraction (`text.rs`). Here a reader behind the `TextRecognizer`
+//! contract reads it, one document at a time, in the step of the scans of
+//! the process (`process/run.rs`, `scans_operation`). The reader is the one
+//! chosen in Ajustes (E2 of 2 nov, D-764; `services::recognition_choice`):
 //!
-//! - by itself, in the background, with the engine of this computer
-//!   (D-558, `recognition_local`), the automatic reading on or off: it
-//!   asks no model in the cloud. Only while its models are there; without
-//!   them, as before:
-//! - by itself, in the background, while the automatic reading is on (the
-//!   same switch as the questions to the model: each page is a question);
-//! - when a person asks for it, even with the automatic reading off. What
-//!   she asked for is kept in the base (`recognition_request`, in the order
-//!   asked) until it is read or fails for good, so closing the app does not
-//!   lose it.
+//! - the one of this computer (the one by default) reads by itself, the
+//!   automatic reading on or off: it asks no model in the cloud. Without
+//!   its models, each scan waits with its failure (D-775);
+//! - one in the cloud (Codex, Micelya Core) reads by itself only while the
+//!   automatic reading is on: each page is a question (D-775);
+//! - what a person asks for is read even with the automatic reading off,
+//!   with the reader it was asked with (the one of Ajustes then, or the
+//!   one of «Leer con IA», `request_ai_reading`): it is never taken by
+//!   another reader and dropped. It is kept in the base
+//!   (`recognition_request`, in the order asked, and its reader) until it
+//!   is read or fails for good, so closing the app does not lose it.
 //!
-//! Once per document and engine: the pages already read are kept beside
+//! Once per document and reader: the pages already read are kept beside
 //! the base (`recognized/<file hash>/page-N.json`), so a failure half-way
 //! resumes where it stopped, and the whole text goes to
-//! `store_recognized_text` with the engine that read it, so every copy of
+//! `store_recognized_text` with the reader that read it, so every copy of
 //! the file has it and no copy is read again. A document read by another
-//! engine is read again only when a person asks. Then the document follows
+//! reader is read again only when a person asks. Then the document follows
 //! the usual path: copies, type, reading, matters, search.
 //!
-//! A failure of the provider (its usage limit, no connection) leaves the
-//! document waiting and the engine tries again later; any other failure,
-//! or the provider failing on the same document again and again, marks the
-//! document with the reason until a person asks again.
+//! A failure is written down over the document, with its class and its
+//! waits (D-714): a transient one sets it aside until its next attempt;
+//! any other, or the provider failing on the same document again and
+//! again, marks it with the reason until a person asks again.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -58,6 +61,7 @@ pub const UNREACHABLE: &str = "The file cannot be reached: its folder is not con
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecognitionStep {
     /// Nothing to recognize now.
+    #[cfg_attr(not(test), allow(dead_code))]
     Idle,
     /// The text of this document was recognized and kept.
     Recognized(i64),
@@ -82,9 +86,39 @@ pub enum RecognitionRequest {
 }
 
 /// The engine that recognizes text: the one of «Reconocer escaneos» in the
-/// registry of AI services, when the base can run it (`services.rs`).
+/// registry of AI services, when it can read now (`services.rs`).
 pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
     super::services::recognition_engine(conn)
+}
+
+/// What the screen says when no reader of AI is chosen for «Leer con IA».
+pub const MISSING_AI_READER: &str = "Falta elegir el lector de IA para «Leer con IA»: en Ajustes → Servicios de IA → Reconocer escaneos, \
+elegí uno en «Lector de IA para «Leer con IA»» (Codex o Micelya Core).";
+
+/// Where the reader a request of a person was made with is kept, by its
+/// document (`docbase_setting`).
+const READER_PREFIX: &str = "recognition:reader:";
+
+/// SQL over a version `c`: no failure of the recognition holds it now (a
+/// transient one before its next attempt, or any other, D-714) and no
+/// failure of another step sets it aside. What the count of the step of
+/// the scans and the choice of the next one share.
+pub(crate) fn scan_free_sql() -> String {
+    format!(
+        "NOT {} AND {}",
+        super::failures::holds_any_sql(RECOGNITION_STAGE, "CAST(c.id AS TEXT)"),
+        super::process::steps::free_sql_except("c.id", RECOGNITION_STAGE)
+    )
+}
+
+/// The cost of «Leer con IA» for a document, before a person asks for it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiReadingCost {
+    /// The reader, as it names its text (`codex-cli:modelo`, `core:textract-1.0`).
+    pub engine: String,
+    /// The pages it would read: each one is a question (or a reading of Core).
+    pub pages: usize,
 }
 
 /// SQL condition: the content `c` has a copy that can be read now.
@@ -108,20 +142,63 @@ pub(crate) fn requested_recognitions(conn: &Connection) -> Result<Vec<i64>, Stri
 }
 
 impl DocBase {
-    pub fn recognition_engine(&self) -> Result<Option<RecognitionConfig>, String> {
-        recognition_engine(&self.conn())
+    /// A person asks to recognize documents, with the automatic reading on
+    /// or off, with the reader chosen in Ajustes now (the person does not
+    /// choose it here, D-764): they go first, one after the other, and a
+    /// failed one is tried again. Only documents still waiting count, or,
+    /// among `These`, one read by a reader other than the one chosen now.
+    /// Returns how many were asked for.
+    pub fn request_recognition(&self, which: &RecognitionRequest) -> Result<usize, String> {
+        let reader = super::services::recognition_choice(&self.conn())?
+            .ok_or_else(|| "The reader of scans chosen in Ajustes is not one the base can run".to_string())?;
+        self.ask_to_read(which, &reader)
     }
 
-    /// A person asks to recognize documents, with the automatic reading on
-    /// or off: they go first, one after the other, and a failed one is
-    /// tried again. Only documents still waiting count, or, among `These`,
-    /// one read by an engine other than the one chosen now. Returns how
-    /// many were asked for.
-    pub fn request_recognition(&self, which: &RecognitionRequest) -> Result<usize, String> {
-        let current = match self.recognition_engine()? {
-            Some(config) => recognition::engine_id(&config)?,
-            None => return Err("No engine to recognize the text of scans was chosen".to_string()),
+    /// «Leer con IA» (E2 point 6; D-670, D-705): a person asks to read a
+    /// document again with the reader of AI chosen for it
+    /// (`services::ai_reading_engine`). A request like any other, in the
+    /// step of the scans: it waits only for its own document. Returns 1 when
+    /// asked, 0 when that reader already read it or it has no scanned page.
+    pub fn request_ai_reading(&self, content: i64) -> Result<usize, String> {
+        let reader = super::services::ai_reading_engine(&self.conn())?.ok_or_else(|| MISSING_AI_READER.to_string())?;
+        self.ask_to_read(&RecognitionRequest::These(vec![content]), &reader)
+    }
+
+    /// What «Leer con IA» would cost for a document: its reader and the
+    /// pages it would read, each one a question. Said before asking.
+    pub fn ai_reading_cost(&self, content: i64) -> Result<AiReadingCost, String> {
+        let reader = super::services::ai_reading_engine(&self.conn())?.ok_or_else(|| MISSING_AI_READER.to_string())?;
+        let engine = recognition::engine_id(&reader)?;
+        let Some((_, path, ext)) = self.file_of(content)? else {
+            return Err(UNREACHABLE.to_string());
         };
+        let pages = if ext == "pdf" { run_guarded("docbase_scan_pages", || textless_pages(&path)).map(|p| p.len())? } else { 1 };
+        Ok(AiReadingCost { engine, pages })
+    }
+
+    /// The reader a request was made with; `None` when nobody asked for
+    /// the document (it is read with the reader chosen in Ajustes).
+    pub(crate) fn reader_of_request(&self, content: i64) -> Result<Option<RecognitionConfig>, String> {
+        Ok(self
+            .conn()
+            .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [format!("{READER_PREFIX}{content}")], |row| row.get::<_, String>(0))
+            .optional()
+            .map_err(sql_err)?
+            .and_then(|value| serde_json::from_str(&value).ok()))
+    }
+
+    /// The reader of the next document of the step of the scans: the one
+    /// its request was made with, or the one chosen in Ajustes.
+    pub(crate) fn reader_for(&self, content: i64) -> Result<Option<RecognitionConfig>, String> {
+        match self.reader_of_request(content)? {
+            Some(reader) => Ok(Some(reader)),
+            None => super::services::recognition_choice(&self.conn()),
+        }
+    }
+
+    /// Asks to read `which` with `reader`, kept with each request.
+    fn ask_to_read(&self, which: &RecognitionRequest, reader: &RecognitionConfig) -> Result<usize, String> {
+        let current = recognition::engine_id(reader)?;
         let ids: Vec<i64> = {
             let conn = self.conn();
             let mut ids = Vec::new();
@@ -165,6 +242,7 @@ impl DocBase {
                 .query_row("SELECT coalesce(max(position), 0) FROM recognition_request", [], |row| row.get(0))
                 .map_err(sql_err)?;
             let at = now_ms();
+            let pinned = serde_json::to_string(reader).map_err(|e| e.to_string())?;
             for (index, id) in ids.iter().enumerate() {
                 conn.execute("UPDATE version SET error = NULL WHERE id = ?1 AND state = 'needs-recognition'", [id])
                     .map_err(sql_err)?;
@@ -173,6 +251,15 @@ impl DocBase {
                     params![id, last + 1 + index as i64, at],
                 )
                 .map_err(sql_err)?;
+                // The reader it is asked with stays with it: no other reader
+                // takes it and drops it (the audit of 2 nov, 2.2).
+                conn.execute(
+                    "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
+                    params![format!("{READER_PREFIX}{id}"), pinned],
+                )
+                .map_err(sql_err)?;
+                // A person asks again: what failed before is behind.
+                super::failures::resolve(&conn, RECOGNITION_STAGE, &super::failures::About::Version(*id))?;
             }
             ids
         };
@@ -181,34 +268,62 @@ impl DocBase {
     }
 
     /// The recognition of a document a person may have asked for ended,
-    /// well or for good: it is no longer asked for.
+    /// well or for good: it is no longer asked for, and a failure of it
+    /// before is behind (a failure now is written after this).
     fn recognition_ended(&self, content: i64) -> Result<(), String> {
-        self.conn()
-            .execute("DELETE FROM recognition_request WHERE version_id = ?1", [content])
-            .map_err(sql_err)?;
+        {
+            let conn = self.conn();
+            conn.execute("DELETE FROM recognition_request WHERE version_id = ?1", [content]).map_err(sql_err)?;
+            conn.execute("DELETE FROM docbase_setting WHERE key = ?1", [format!("{READER_PREFIX}{content}")]).map_err(sql_err)?;
+            super::failures::resolve(&conn, RECOGNITION_STAGE, &super::failures::About::Version(content))?;
+        }
         self.engine_state().forget_recognition_tries(&[content]);
         Ok(())
     }
 
-    /// The document to recognize next: the first one a person asked for,
-    /// or, while the automatic reading is on, the next one waiting that did
-    /// not fail and can be read now. While the engine of this computer can
-    /// read, the ones waiting are its own (`next_local_recognition`).
+    /// The document to recognize next: the first one a person asked for
+    /// (`only`: that one, the ask of a person over its document), or the
+    /// next one waiting that did not fail and can be read now, when the
+    /// reader chosen in Ajustes reads by itself: the one of this computer
+    /// always; one in the cloud only while the automatic reading is on
+    /// (D-775). Nothing a failure holds (`scan_free_sql`).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn next_recognition(&self) -> Result<Option<i64>, String> {
-        if let Some(id) = requested_recognitions(&self.conn())?.first().copied() {
-            return Ok(Some(id));
+        self.next_recognition_of(None)
+    }
+
+    pub(crate) fn next_recognition_of(&self, only: Option<i64>) -> Result<Option<i64>, String> {
+        let requested: Option<i64> = self
+            .conn()
+            .query_row(
+                &format!(
+                    "SELECT r.version_id FROM recognition_request r JOIN version c ON c.id = r.version_id
+                     WHERE {} AND (?1 IS NULL OR c.id = ?1) ORDER BY r.position, r.version_id LIMIT 1",
+                    scan_free_sql()
+                ),
+                [only],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        if requested.is_some() || only.is_some() {
+            return Ok(requested);
         }
-        if super::services::local_recognition_engine().is_some() || !self.background_reading()? {
+        let Some(chosen) = super::services::recognition_choice(&self.conn())? else {
+            return Ok(None);
+        };
+        if !super::services::is_local(&chosen.engine) && !self.background_reading()? {
             return Ok(None);
         }
         self.next_waiting()
     }
 
-    /// Without the models of the engine of this computer, the only engine
-    /// of the scans (D-721), every scan waiting keeps waiting with its
+    /// Without the models of the engine of this computer, when it is the
+    /// reader chosen (D-775), every scan waiting keeps waiting with its
     /// failure written down: transient while the models are being
     /// downloaded, permanent when there is no way to download them. No scan
-    /// goes to the cloud instead. Returns how many were written down.
+    /// goes to the cloud instead: a person may choose another reader in
+    /// Ajustes. Returns how many were written down.
     pub(crate) fn scans_without_models(&self, why: &str, downloading: bool) -> Result<usize, String> {
         let conn = self.conn();
         let ids: Vec<i64> = {
@@ -221,46 +336,85 @@ impl DocBase {
             let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
-        let cause = super::failures::cause(if downloading { "models-downloading" } else { "models-missing" });
         let mut noted = 0;
         for id in &ids {
-            let about = super::failures::About::Version(*id);
-            if super::failures::is_open(&conn, RECOGNITION_STAGE, &about)? {
-                continue;
-            }
-            let mut failure = super::failures::Failure::new(RECOGNITION_STAGE, about, why);
-            failure.cause = cause;
-            super::failures::record(&conn, &failure)?;
-            noted += 1;
+            noted += usize::from(scan_without_models(&conn, *id, why, downloading)?);
         }
         Ok(noted)
     }
 
-    /// The models of the engine of this computer are there: the scans that
-    /// waited for them are read.
-    pub(crate) fn scans_with_models(&self) -> Result<(), String> {
+    /// The models of the engine of this computer are there, or the reader
+    /// chosen is another one: the scans that waited for them are read.
+    pub(crate) fn scans_with_models(&self) -> Result<usize, String> {
         let conn = self.conn();
         // Only the scans: the reading by zones has its own model
         // (`structure`).
-        super::failures::resolve_stage_cause(&conn, RECOGNITION_STAGE, "models-missing")?;
-        super::failures::resolve_stage_cause(&conn, RECOGNITION_STAGE, "models-downloading")
+        conn.execute(
+            "UPDATE failure SET state = 'resolved', next_at = NULL
+             WHERE stage = ?1 AND cause IN ('models-missing', 'models-downloading') AND state <> 'resolved'",
+            [RECOGNITION_STAGE],
+        )
+        .map_err(sql_err)
     }
 
-    /// The document the engine of this computer reads next (D-558): the
-    /// next one waiting that did not fail, can be read now and nobody asked
-    /// for, the automatic reading on or off. It asks no model in the cloud.
-    pub fn next_local_recognition(&self) -> Result<Option<i64>, String> {
-        self.next_waiting()
+    /// The scans that wait for the models of this computer while they are
+    /// not needed (the reader chosen is another one, or the models came):
+    /// they go back to the step. Costs one look at the record.
+    pub(crate) fn scans_models_settle(&self) -> Result<usize, String> {
+        let waiting: i64 = self
+            .conn()
+            .query_row(
+                "SELECT count(*) FROM failure WHERE stage = ?1 AND cause IN ('models-missing', 'models-downloading') AND state <> 'resolved'",
+                [RECOGNITION_STAGE],
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+        if waiting == 0 {
+            return Ok(0);
+        }
+        let chosen = super::services::recognition_choice(&self.conn())?;
+        let local = chosen.as_ref().is_some_and(|c| super::services::is_local(&c.engine));
+        if local && crate::source_volume::recognition_local::unavailable().is_some() {
+            return Ok(0);
+        }
+        self.scans_with_models()
+    }
+
+    /// The questions the scans waiting would make by themselves, for the
+    /// round (D-484): one per page with a reader in the cloud (a document
+    /// whose pages are not counted yet, one); none with the one of this
+    /// computer, which asks nobody.
+    pub(crate) fn scan_questions_left(&self) -> Result<usize, String> {
+        let chosen = super::services::recognition_choice(&self.conn())?;
+        if chosen.is_none_or(|c| super::services::is_local(&c.engine)) {
+            return Ok(0);
+        }
+        let ids: Vec<i64> = {
+            let conn = self.conn();
+            let mut statement = conn
+                .prepare(&format!(
+                    "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {} AND {}
+                     AND NOT EXISTS (SELECT 1 FROM recognition_request r WHERE r.version_id = c.id)",
+                    reachable_sql(),
+                    scan_free_sql()
+                ))
+                .map_err(sql_err)?;
+            let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
+            rows.collect::<Result<_, _>>().map_err(sql_err)?
+        };
+        let pages = self.engine_state().snapshot().scan_pages;
+        Ok(ids.iter().map(|id| pages.get(id).copied().unwrap_or(1).max(1)).sum())
     }
 
     fn next_waiting(&self) -> Result<Option<i64>, String> {
         self.conn()
             .query_row(
                 &format!(
-                    "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {}
+                    "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {} AND {}
                      AND NOT EXISTS (SELECT 1 FROM recognition_request r WHERE r.version_id = c.id)
                      ORDER BY c.id LIMIT 1",
-                    reachable_sql()
+                    reachable_sql(),
+                    scan_free_sql()
                 ),
                 [],
                 |row| row.get(0),
@@ -273,6 +427,7 @@ impl DocBase {
     /// telling the engine's state the document and the page it is at. When
     /// the provider fails, the document keeps waiting and the stage shows
     /// the error with when it tries again (`retry_in`).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn recognition_step(&self, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
         match self.next_recognition()? {
             Some(content) => self.recognition_step_of(content, recognizer, retry_in),
@@ -280,16 +435,7 @@ impl DocBase {
         }
     }
 
-    /// The same, for the next document of the engine of this computer
-    /// (`next_local_recognition`).
-    pub fn local_recognition_step(&self, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
-        match self.next_local_recognition()? {
-            Some(content) => self.recognition_step_of(content, recognizer, retry_in),
-            None => Ok(RecognitionStep::Idle),
-        }
-    }
-
-    fn recognition_step_of(&self, content: i64, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
+    pub(crate) fn recognition_step_of(&self, content: i64, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
         let state = self.engine_state();
         state.recognizing(Some(content));
         let result = self.recognize_content(content, recognizer);
@@ -335,7 +481,7 @@ impl DocBase {
     /// pixels, or this engine already read it.
     pub fn recognize_content(&self, content_id: i64, recognizer: &dyn TextRecognizer) -> Result<bool, String> {
         let engine = recognizer.engine_id();
-        let file: Option<(String, String, String, String)> = {
+        {
             let conn = self.conn();
             let found: Option<(String, Option<String>)> = conn
                 .query_row(
@@ -351,28 +497,10 @@ impl DocBase {
                 Some((state, _)) if has_unread_scans(&conn, &self.recognized, &state, content_id)? => {}
                 _ => return Ok(false),
             }
-            conn.query_row(
-                &format!(
-                    "SELECT f.hash, o.location, l.rel_path, l.ext FROM file f
-                     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
-                     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-                     WHERE f.version_id = ?1 AND NOT {}
-                     ORDER BY l.id LIMIT 1",
-                    super::excluded_sql!()
-                ),
-                [content_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )
-            .optional()
-            .map_err(sql_err)?
-        };
-        let Some((hash, root, rel_path, ext)) = file else {
-            return Err(UNREACHABLE.to_string());
-        };
-        let path = LocalFolderProvider::new(root).local_path(&rel_path).ok_or_else(|| UNREACHABLE.to_string())?;
-        if !path.is_file() {
-            return Err(UNREACHABLE.to_string());
         }
+        let Some((hash, path, ext)) = self.file_of(content_id)? else {
+            return Err(UNREACHABLE.to_string());
+        };
         let store = RecognizedStore::at(self.recognized.join(&hash)).for_engine(&engine);
         let state = self.engine_state();
         let on_page = |page: usize, total: usize| state.recognizing_page(page, total);
@@ -394,6 +522,31 @@ impl DocBase {
         })?;
         let pages: Vec<(u32, &str, &str)> = pages.iter().map(|(page, engine, body)| (*page, engine.as_str(), body.as_str())).collect();
         self.store_recognized_pages(&hash, &text, &engine, &pages)
+    }
+
+    /// The file of a document that can be read now: its hash, its path and
+    /// its extension in small letters.
+    fn file_of(&self, content_id: i64) -> Result<Option<(String, PathBuf, String)>, String> {
+        let found: Option<(String, String, String, String)> = self
+            .conn()
+            .query_row(
+                &format!(
+                    "SELECT f.hash, o.location, l.rel_path, l.ext FROM file f
+                     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
+                     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+                     WHERE f.version_id = ?1 AND NOT {}
+                     ORDER BY l.id LIMIT 1",
+                    super::excluded_sql!()
+                ),
+                [content_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let Some((hash, root, rel_path, ext)) = found else {
+            return Ok(None);
+        };
+        Ok(LocalFolderProvider::new(root).local_path(&rel_path).filter(|path| path.is_file()).map(|path| (hash, path, ext.to_lowercase())))
     }
 
     /// Counts the pages each document waiting for recognition needs read,
@@ -447,6 +600,19 @@ impl DocBase {
         }
         Ok(jobs.len())
     }
+}
+
+/// One scan waits for the models of this computer, its reader, with its
+/// failure written down once. Whether it was written now.
+pub(crate) fn scan_without_models(conn: &Connection, content: i64, why: &str, downloading: bool) -> Result<bool, String> {
+    let about = super::failures::About::Version(content);
+    if super::failures::is_open(conn, RECOGNITION_STAGE, &about)? {
+        return Ok(false);
+    }
+    let mut failure = super::failures::Failure::new(RECOGNITION_STAGE, about, why);
+    failure.cause = super::failures::cause(if downloading { "models-downloading" } else { "models-missing" });
+    super::failures::record(conn, &failure)?;
+    Ok(true)
 }
 
 /// Whether a document already read has scanned pages its ficha of shape
@@ -670,55 +836,54 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
     }
 
     #[test]
-    fn the_engine_of_this_computer_reads_the_new_scans_with_the_reading_off_and_leaves_the_asked_ones() {
+    fn with_the_reader_of_this_computer_chosen_the_scans_waiting_are_its_own_with_the_reading_off() {
         let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png")), ("dos.pdf", fixture("escaneo-2-paginas.pdf"))]);
         assert!(!base.background_reading().unwrap());
-        // A person asks for one, with the engine chosen in Ajustes: that one
-        // is not the local engine's.
+        // Nothing chosen: the reader of this computer, by default (D-764).
+        let chosen = super::super::services::recognition_choice(&base.conn()).unwrap().unwrap();
+        assert_eq!(chosen.engine, crate::source_volume::recognition_local::ENGINE);
+        let waiting = [content_of(&base, "uno.png"), content_of(&base, "dos.pdf")];
+        assert!(waiting.contains(&base.next_recognition().unwrap().unwrap()));
+        // A reader in the cloud chosen: with the reading off nothing waiting
+        // is its own; only what a person asks for (D-775).
         base.set_recognition_engine(Some(&engine("m"))).unwrap();
+        assert_eq!(base.next_recognition().unwrap(), None);
         let two = content_of(&base, "dos.pdf");
         assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![two])).unwrap(), 1);
-
-        let local = FakeRecognizer::of("rapidocr-onnx:ppocrv6-small", vec![Ok(NOTE)]);
-        let one = content_of(&base, "uno.png");
-        assert_eq!(base.local_recognition_step(&local, SLOW).unwrap(), RecognitionStep::Recognized(one));
-        assert_eq!(base.local_recognition_step(&local, SLOW).unwrap(), RecognitionStep::Idle);
-        assert_eq!(local.calls(), 1);
-        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
-        assert_eq!(state_of(&base, "dos.pdf"), "needs-recognition");
         assert_eq!(base.next_recognition().unwrap(), Some(two));
-
-        // A document read by the local engine is not read again by itself.
-        let chosen = fake("m", vec![Ok(PAGE_ONE), Ok(PAGE_TWO)]);
-        assert_eq!(run(&base, &chosen), vec![RecognitionStep::Recognized(two)]);
-        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
+        assert_eq!(base.reader_for(two).unwrap(), Some(engine("m")));
     }
 
+    /// In place of the test that said the opposite (that what a person asks
+    /// for is read by the reader of this computer and never in the cloud,
+    /// D-721): it is read with the reader chosen in Ajustes, which may be in
+    /// the cloud (D-764), and it keeps it.
     #[test]
-    fn a_scan_asked_for_is_read_by_the_engine_of_the_configuration_and_never_in_the_cloud() {
+    fn a_scan_asked_for_is_read_with_the_reader_chosen_in_ajustes_even_in_the_cloud() {
         let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png"))]);
-        // A cloud engine chosen before the configuration had only one (D-721).
         base.set_recognition_engine(Some(&engine("m"))).unwrap();
-        turn_reading_on(&base);
         let one = content_of(&base, "uno.png");
         assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![one])).unwrap(), 1);
-        // Nothing asks the model for a scan (there is no thread that asks
-        // any more: the loop of the process reads it with the reader of
-        // this computer; the stage of the reader chosen in Ajustes, E2,
-        // changes it).
-        assert_eq!(state_of(&base, "uno.png"), "needs-recognition");
         assert_eq!(requested_recognitions(&base.conn()).unwrap(), vec![one]);
-        // The thread of this computer reads it, what a person asked first,
-        // with the engine of the configuration.
-        let local = FakeRecognizer::of("rapidocr-onnx:ppocrv6-small", vec![Ok(NOTE)]);
-        assert_eq!(base.recognition_step(&local, SLOW).unwrap(), RecognitionStep::Recognized(one));
-        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
+        // Ajustes changes afterwards: the request keeps the reader it was
+        // made with, and nobody else takes it.
+        base.set_recognition_engine(None).unwrap();
+        assert_eq!(base.reader_for(one).unwrap(), Some(engine("m")));
+        let chosen = fake("m", vec![Ok(NOTE)]);
+        assert_eq!(base.recognition_step(&chosen, SLOW).unwrap(), RecognitionStep::Recognized(one));
+        assert_eq!(text_of(&base, "uno.png").1, "codex-cli:m");
         assert!(requested_recognitions(&base.conn()).unwrap().is_empty());
+        // Done: its reader is no longer kept.
+        assert_eq!(base.reader_of_request(one).unwrap(), None);
     }
 
     #[test]
     fn without_an_engine_nothing_is_asked_for() {
         let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png"))]);
+        // A reader the base cannot run, left by an old base.
+        base.conn()
+            .execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES ('recognition-engine', '{\"engine\":\"nada\",\"model\":\"\"}')", [])
+            .unwrap();
         assert!(base.request_recognition(&RecognitionRequest::AllWaiting).is_err());
         let progress = base.progress(&Scope::default()).unwrap();
         let stage = progress.stages.iter().find(|s| s.id == "recognition").unwrap();

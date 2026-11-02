@@ -121,6 +121,10 @@ pub const CAUSES: &[Cause] = &[
     // 1 nov): being downloaded, or with no way to download them.
     c("models-downloading", Transient, Item),
     c("models-missing", Permanent, Item),
+    // Not a failure: the reader of the scans went back once to the one of
+    // this computer (D-775, point 1); Atención tells it until a person
+    // sees it.
+    c("reader-back-to-local", Unknown, Item),
     // The model: its limit, quota or 429; no connection or no answer in
     // time; the engine not installed or not starting; the credential.
     c("rate-limit", Transient, Engine),

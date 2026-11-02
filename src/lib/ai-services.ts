@@ -58,10 +58,12 @@ export interface ServiceSettings {
 }
 
 /**
- * The registry from the settings of before it, so opening the app changes
- * nothing: the base read and the chat answered with the model chosen in
- * Ajustes; the base asked and recognized scans with it only when it was the
- * Codex CLI; the research used the active web search.
+ * The registry from the settings of before it: the base read and the chat
+ * answered with the model chosen in Ajustes; the base asked with it only
+ * when it was the Codex CLI; the research used the active web search. The
+ * scans get no reader here (E2 of 2 nov, D-764): without one chosen they
+ * are read by the one of this computer, the one by default; Codex is never
+ * put as their reader because it asks the questions.
  */
 export function servicesFromSettings(settings: Pick<ServiceSettings, "llmConfig" | "activePresetId" | "searchApiConfig">): AiServices {
   const { llmConfig, activePresetId } = settings
@@ -75,9 +77,7 @@ export function servicesFromSettings(settings: Pick<ServiceSettings, "llmConfig"
         reasoning: codex ? codexReasoningEffort(llmConfig.codexReasoningEffort) : "",
       }
     : null
-  const recognize: EngineChoice | null = codex
-    ? { engine: "codex-cli", connection: connection ?? "codex-cli", model: llmConfig.model.trim(), reasoning: "" }
-    : null
+  const recognize: EngineChoice | null = null
   const provider = settings.searchApiConfig.provider
   const research: EngineChoice | null =
     provider && provider !== "none" ? { engine: provider, connection: provider, model: "", reasoning: "" } : null
@@ -97,11 +97,31 @@ export function askConfigOf(services: AiServices): AskConfig | null {
     : { engine: "codex-cli", model: choice.model }
 }
 
-/** What the base recognizes scans with (as `services::recognition_engine`); null when it cannot. */
-export function recognitionConfigOfServices(services: AiServices): RecognitionConfig | null {
+/**
+ * The reader the base reads scans with (as `services::recognition_choice`):
+ * the one of «Reconocer escaneos» when the base can run it; with none
+ * chosen, the one the catalog marks by default (the one of this computer).
+ * Null when the base cannot run the one chosen.
+ */
+export function recognitionConfigOfServices(services: AiServices, catalog: EnginesCatalog | null): RecognitionConfig | null {
   const choice = services.recognize.engine
-  if (choice?.engine !== "codex-cli" && choice?.engine !== "core") return null
-  return { engine: choice.engine, model: choice.model }
+  // Before the catalog is read, the choice as it is (the base checks it).
+  if (!catalog) return choice ? { engine: choice.engine, model: choice.model } : null
+  const entry = choice
+    ? catalogEngine(catalog, "recognize", choice.engine)
+    : catalog?.engines.find((engine) => engine.service === "recognize" && engine.byDefault) ?? null
+  if (!entry?.inBase) return null
+  return { engine: entry.id, model: (choice?.model || entry.defaultModel || "").trim() }
+}
+
+/** The reader of «Leer con IA» (as `services::ai_reading_engine`): the alternative of «Reconocer escaneos» in the cloud, or the principal when it is in the cloud. */
+export function aiReadingConfigOfServices(services: AiServices, catalog: EnginesCatalog | null): RecognitionConfig | null {
+  for (const choice of [services.recognize.alternative, services.recognize.engine]) {
+    const entry = choice ? catalogEngine(catalog, "recognize", choice.engine) : null
+    // Never the one by default, the one of this computer: it already read it.
+    if (choice && entry?.inBase && !entry.byDefault) return { engine: entry.id, model: choice.model || entry.defaultModel || "" }
+  }
+  return null
 }
 
 /**

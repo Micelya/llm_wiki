@@ -1046,12 +1046,51 @@ pub fn docbase_recognize_text(
         (None, false) => RecognitionRequest::AllWaiting,
     };
     let base = state.base()?;
-    // The engine is the one of the configuration (D-721): the person does
-    // not choose it here. Without its models the scan waits with its failure.
-    if base.recognition_engine()?.is_none() {
-        return Err("El lector de escaneos de esta computadora no está disponible: faltan sus modelos. Los escaneos esperan, con su falla en Atención.".to_string());
+    // The reader is the one chosen in Ajustes (D-764): the person does not
+    // choose it here, and the notice names it.
+    if let Some(why) = reader_not_ready(&base)? {
+        return Err(why);
     }
     let asked = base.request_recognition(&which)?;
+    state.wake.request();
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(asked)
+}
+
+/// Why the reader of the scans chosen in Ajustes cannot read now, in the
+/// words of the screen, naming it; `None` when it can (a reader in the
+/// cloud without its connection says so when it reads, in Atención).
+fn reader_not_ready(base: &DocBase) -> Result<Option<String>, String> {
+    let conn = base.conn();
+    let Some(chosen) = super::services::recognition_choice(&conn)? else {
+        return Ok(Some(
+            "La base no puede leer escaneos con el lector elegido en Ajustes → Servicios de IA → Reconocer escaneos: elegí otro.".to_string(),
+        ));
+    };
+    if super::services::is_local(&chosen.engine) && crate::source_volume::recognition_local::unavailable().is_some() {
+        return Ok(Some(
+            "El lector elegido, el de esta computadora, no está disponible: faltan sus modelos. Los escaneos esperan, con su falla en Atención; si querés, elegí otro lector en Ajustes → Servicios de IA → Reconocer escaneos."
+                .to_string(),
+        ));
+    }
+    Ok(None)
+}
+
+/// «Leer con IA» (E2 point 6): what reading this document with the reader
+/// of AI chosen would cost (its reader and its pages, each a question),
+/// said before a person asks. Reads only.
+#[tauri::command(async)]
+pub fn docbase_ai_reading_cost(state: State<'_, DocBaseState>, content_id: i64) -> Result<super::recognize::AiReadingCost, String> {
+    state.base()?.ai_reading_cost(content_id)
+}
+
+/// «Leer con IA»: a person asks to read this document with the reader of
+/// AI chosen in Ajustes, after seeing its cost. A request like any other:
+/// the process reads it in its step of the scans, waiting only for its own
+/// document. Returns 1 when asked, 0 when there was nothing to read.
+#[tauri::command(async)]
+pub fn docbase_read_with_ai(app: tauri::AppHandle, state: State<'_, DocBaseState>, content_id: i64) -> Result<usize, String> {
+    let asked = state.base()?.request_ai_reading(content_id)?;
     state.wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(asked)

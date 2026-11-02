@@ -74,11 +74,16 @@ pub(crate) fn window_held_sql() -> String {
     crate::docbase::failures::holds_any_sql(crate::docbase::failures::CUT_QUESTION_STAGE, "w.resource_hash || '#v' || w.first_page")
 }
 
+/// The app as it comes reads every PDF by zones (`docbase/structure`,
+/// D-746): the value of `ZONES_READING` when it is not written.
+pub const ZONES_READING_IN_THE_APP: &str = "on";
+
 /// Whether a reading by zones is coming when the setting is not written:
-/// the app reads every PDF by zones (`docbase/structure`, D-746); the
-/// unit tests of the cut of before, made without the model of zones, say
-/// so when they need it.
-const ZONES_READING_BY_DEFAULT: &str = if cfg!(test) { "off" } else { "on" };
+/// in the app, `ZONES_READING_IN_THE_APP`; the unit tests of the cut of
+/// before, made without the model of zones, are compiled with it off and
+/// say so when they need it. The control run, compiled as a test, writes
+/// the value of the app (`worker_control.rs`), never one of its own.
+const ZONES_READING_BY_DEFAULT: &str = if cfg!(test) { "off" } else { ZONES_READING_IN_THE_APP };
 
 /// SQL over a file `f` without its reading by zones: one is coming
 /// (`ZONES_READING`). Also when its reading failed: the file waits with its
