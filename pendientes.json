@@ -4767,9 +4767,9 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "reconocimiento",
-      "detalle": "D-721 lo mantiene (D-670, D-705). Hoy la app no tiene un camino propio: se hacía eligiendo otro motor de escaneo, y eso se sacó. Falta una acción en el documento, conducida por una persona, que lea con el motor de «Preguntar al modelo», y que espere la barrera. Llega con «no legible», cuando la lectura por franjas entre a la app. 2026-11-01: Es una acción propia del documento, distinta del lector de escaneos (D-764), y una de las excepciones del proceso único (D-765): ya no espera la barrera, que se retira.",
+      "detalle": "D-721 lo mantiene (D-670, D-705). Hoy la app no tiene un camino propio: se hacía eligiendo otro motor de escaneo, y eso se sacó. Falta una acción en el documento, conducida por una persona, que lea con el motor de «Preguntar al modelo», y que espere la barrera. Llega con «no legible», cuando la lectura por franjas entre a la app. 2026-11-01: Es una acción propia del documento, distinta del lector de escaneos (D-764), y una de las excepciones del proceso único (D-765): ya no espera la barrera, que se retira. 2026-11-02: La etapa E2 hizo «Leer con IA»: un pedido de una persona con el lector de IA elegido en Ajustes, con el costo antes, que el proceso lee en el paso del escaneo (D-789). Lo que falta está en P-602.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-546",
@@ -5238,6 +5238,30 @@
       "prioridad": 2,
       "tema": "base",
       "detalle": "Después de la etapa E4 del 2 nov (D-784): (1) la lectura de entidades cuya respuesta no tiene la forma pedida sigue quedando como «lectura fallida», fuera del registro de fallas; no se reintenta sola y se reintenta con «Leer de nuevo»: unificarla con el registro; (2) el corte de antes, que solo corre donde no hay lectura por zonas, sigue preguntando solo en los archivos que una regla cortó (D-622): revisar si también tiene que preguntar todo salto dudoso; (3) para la etapa A4: el arnés de la corrida ya maneja el mismo bucle y no cambia ajustes, pero todavía toma el modelo con respuestas guardadas (MICELYA_ASK_CACHE); hay que sacarlo para las corridas y sumar los guiones de antes y de después; los ajustes que una corrida necesite distintos van en MICELYA_CONTROL_SETTINGS, a la vista.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-602",
+      "titulo": "Que el botón «Leer con IA» aparezca según la proporción de palabras seguras y la marca de no legible",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "La etapa E2 del 2 nov dejó «Leer con IA» (decisión D-789) en la pantalla de cada documento que viene de un escaneo, con el costo antes. Falta que aparezca, o se destaque, según la proporción de palabras seguras del documento y la marca de no legible, cuando la etapa de la proporción la guarde por documento. También falta que el texto leído así quede marcado «leído por IA a pedido» (D-670) además del nombre del lector, y que la lectura de un documento que es una parte de un PDF cortado lea solo sus páginas: hoy lee las páginas escaneadas de todo el archivo.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-603",
+      "titulo": "Que la confianza de Codex y de Micelya Core entre en las mismas franjas que la del lector local",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "Con el lector elegido en Ajustes (decisión D-788), el texto de un escaneo es el del lector elegido. Lo asumido del plan corregido dice que con Codex o Core su confianza se lleva a las mismas franjas que la del lector local (firme, aproximada, descartada). Hoy Core guarda las palabras dudosas aparte y Codex marca «[ilegible]», pero ninguno entra a las franjas: lo hace la etapa E1 para el lector local. Falta llevar la confianza de Core (por palabra) y la marca de Codex a las franjas, para que lo aproximado de esos lectores tampoco dé datos.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
