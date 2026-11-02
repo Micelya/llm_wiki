@@ -5504,6 +5504,30 @@
       "detalle": "La corrida de control larga (A5) mide el tipo heredado de los documentos que llegan a mitad de la corrida contra la hoja provisoria de tipos y por su fuente (heredado de la familia o preguntado). Compararlo además contra una carga de toda la carpeta de una vez pide una segunda corrida entera, de unas 860 consultas, que no está en el presupuesto de la tanda: queda para cuando el dueño lo decida. La prueba corta de A4 probó el vigilante con un solo archivo; la mitad de la carpeta (unos 60 archivos de una vez) se prueba recién en A5.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-631",
+      "titulo": "Repetir la prueba chica desde cero con el arreglo 1, y mirar lo que la primera vuelta no llegó a hacer",
+      "tipo": "prueba",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "proceso",
+      "detalle": "La prueba chica del 2 nov (4 archivos) no terminó: quedó en el paso de la identidad con 96 pendientes que su operación no tomaba, y las páginas (108) no llegaron. El arreglo 1 (D-812) corrigió la causa en el código: la regla de las vueltas atrás apartaba documentos por el proceso que avanza, y la identidad y las páginas contaban como pendientes las preguntas retenidas por una falla. Falta: correr la prueba chica otra vez entera, desde cero, en carpetas nuevas (origen2 y salida2), con el commit del arreglo, y que termine con «done». Mirar: que no aparezca ningún aviso de un paso que cuenta trabajo que no toma (la falla 'thread' de 'process/…' en Atención); cuántos documentos vuelven a parecidos y que ninguno quede apartado por volver atrás; las páginas escritas, ahora que llegan; las 3 entidades repetidas que se vieron en lo que alcanzó a hacerse (una era una pregunta de identidad retenida, que ahora sale); los 4 pares de relaciones al revés que quedaron en conflicto para Atención; y los 24 documentos de confianza baja de 95 (uno de cada cuatro), que no aportan a la identidad ni a las páginas. Recién si pasa se va a la corrida larga.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-632",
+      "titulo": "Lo que quedó del arreglo 1 de la prueba chica: la lectura que espera un tipo retenido, el aviso en la pantalla y otros casos de la misma clase",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "proceso",
+      "detalle": "El arreglo 1 (D-812) hizo que la cuenta de cada paso y su operación digan lo mismo en la identidad, las páginas y la lectura, y que un paso que cuenta trabajo que no toma avise siempre; una prueba lo comprueba en cada prueba que corre el bucle hasta que para (process/run_tests.rs, nothing_counted_that_is_not_taken). Quedan: 1) Un documento cuyo tipo, corte o firma retiene una falla queda sin leer, apartado, hasta que una persona la resuelve: el dueño puede preferir que se lea sin la pista del tipo, porque la lectura no depende del tipo para guardarse (knowledge/extract.rs, waiting_before_reading, renglón 2830). 2) Que la pantalla de «En curso» y Atención muestren bien el aviso nuevo de los pasos de preguntas (el texto de 'thread' 'process/<paso>' y la causa 'program-error'; process/run.rs, set_aside, renglón 459), visto en la app. 3) En la lectura, un texto que se vuelve a escribir igual se actualiza sin contarse como trabajo (knowledge/extract.rs, renglón 2891, y process/run.rs, el paso 16 en operate): puede dar el aviso una vuelta de más; corregir que cuente. 4) La cuenta de las vueltas en círculo vive en la memoria de la app, como antes (D-785): al abrirla empieza de cero. 5) Revisar con la misma prueba los pasos que todavía no tienen una situación de prueba que los ponga en ese caso (el corte con una pregunta retenida, las plantillas).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
     }
   ]
 }
