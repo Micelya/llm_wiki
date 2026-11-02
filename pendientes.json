@@ -4848,12 +4848,12 @@
       "titulo": "Documentos con texto y lectura, pero sin tipo, porque la firma de parecidos les cuenta menos de 10 palabras",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "En la corrida de control quedaron sin tipo 13 de 297 documentos de la carpeta. Diez son partidas escaneadas de un mismo archivo, con 52 a 193 palabras de texto pero 0 en la firma; otros dos son una constancia de firma cuyas páginas saltea su marca. La app no pregunta el tipo por debajo de 10 palabras en la firma (MIN_TYPE_WORDS). Lo probable, sin comprobar, es que todo su texto sea aproximado y la firma no lo cuente. Hay que comprobarlo y decidir si el tipo debe usar otra cuenta, o la marca cuando ya dice el tipo. Consultas de producción por documento (D-672): hasta +0,04 si esos documentos se preguntan. 2026-11-01: La causa real, vista en el código y en la base de la corrida de control, sin la IA: en 10 de los 13, el bloque de campos de formulario se traga el texto escaneado que sigue en la página (`docbase/similar/text.rs:52`), así que la firma cuenta 0 palabras aunque tienen entre 10 y 64 palabras seguras, y el mismo error los deja sin compararse con nada. Los otros 3: una página casi ilegible (3 palabras seguras de 137), una constancia de firma cuya página se saltea a propósito en la firma de parecidos, y una página que sale de un corte errado. Lo que se hace: arreglar el error y recalcular las firmas en el equipo; guardar la proporción de palabras seguras de cada documento; sacar el número fijo, para que se pregunte todo documento con al menos una palabra; y la marca «tipo de confianza baja», de la que no sale nada para ningún proceso (D-769, D-775).",
+      "detalle": "En la corrida de control quedaron sin tipo 13 de 297 documentos de la carpeta. Diez son partidas escaneadas de un mismo archivo, con 52 a 193 palabras de texto pero 0 en la firma; otros dos son una constancia de firma cuyas páginas saltea su marca. La app no pregunta el tipo por debajo de 10 palabras en la firma (MIN_TYPE_WORDS). Lo probable, sin comprobar, es que todo su texto sea aproximado y la firma no lo cuente. Hay que comprobarlo y decidir si el tipo debe usar otra cuenta, o la marca cuando ya dice el tipo. Consultas de producción por documento (D-672): hasta +0,04 si esos documentos se preguntan. 2026-11-01: La causa real, vista en el código y en la base de la corrida de control, sin la IA: en 10 de los 13, el bloque de campos de formulario se traga el texto escaneado que sigue en la página (`docbase/similar/text.rs:52`), así que la firma cuenta 0 palabras aunque tienen entre 10 y 64 palabras seguras, y el mismo error los deja sin compararse con nada. Los otros 3: una página casi ilegible (3 palabras seguras de 137), una constancia de firma cuya página se saltea a propósito en la firma de parecidos, y una página que sale de un corte errado. Lo que se hace: arreglar el error y recalcular las firmas en el equipo; guardar la proporción de palabras seguras de cada documento; sacar el número fijo, para que se pregunte todo documento con al menos una palabra; y la marca «tipo de confianza baja», de la que no sale nada para ningún proceso (D-769, D-775). 2026-11-02: Etapa E3: arreglado el error de los formularios en sus tres lugares (la firma de parecidos, las citas y los números de página); ya no existe la regla de las 10 palabras: todo documento con al menos una palabra se pregunta, con una sola cuenta para el tipo, la lectura y «En curso» (D-786). Falta verlo en la prueba chica: ningún documento leído sin tipo. En el archivo real de las partidas, con el texto de la etapa E1, las páginas con campos de formulario que se vuelven a leer por zonas reemplazan su sección entera, campos incluidos, así que ahí el error ya no aparecía: el arreglo cubre las páginas con campos que se leen sin reemplazar su sección. Los campos de esas páginas siguen guardados aparte en la base (los campos del documento), pero ya no están en su texto: mirarlo en la prueba chica.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-571",
@@ -5198,10 +5198,10 @@
       "titulo": "Que la regla nueva del tipo aparte los documentos de tipo de confianza baja en los pasos posteriores al tipo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "Decisión 5 del 2 nov: lo que sale de un documento de tipo de confianza baja no se usa en ningún proceso ni para información derivada. La etapa A1 dejó el lugar: la función low_confidence de docbase/process/steps.rs (hoy vacía) y la marca after_the_type en los pasos 13 a 18. La etapa B la llena: los datos del tipo, los nombres de los campos de las plantillas y la lectura de entidades (pasos 13, 14 y 15) ya apartan por documento lo que esa función devuelva; la identidad, los asuntos y las páginas (pasos 16, 17 y 18) tienen que filtrar lo que toman de esos documentos (sus menciones, sus partes, lo que muestran), porque su elemento no es un documento.",
+      "detalle": "Decisión 5 del 2 nov: lo que sale de un documento de tipo de confianza baja no se usa en ningún proceso ni para información derivada. La etapa A1 dejó el lugar: la función low_confidence de docbase/process/steps.rs (hoy vacía) y la marca after_the_type en los pasos 13 a 18. La etapa B la llena: los datos del tipo, los nombres de los campos de las plantillas y la lectura de entidades (pasos 13, 14 y 15) ya apartan por documento lo que esa función devuelva; la identidad, los asuntos y las páginas (pasos 16, 17 y 18) tienen que filtrar lo que toman de esos documentos (sus menciones, sus partes, lo que muestran), porque su elemento no es un documento. 2026-11-02: Etapa E3: hecho. Un documento de confianza baja queda apartado, con su motivo, de los datos del tipo, los campos de las plantillas, la lectura, la identidad, los asuntos y las páginas, y no da ni toma el tipo de una familia (D-787). Falta verlo en la prueba chica.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     },
@@ -5282,10 +5282,34 @@
       "titulo": "Que la proporción de palabras seguras y la regla de las palabras usen la misma cuenta que la extracción: solo las palabras firmes",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "reconocimiento",
-      "detalle": "Desde la etapa E1 del 2 nov (decisión D-806), la cantidad de palabras de un documento (la que mira la extracción) cuenta solo las palabras de su texto firme, y la firma de parecidos (la que mira el tipo) cuenta también las aproximadas, como señal. La etapa E3 (la proporción de palabras seguras y el fin de la regla de las 10 palabras) tiene que tomar esto en cuenta: la proporción sale de las franjas de la lectura por zonas, que ahora existe también para los PDF de una página y las imágenes. Además, quedan con lo aproximado como señal dos pasos que la especificación de E1 no nombraba: los datos clave de la comparación de versiones y los campos de las plantillas. Conviene mirar en la prueba chica si alguno de los dos tendría que leer solo lo firme.",
+      "detalle": "Desde la etapa E1 del 2 nov (decisión D-806), la cantidad de palabras de un documento (la que mira la extracción) cuenta solo las palabras de su texto firme, y la firma de parecidos (la que mira el tipo) cuenta también las aproximadas, como señal. La etapa E3 (la proporción de palabras seguras y el fin de la regla de las 10 palabras) tiene que tomar esto en cuenta: la proporción sale de las franjas de la lectura por zonas, que ahora existe también para los PDF de una página y las imágenes. Además, quedan con lo aproximado como señal dos pasos que la especificación de E1 no nombraba: los datos clave de la comparación de versiones y los campos de las plantillas. Conviene mirar en la prueba chica si alguno de los dos tendría que leer solo lo firme. 2026-11-02: Etapa E3: resuelto de otra manera (D-786). La cantidad de palabras de un documento vuelve a contar todas las de su texto, firmes y aproximadas, y es la única cuenta para preguntar; lo que deja afuera lo leído con poca seguridad es la proporción de palabras seguras, contada sobre la lectura por zonas, con las descartadas.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-600",
+      "titulo": "Que la proporción de palabras seguras cuente también las palabras descartadas cuando el texto lo da Micelya Core, y que diga algo con Codex",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
+      "detalle": "Desde la etapa E3 del 2 nov (decisión D-786), la proporción de palabras seguras es lo firme sobre todo lo leído, y las palabras descartadas salen de la lectura por zonas del lector de esta computadora. Cuando el texto lo da Micelya Core, sus renglones descartados no se guardan, así que la proporción sale más alta que la real; con Codex no hay confianza y todo cuenta como firme (pendiente P-603). La base de la corrida usa el lector local, así que no afecta la medición. Falta guardar las descartadas de Core junto a su lectura y decidir qué vale la proporción con Codex.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-601",
+      "titulo": "Que las pantallas muestren la confianza baja de un documento y los dos umbrales, y digan «sin texto» al que no tiene palabras",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pantallas",
+      "detalle": "Desde la etapa E3 del 2 nov (decisiones D-786 y D-787), cada documento tiene su proporción de palabras seguras y la marca de confianza baja se calcula al mirar. Hoy solo «En curso» lo dice, en la lista de la lectura de entidades, con el motivo. Falta: en la pantalla del documento, junto al tipo, «confianza baja: 29 % de palabras seguras»; en Documentos, un filtro por esa marca; en Ajustes, los dos umbrales (el del tipo de confianza baja y el de «no legible»), que ya están en la configuración; y que un documento sin ninguna palabra aparezca como «sin texto», con «Leer con IA» (D-775). Es de la etapa P.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
