@@ -5438,10 +5438,10 @@
       "titulo": "La etapa de la pista: con la pista encendida, el tipo de un documento espera a su vector, y los de confianza baja no son ejemplo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "La etapa C1 del 2 nov (D-796 y D-797) guarda un vector por documento, pero nada los usa todavía, así que el tipo no espera a ellos. La etapa C2 los usa como pista del tipo y tiene que: 1) con la pista encendida, que el tipo de un documento espere a su vector cuando el paso de vectores está apartado por una falla de Core (la opción a del entendido de la etapa C: la IA nunca se saltea); con la pista apagada, que no espere; 2) no tomar como ejemplo a los documentos de tipo de confianza baja (tienen vector, para consultas), con el filtro de `low_confidence`; 3) leer los vectores de la base en cada búsqueda (`vectors::vector_of` lee uno; falta leerlos todos de una vez para buscar vecinos), y tenerlos en memoria recién pasados unos 5.000 documentos (P-611).",
+      "detalle": "La etapa C1 del 2 nov (D-796 y D-797) guarda un vector por documento, pero nada los usa todavía, así que el tipo no espera a ellos. La etapa C2 los usa como pista del tipo y tiene que: 1) con la pista encendida, que el tipo de un documento espere a su vector cuando el paso de vectores está apartado por una falla de Core (la opción a del entendido de la etapa C: la IA nunca se saltea); con la pista apagada, que no espere; 2) no tomar como ejemplo a los documentos de tipo de confianza baja (tienen vector, para consultas), con el filtro de `low_confidence`; 3) leer los vectores de la base en cada búsqueda (`vectors::vector_of` lee uno; falta leerlos todos de una vez para buscar vecinos), y tenerlos en memoria recién pasados unos 5.000 documentos (P-611). 2026-11-02: La etapa C2 (D-798, D-799) lo hizo: con la pista encendida el tipo espera a su vector mientras una falla de Core retiene el paso de los vectores, y con la pista apagada no espera; los documentos de confianza baja no son vecinos, ni ejemplo, ni van en un grupo; y los vectores se leen todos de una vez en cada pasada del tipo. Probado con datos armados; falta verlo en la corrida de control (P-614). Tenerlos en memoria pasados unos 5.000 documentos sigue en P-611 y P-615.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     },
@@ -5454,6 +5454,30 @@
       "prioridad": 3,
       "tema": "base",
       "detalle": "Dos cosas que deja la etapa C1 del 2 nov (D-796). 1) Si Core rechaza la credencial, la falla del paso de vectores no se reintenta sola y espera a una persona; hoy se va solo eligiendo otro motor en «Calcular vectores». Falta que guardar de nuevo la conexión de Core en Ajustes → Conexiones también la saque (lo mismo pasa con los escaneos leídos con Core). Sin la conexión cargada la falla es pasajera y se reintenta sola. 2) La prueba real de C1 fue con dos textos inventados; falta medir en la corrida de control larga (A5) cuántas llamadas hace el paso, cuánto tarda y si alguna falla, con la carpeta entera y desde cero.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-614",
+      "titulo": "Medir en la corrida de control la pista del tipo, con y sin ella, los grupos por parecido y la marca de tipo dudoso",
+      "tipo": "prueba",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "La etapa C2 del 2 nov (D-798, D-799) dejó la pista de los 3 vecinos, los grupos por parecido (0,85), la marca de tipo dudoso y la sugerencia para los documentos sin tipo, probados solo con datos armados: por la regla desde cero no se cargaron los vectores de la medición anterior en ninguna base. Falta medirlos en la corrida de control larga (A5), desde cero: 1) con la orden del arnés `the_type_without_the_hint`, los aciertos del tipo con la pista y sin ella contra la hoja provisoria de tipos, y los casos en que la pista cambió la respuesta, a mejor y a peor, separando los documentos que fueron en un grupo (ahí se mezclan el grupo y la pista); 2) cuántas preguntas de tipo restan los grupos y qué tan puros salen contra la hoja; 3) cuántos tipos quedan marcados como dudosos y cuántos de ellos están mal de verdad; 4) si hace falta un piso de parecido para la pista (la medición anterior observó que debajo de 0,65 la pista no sirve) y si el peso de 0,5 de los tipos propuestos alcanza. Con eso el dueño decide si la pista queda encendida (D-805).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-615",
+      "titulo": "Lo que quedó afuera de la pista del tipo: los botones del tipo dudoso, los vectores en memoria y volver a preguntar lo que tuvo pista",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Cuatro cosas que deja la etapa C2 del 2 nov (D-798, D-799). 1) Un tipo dudoso y una sugerencia para un documento sin tipo se ven en Atención, pero sin botones para confirmar o cambiar el tipo ahí mismo (como P-532); hoy un tipo propuesto se confirma o rechaza en la revisión de tipos, y uno del catálogo no tiene cómo corregirse desde la pantalla. 2) El paso del tipo lee todos los vectores de la base cada vez que arma las preguntas que faltan; pasados unos 5.000 documentos conviene tenerlos en memoria (P-611). 3) Apagar la pista no vuelve a preguntar lo que ya se clasificó con ella, a propósito, para no sumar consultas: si la corrida de control dice que la pista empeora el tipo, hace falta una forma de volver a preguntar solo los tipos que tuvieron pista. 4) Con la lectura automática apagada y un pedido de tipos de una persona, el documento sin vector no espera a Core y se pregunta sin pista; con ella encendida y Core andando, el paso de los vectores va antes del tipo.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
