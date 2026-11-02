@@ -4728,12 +4728,12 @@
       "titulo": "La pantalla de configuración de los umbrales",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "Los umbrales ya son ajustes de la base con su valor por omisión y tienen sus órdenes para leerlos y guardarlos (docbase_thresholds y docbase_set_thresholds), pero no tienen su lugar en la pantalla de Ajustes: el bajo y el alto de la lectura, la calidad, el indicador de fallas, el tope de la ronda y las esperas de los reintentos. La etapa 2b del 1 nov llegó a su tope de fichas.",
+      "detalle": "Los umbrales ya son ajustes de la base con su valor por omisión y tienen sus órdenes para leerlos y guardarlos (docbase_thresholds y docbase_set_thresholds), pero no tienen su lugar en la pantalla de Ajustes: el bajo y el alto de la lectura, la calidad, el indicador de fallas, el tope de la ronda y las esperas de los reintentos. La etapa 2b del 1 nov llegó a su tope de fichas. 2026-11-02: Hecho en la etapa P del 2 nov (decisión D-790): Ajustes → Umbrales, con los diez umbrales de la base, qué decide cada uno con un ejemplo, si es provisorio, su valor por omisión y qué pasa al cambiarlo antes de guardar. Se verifica con la base de la prueba chica (P-605).",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-543",
@@ -4752,12 +4752,12 @@
       "titulo": "La tabla de «no legible»: cuántos documentos quedan de cada lado con cada valor",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "Con un guion sobre las lecturas guardadas de la corrida N, sin consultas: para los documentos de la carpeta de prueba, la proporción de texto firme de cada uno y cuántos quedan de cada lado con cada valor posible del umbral. Se recomienda el que más proteja contra dar datos de texto mal leído y se registra el valor (hoy 0,5 provisional, D-741).",
+      "detalle": "Con un guion sobre las lecturas guardadas de la corrida N, sin consultas: para los documentos de la carpeta de prueba, la proporción de texto firme de cada uno y cuántos quedan de cada lado con cada valor posible del umbral. Se recomienda el que más proteja contra dar datos de texto mal leído y se registra el valor (hoy 0,5 provisional, D-741). 2026-11-02: Hecho en la etapa P del 2 nov (decisión D-790): la pantalla «Calidad de la lectura», con la lista, los conteos de documentos y páginas debajo de cada valor y «Leer con IA» en cada documento. Falta elegir los valores con datos (P-605) y lo que sigue en P-604.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-545",
@@ -5138,12 +5138,12 @@
       "titulo": "Las partes de un archivo compuesto no tienen página en la wiki, y sus enlaces llevan a la página del archivo, que dice «todavía no se leyó»",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "páginas",
-      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4 de la tanda del 2 nov). Un archivo cortado en partes (por ejemplo, una digitalización de 93 páginas con 74 documentos, o un escrito con 3 partidas) tiene una sola página de documento, la del archivo entero, y esa página dice «Este documento todavía no se leyó: la app arma esta página cuando lo lea», aunque la lista lo muestra como procesado y la misma página dice «Lo escribió la app hace 15 h». Las páginas de personas y de casos enlazan las partes como «archivo, pág. 3»; el enlace lleva a esa misma página vacía, no a la parte. En la base hay 132 páginas de documento para 296 documentos leídos. Para un usuario, todo lo que sale de los escaneos compuestos (la mayor parte de la sucesión) no tiene dónde verse. Arreglo: una página por documento real (cada parte), con su tipo, su resumen y sus datos, y que el archivo compuesto muestre la lista de sus partes con enlaces. Consultas de producción por documento (D-672): igual, si la página de la parte usa lo que ya se extrajo; si se escribe un resumen por parte con la IA, suma una por parte, y eso necesita una decisión del dueño.",
+      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4 de la tanda del 2 nov). Un archivo cortado en partes (por ejemplo, una digitalización de 93 páginas con 74 documentos, o un escrito con 3 partidas) tiene una sola página de documento, la del archivo entero, y esa página dice «Este documento todavía no se leyó: la app arma esta página cuando lo lea», aunque la lista lo muestra como procesado y la misma página dice «Lo escribió la app hace 15 h». Las páginas de personas y de casos enlazan las partes como «archivo, pág. 3»; el enlace lleva a esa misma página vacía, no a la parte. En la base hay 132 páginas de documento para 296 documentos leídos. Para un usuario, todo lo que sale de los escaneos compuestos (la mayor parte de la sucesión) no tiene dónde verse. Arreglo: una página por documento real (cada parte), con su tipo, su resumen y sus datos, y que el archivo compuesto muestre la lista de sus partes con enlaces. Consultas de producción por documento (D-672): igual, si la página de la parte usa lo que ya se extrajo; si se escribe un resumen por parte con la IA, suma una por parte, y eso necesita una decisión del dueño. 2026-11-02: La etapa P del 2 nov (decisión D-790) hizo que la página de un archivo compuesto liste sus documentos con sus páginas, su tipo y lo que resumió su lectura, sin preguntar nada: el enlace «archivo, pág. N» ya no lleva a «todavía no se leyó». Una página escrita por la IA para cada parte sigue esperando la decisión del dueño, porque suma una consulta por parte.",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-592",
@@ -5177,9 +5177,9 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "páginas",
-      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). (1) Las tablas de documentos de las páginas de personas y casos muestran el tipo como código interno, en minúscula y sin tildes («correo electronico», «resolucion judicial», «escrito inicio sucesion intestada»), mientras la lista de Documentos usa el nombre bien escrito. (2) La lista de tipos propuestos tiene nombres repetidos (dos «Acta de defunción», dos «Oficio judicial electrónico») y casi iguales («Acta» y «Partida» de defunción, «Providencia» y «Proveído» judicial), y las plantillas se llaman «Carta documento (2)» y «(3)» sin decir en qué difieren. (3) Los nombres de caso usan «entre A y B» donde no hay dos partes (una sucesión «entre» la madre y el hijo fallecidos), hay dos casos con el mismo nombre y un «Caso sin nombre» que junta dos copias de la misma escritura. (4) Los títulos largos (el nombre de archivo de un compuesto) se parten en una columna angosta junto a los botones. (5) Alias que no son nombres: la línea de lectura mecánica de un pasaporte, el nombre de un área de una empresa, un apellido solo; y personas con el apellido primero o pegado («Dr.nombreapellido»). (6) La pantalla Habilidades lista las habilidades de programación de la máquina, en inglés. (7) El panel de Investigación aprieta la pantalla de abajo en una columna angosta; el Grafo es una nube de cientos de nodos sin filtro; el origen de prueba se muestra como «1»; la lista de Documentos muestra la fecha del archivo y no la del documento. Consultas de producción por documento (D-672): igual.",
+      "detalle": "Visto en la app de revisión con la base de la corrida de control del 1 nov (etapa F4). (1) Las tablas de documentos de las páginas de personas y casos muestran el tipo como código interno, en minúscula y sin tildes («correo electronico», «resolucion judicial», «escrito inicio sucesion intestada»), mientras la lista de Documentos usa el nombre bien escrito. (2) La lista de tipos propuestos tiene nombres repetidos (dos «Acta de defunción», dos «Oficio judicial electrónico») y casi iguales («Acta» y «Partida» de defunción, «Providencia» y «Proveído» judicial), y las plantillas se llaman «Carta documento (2)» y «(3)» sin decir en qué difieren. (3) Los nombres de caso usan «entre A y B» donde no hay dos partes (una sucesión «entre» la madre y el hijo fallecidos), hay dos casos con el mismo nombre y un «Caso sin nombre» que junta dos copias de la misma escritura. (4) Los títulos largos (el nombre de archivo de un compuesto) se parten en una columna angosta junto a los botones. (5) Alias que no son nombres: la línea de lectura mecánica de un pasaporte, el nombre de un área de una empresa, un apellido solo; y personas con el apellido primero o pegado («Dr.nombreapellido»). (6) La pantalla Habilidades lista las habilidades de programación de la máquina, en inglés. (7) El panel de Investigación aprieta la pantalla de abajo en una columna angosta; el Grafo es una nube de cientos de nodos sin filtro; el origen de prueba se muestra como «1»; la lista de Documentos muestra la fecha del archivo y no la del documento. Consultas de producción por documento (D-672): igual. 2026-11-02: La etapa P del 2 nov (decisión D-790) hizo dos cosas de esta lista: los tipos con su nombre y sus tildes en las tablas de personas y casos, y el título largo que ya no queda apretado al lado de los botones; además, el arnés nombra el origen por su carpeta. Lo demás sigue (los tipos propuestos repetidos, los casos, las habilidades y lo de P-604).",
       "creado": "2026-11-01",
-      "actualizado": "2026-11-01"
+      "actualizado": "2026-11-02"
     },
     {
       "id": "P-595",
@@ -5249,7 +5249,7 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "reconocimiento",
-      "detalle": "La etapa E2 del 2 nov dejó «Leer con IA» (decisión D-789) en la pantalla de cada documento que viene de un escaneo, con el costo antes. Falta que aparezca, o se destaque, según la proporción de palabras seguras del documento y la marca de no legible, cuando la etapa de la proporción la guarde por documento. También falta que el texto leído así quede marcado «leído por IA a pedido» (D-670) además del nombre del lector, y que la lectura de un documento que es una parte de un PDF cortado lea solo sus páginas: hoy lee las páginas escaneadas de todo el archivo.",
+      "detalle": "La etapa E2 del 2 nov dejó «Leer con IA» (decisión D-789) en la pantalla de cada documento que viene de un escaneo, con el costo antes. Falta que aparezca, o se destaque, según la proporción de palabras seguras del documento y la marca de no legible, cuando la etapa de la proporción la guarde por documento. También falta que el texto leído así quede marcado «leído por IA a pedido» (D-670) además del nombre del lector, y que la lectura de un documento que es una parte de un PDF cortado lea solo sus páginas: hoy lee las páginas escaneadas de todo el archivo. 2026-11-02: La etapa P del 2 nov puso «Leer con IA» en cada documento de «Calidad de la lectura», con el costo antes, como en la pantalla del documento. Lo demás de este pendiente sigue.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     },
@@ -5306,10 +5306,10 @@
       "titulo": "Que las pantallas muestren la confianza baja de un documento y los dos umbrales, y digan «sin texto» al que no tiene palabras",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "pantallas",
-      "detalle": "Desde la etapa E3 del 2 nov (decisiones D-786 y D-787), cada documento tiene su proporción de palabras seguras y la marca de confianza baja se calcula al mirar. Hoy solo «En curso» lo dice, en la lista de la lectura de entidades, con el motivo. Falta: en la pantalla del documento, junto al tipo, «confianza baja: 29 % de palabras seguras»; en Documentos, un filtro por esa marca; en Ajustes, los dos umbrales (el del tipo de confianza baja y el de «no legible»), que ya están en la configuración; y que un documento sin ninguna palabra aparezca como «sin texto», con «Leer con IA» (D-775). Es de la etapa P.",
+      "detalle": "Desde la etapa E3 del 2 nov (decisiones D-786 y D-787), cada documento tiene su proporción de palabras seguras y la marca de confianza baja se calcula al mirar. Hoy solo «En curso» lo dice, en la lista de la lectura de entidades, con el motivo. Falta: en la pantalla del documento, junto al tipo, «confianza baja: 29 % de palabras seguras»; en Documentos, un filtro por esa marca; en Ajustes, los dos umbrales (el del tipo de confianza baja y el de «no legible»), que ya están en la configuración; y que un documento sin ninguna palabra aparezca como «sin texto», con «Leer con IA» (D-775). Es de la etapa P. 2026-11-02: La etapa P del 2 nov (decisión D-790) mostró los dos umbrales en Ajustes y la confianza baja y «sin texto» en «Calidad de la lectura».",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     },
@@ -5406,6 +5406,30 @@
       "prioridad": 2,
       "tema": "base",
       "detalle": "El vigilante recuperado (decisión D-793) se probó con archivos chicos en una carpeta local. Falta medir: (1) una carpeta de red o de la nube, que puede no avisar: hoy la ve el barrido de resguardo, cada 5 minutos; (2) un cambio en una subcarpeta hace recorrer el origen entero: medir cuánto tarda con una carpeta del tamaño de la de prueba y con 10 veces más, y si conviene recorrer solo la subcarpeta; (3) una carpeta que se escribe sin parar nunca se calma: la ve solo el barrido de resguardo; (4) lo que la app escribe en una carpeta vigilada (la carpeta de trabajo, los portales) cuesta un recorrido más; (5) que la calma de 3 segundos alcance para una copia lenta por red; si no, llevarla a la configuración.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-604",
+      "titulo": "Lo que queda de las pantallas de los umbrales y de la calidad de la lectura después de la etapa P",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "La etapa P del 2 nov (decisión D-790) hizo Ajustes → Umbrales y «Calidad de la lectura». Falta: (1) al abrir un documento de la lista, la imagen de la página al lado de su texto, con lo aproximado en otro color y lo descartado tachado, para juzgar a ojo si se puede leer (lo proponía el entendido de E2); (2) que el botón «Umbrales en Ajustes» abra directamente la sección Umbrales; (3) decir con números cuántas uniones cambiarían al mover los dos umbrales de la identidad, como ya se dice con los de la calidad; (4) un enlace desde la lista de documentos de la página de un archivo compuesto a la pantalla de cada parte (hoy la página dice que se elige en la tira de páginas); (5) lo de la revisión de la wiki (etapa F4, fila 7) que no entró: el panel de Investigación que aprieta la pantalla, el Grafo sin filtro y la fecha del archivo en la lista de Documentos; (6) la orden del caso de la prueba de que mirar no escribe se llamó sobre una base sin casos: sumarle un caso armado.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-605",
+      "titulo": "Elegir los umbrales de la calidad mirando la lista con la base de la prueba chica",
+      "tipo": "medicion",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "La pantalla «Calidad de la lectura» (decisión D-790) se probó con una base nueva de tres archivos chicos y sin consultas, que no tiene documentos debajo de los umbrales. Con la base de la prueba chica (el de 93 páginas, el de las partidas, uno digital y una carta documento), mirar: cuántos documentos y páginas quedan debajo de cada valor; abrir los que quedan cerca de «no legible» (50 %) y del tipo de confianza baja (30 %) y decidir si se leen; elegir los dos valores en Ajustes → Umbrales, que dice antes de guardar qué documentos cambian de lado y cuántas páginas de la wiki se vuelven a escribir. Mirar también la página de un archivo compuesto con sus partes y los tipos con su nombre en las tablas de una persona.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
     }
