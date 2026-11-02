@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -378,6 +378,25 @@ END;
 CREATE TRIGGER file_moves AFTER UPDATE OF version_id ON file BEGIN
     UPDATE appearance SET version_id = NEW.version_id WHERE resource_hash = NEW.hash AND selector IN ('file', 'all');
 END;
+";
+
+/// The pieces of the structure and the mark of an annex (D-724, points 2
+/// and 3; 3b of 2 nov). A page that only announces an annex is a piece of
+/// its file (`structure_piece`), not a document: it has no version, type
+/// nor entities, and it is joined to the part before it and to the one
+/// after it, when they are there. The part that comes after it is an annex
+/// (`appearance.annex`). Every cut file has its parts made again.
+const V10: &str = "
+ALTER TABLE appearance ADD COLUMN annex INTEGER NOT NULL DEFAULT 0 CHECK (annex IN (0, 1));
+CREATE TABLE structure_piece (
+    resource_hash  TEXT NOT NULL REFERENCES file (hash) ON DELETE CASCADE,
+    page           INTEGER NOT NULL CHECK (page >= 1),
+    kind           TEXT NOT NULL CHECK (kind IN ('annex-announcement')),
+    joins_previous INTEGER NOT NULL CHECK (joins_previous IN (0, 1)),
+    joins_next     INTEGER NOT NULL CHECK (joins_next IN (0, 1)),
+    PRIMARY KEY (resource_hash, page)
+);
+DELETE FROM cut_applied;
 ";
 
 /// The version of a base: 0 for one just created.

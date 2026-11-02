@@ -93,6 +93,17 @@ pub struct ZonesCatalog {
     pub nexos: Vec<String>,
     pub hints: BTreeMap<String, String>,
     pub prompt: String,
+    pub annex: Annex,
+    pub signature_only_max_words: usize,
+}
+
+/// A page that only announces an annex (D-724): the words it starts with
+/// and the most words it may have.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Annex {
+    pub words: Vec<String>,
+    pub max_words: usize,
 }
 
 pub struct Patterns {

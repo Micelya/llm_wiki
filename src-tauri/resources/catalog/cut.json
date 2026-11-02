@@ -107,14 +107,22 @@
     }
   },
   "zones": {
-    "about": "El corte por zonas (cadena N, D-668): con la lectura por zonas de cada página, cuatro reglas seguras que solo dicen «sigue» (finals), las demás como pistas, y una pregunta por tramo de hasta pages páginas, con overlap compartidas, sobre las partes con algún salto dudoso. textMax: letras de texto por página en la pregunta. prompt: la pregunta, con {k}, {desde}, {hasta}, {total}, {borde}, {criterios} (los de ask.prompt), {tipos} (los de ask.types), {texto} y {pistas}. hints: cómo se nombra cada regla en las pistas. nexos: palabras de enlace con las que no termina un documento.",
-    "version": "cut-zones/1",
+    "about": "El corte por zonas (cadena N, D-668): con la lectura por zonas de cada página, las reglas seguras que deciden (finals: cinco que solo dicen «sigue», entre ellas la página que solo repite el pie de la anterior, y las dos del anuncio de anexo, D-724, que dicen «corta» antes y después de la página que solo anuncia un anexo), las demás como pistas, y una pregunta por tramo de hasta pages páginas, con overlap compartidas, sobre las partes con algún salto dudoso. textMax: letras de texto por página en la pregunta. prompt: la pregunta, con {k}, {desde}, {hasta}, {total}, {borde}, {criterios} (los de ask.prompt), {tipos} (los de ask.types), {texto} y {pistas}. hints: cómo se nombra cada regla en las pistas. nexos: palabras de enlace con las que no termina un documento. annex: la página cuyo único contenido anuncia un anexo empieza con una de estas palabras (words) y tiene a lo sumo maxWords palabras; es una pieza de la estructura, no un documento. signatureOnlyMaxWords: una página es solo una firma si tiene a lo sumo esas palabras de texto propio y las señales o la marca de una firma.",
+    "version": "cut-zones/2",
     "finals": [
       "frase_sigue|une",
       "pagina_blanca|une",
       "pagina_de_sigue|une",
-      "termina_en_nexo|une"
+      "termina_en_nexo|une",
+      "anuncia_anexo|corta",
+      "anexo_tras_anuncio|corta",
+      "repite_el_pie|une"
     ],
+    "annex": {
+      "words": ["anexo", "anexos", "annex", "annexure", "exhibit", "apendice", "appendix", "schedule", "addendum", "adenda"],
+      "maxWords": 12
+    },
+    "signatureOnlyMaxWords": 30,
     "pages": 10,
     "overlap": 2,
     "textMax": 3500,
@@ -193,7 +201,10 @@
       "termina_en_nexo": "la primera termina en una palabra de enlace",
       "termina_en_coma": "la primera termina en coma",
       "palabra_cortada": "una palabra cortada con guion sigue en la otra",
-      "par_de_fotos": "dos fotos del mismo tamaño (frente y dorso)"
+      "par_de_fotos": "dos fotos del mismo tamaño (frente y dorso)",
+      "anuncia_anexo": "la segunda solo anuncia un anexo",
+      "anexo_tras_anuncio": "la primera solo anuncia un anexo",
+      "repite_el_pie": "la segunda solo repite el pie de la primera"
     },
     "prompt": "Las {k} imágenes son páginas seguidas de un mismo archivo PDF, en orden: de la página {desde} a la {hasta} (la imagen 1 es la página {desde}). El archivo tiene {total} páginas.\nEl archivo puede juntar varios documentos (por ejemplo, un escrito con su documentación adjunta). Decí en qué páginas empieza un documento, de qué tipo es cada uno y con qué seguridad.\n{borde}\nCriterios generales:\n{criterios}\n\nSeguridad de cada respuesta:\n- \"alta\": se ve claro y no hay nada en contra; una persona que mire no dudaría.\n- \"media\": es lo más probable, pero algo podría indicar lo contrario.\n- \"baja\": no se puede saber bien (página ilegible o sin texto, o señales que se contradicen).\nUsá \"alta\" solo cuando estés muy seguro: un error con \"alta\" es lo peor que puede pasar. Lo que no es \"alta\" lo revisa una persona.\n\nAdemás de las imágenes tenés el texto de cada página, leído por zonas. Lo que no se leyó con confianza no se transcribe: queda un aviso [dudoso] y hay que mirarlo en la imagen. El texto puede tener errores; si contradice a la imagen, manda la imagen.\nTambién tenés pistas de reglas automáticas sobre cada salto (el paso de una página a la siguiente). Una pista es un indicio que puede fallar. Un salto «resuelto por una regla segura» ya está decidido; respondé igual por cada página.\n\nTipos de documento (identificador: qué es; \"other\" si ninguno sirve):\n{tipos}\n\nRespondé solo con el JSON pedido:\n- \"paginas\": una entrada por cada página, de la {desde} a la {hasta}, con \"pagina\" (su número en el archivo), \"empieza_documento\" (true si en esa página empieza un documento distinto del de la página anterior) y \"seguridad\" de esa decisión.\n- \"documentos\": una entrada por cada documento que tiene páginas acá, en orden, con \"primera_pagina\" (la primera que se ve acá), \"tipo\" y \"seguridad\" del tipo.\n\n=== Texto por zonas ===\n{texto}\n\n=== Pistas de los saltos ===\n{pistas}\n"
   }

@@ -97,6 +97,13 @@ fn lower_start(text: &str) -> bool {
         && !["fs", "fjs", "www", "http", "https", "mail"].contains(&word)
 }
 
+/// A line all in capitals, as a stamp or a heading is written («ES COPIA
+/// FIEL DEL»): its last word does not tie it to the next page.
+fn shouted(text: &str) -> bool {
+    let letters: Vec<char> = text.chars().filter(|c| c.is_alphabetic()).collect();
+    letters.len() >= 6 && !letters.iter().any(|c| c.is_lowercase())
+}
+
 fn differs(x: f64, y: f64, share: f64) -> bool {
     (x - y).abs() > share * x.max(y).max(1.0)
 }
@@ -164,7 +171,8 @@ pub fn rules(a: &Features, b: &Features) -> Vec<Fired> {
             let last = *w.last().unwrap();
             if t.ends_with(',') {
                 fire(&format!("termina_en_coma{tag}"), JOINS, format!("«{}»", tail(t, 30)));
-            } else if catalog().zones.nexos.iter().any(|n| n == last)
+            } else if !shouted(t)
+                && catalog().zones.nexos.iter().any(|n| n == last)
                 && Regex::new(&format!(r"\b{}\s*$", regex::escape(last))).is_ok_and(|r| r.is_match(&folded))
             {
                 fire(&format!("termina_en_nexo{tag}"), JOINS, format!("«{}»", tail(t, 30)));
@@ -239,8 +247,25 @@ pub fn rules(a: &Features, b: &Features) -> Vec<Fired> {
         fire("marca_de_firma", CUTS, a.signature_mark.clone());
     }
 
+    // 6. A page that only announces an annex is a piece of its own
+    // (D-724): another thing starts on it and after it. It is not a blank
+    // page, however few letters it has.
+    if let Some(said) = &b.announces {
+        fire(crate::docbase::cut::parts::ANNOUNCED, CUTS, said.clone());
+    }
+    if let Some(said) = &a.announces {
+        fire(crate::docbase::cut::parts::AFTER_ANNOUNCEMENT, CUTS, said.clone());
+    }
+
+    // 7. All page b has is the foot of page a again (a code the reader
+    // did not take as a foot there): it is a page of only the foot, and it
+    // goes on (P-585, 1).
+    if b.only_lines && !b.own_lines.is_empty() && b.own_lines.iter().all(|l| a.foot.contains(l)) {
+        fire("repite_el_pie", JOINS, format!("{} renglón(es)", b.own_lines.len()));
+    }
+
     // The text rules of the cut before, on firm text.
-    if b.forma == "blank_or_footer" {
+    if b.forma == "blank_or_footer" && b.announces.is_none() {
         fire("pagina_blanca", JOINS, String::new());
     }
     if !a.doc_codes.is_empty() && !b.doc_codes.is_empty() {
@@ -258,8 +283,10 @@ pub fn rules(a: &Features, b: &Features) -> Vec<Fired> {
     if let Some(op) = catalog().openers.iter().find(|x| start.contains(x.as_str())) {
         fire("formula_apertura", CUTS, op.clone());
     }
+    // A closing formula does not push to cut when page b is only the
+    // signature of what it closes (P-585, 2).
     if let Some(cl) = catalog().closers.iter().find(|x| end.contains(x.as_str())) {
-        if a.forma != "blank_or_footer" {
+        if a.forma != "blank_or_footer" && !b.only_signature {
             fire("formula_cierre", CUTS, cl.clone());
         }
     }

@@ -82,6 +82,13 @@ fn the_four_safe_rules_only_say_it_goes_on() {
         prose(2, &["Mil pesos inventados por mes.", "Otro renglón."]),
     ]);
     assert_eq!((d, rule.as_str()), (JOINS, "termina_en_nexo"));
+    // Not when the last line is all in capitals, as a stamp is written.
+    let (d, _, hints) = decide(vec![
+        prose(1, &["Renglón inventado.", "ESTE DOCUMENTO INVENTADO ES COPIA DEL"]),
+        prose(2, &["Mil pesos inventados por mes.", "Otro renglón."]),
+    ]);
+    assert_eq!(d, DOUBTFUL);
+    assert!(!hints.iter().any(|h| h.starts_with("termina_en_nexo")), "{hints:?}");
     // «Página x de y» goes on.
     let (d, rule, _) = decide(vec![
         with_footer(prose(1, &["Primer punto inventado.", "Fin del primer punto."]), "Página 1 de 2", 1300.0),
@@ -105,8 +112,85 @@ fn the_four_safe_rules_only_say_it_goes_on() {
     let (d, _, hints) = decide(vec![first, prose(2, &["obliga a las dos partes a cumplirlo.", "Otro."])]);
     assert_eq!(d, DOUBTFUL);
     assert_eq!(hints, vec!["frase_sigue_dudoso".to_string()]);
-    // No rule of the cut by zones ever cuts.
-    assert!(!super::super::catalog::catalog().zones.finals.iter().any(|f| f.ends_with(CUTS)));
+    // No rule of the cut by zones cuts, but the two of the announcement of
+    // an annex (D-724).
+    let cutting: Vec<&String> = super::super::catalog::catalog().zones.finals.iter().filter(|f| f.ends_with(CUTS)).collect();
+    assert_eq!(cutting, vec!["anuncia_anexo|corta", "anexo_tras_anuncio|corta"]);
+}
+
+/// A page whose only content announces an annex is a piece of its own
+/// (D-724): the rules cut before it and after it, with nothing to ask,
+/// wherever it is; it is not a blank page, however few letters it has. A
+/// page that starts with the word and goes on with the annex is not one,
+/// nor one with a line that is not firm.
+#[test]
+fn a_page_that_only_announces_an_annex_is_cut_before_and_after_without_asking() {
+    let announcement = |page: u32, text: &str| reading(page, "blank_or_footer", vec![zone("z1", "doc_title", vec![line(text, 600.0, true)])]);
+    let c = cut(
+        &[
+            prose(1, &["Un contrato inventado entre dos partes.", "Firman las partes inventadas."]),
+            announcement(2, "ANEXO I"),
+            prose(3, &["Estatuto inventado de una sociedad.", "Artículo primero inventado."]),
+        ],
+        &scans(3),
+    );
+    let said: Vec<(&str, &str)> = c.decisions.iter().map(|d| (d.decision, d.rule.as_str())).collect();
+    assert_eq!(said, vec![(CUTS, "anuncia_anexo"), (CUTS, "anexo_tras_anuncio")]);
+    assert!(c.windows.is_empty(), "nothing is asked");
+    // At the start of the file, in English, with what the annex is.
+    let (d, rule, _) = decide(vec![announcement(1, "EXHIBIT A COPY OF THE AGREEMENT"), prose(2, &["An invented agreement.", "Signed."])]);
+    assert_eq!((d, rule.as_str()), (CUTS, "anexo_tras_anuncio"));
+    // The annex starts on the page: it is not only an announcement.
+    let (d, rule, _) = decide(vec![
+        prose(1, &["Un contrato inventado.", "Firman las partes."]),
+        prose(2, &["ANEXO I", "Las partes inventadas acuerdan además lo que sigue en este anexo largo de la prueba.", "Otro renglón."]),
+    ]);
+    assert_eq!((d, rule.as_str()), (DOUBTFUL, "ninguna"));
+    // A line that is not firm: it is not known that it only announces.
+    let mut unsure = announcement(2, "ANEXO I");
+    unsure.zonas[0].renglones[0].seguro = Some(false);
+    let (d, rule, _) = decide(vec![prose(1, &["Un contrato inventado.", "Firman las partes."]), unsure]);
+    assert_eq!((d, rule.as_str()), (JOINS, "pagina_blanca"));
+}
+
+/// A page whose only text repeats the foot of the page before (a code the
+/// reader did not take as a foot there) goes on, with nothing to ask
+/// (P-585, 1); not when it has anything else of its own.
+#[test]
+fn a_page_that_only_repeats_the_foot_before_goes_on() {
+    let code = "*XX00112233* Expediente inventado";
+    let first = with_footer(prose(1, &["Un informe inventado.", "Termina acá."]), code, 1340.0);
+    let only_the_code = reading(2, "scan", vec![zone("z1", "sin_zona", vec![line(code, 1340.0, false)])]);
+    let (d, rule, _) = decide(vec![first.clone(), only_the_code.clone()]);
+    assert_eq!((d, rule.as_str()), (JOINS, "repite_el_pie"));
+    // The code and a line of its own: it is not known.
+    let mut more = only_the_code.clone();
+    more.zonas[0].renglones.insert(0, line("Otro escrito inventado empieza acá.", 300.0, true));
+    let (d, _, hints) = decide(vec![first.clone(), more]);
+    assert_eq!(d, DOUBTFUL);
+    assert!(!hints.contains(&"repite_el_pie".to_string()));
+    // The code and a picture of its own: it is not known either.
+    let mut picture = only_the_code;
+    picture.zonas.push(Zone { id: "z2".into(), clase: "image".into(), recuadro: Some(vec![100.0, 200.0, 900.0, 900.0]), ..Zone::default() });
+    let (d, _, _) = decide(vec![first, picture]);
+    assert_eq!(d, DOUBTFUL);
+}
+
+/// A closing formula does not push to cut when the next page is only the
+/// signature of what it closes (P-585, 2); it does when a document of its
+/// own comes.
+#[test]
+fn a_closing_formula_does_not_push_to_cut_before_a_page_of_only_a_signature() {
+    let closing = || prose(1, &["Pido lo que corresponde en este escrito inventado.", "Proveer de conformidad, SERÁ JUSTICIA."]);
+    let signature = prose(2, &["Nombre Inventado Apellido", "Abogado", "Tomo 1 Folio 2 inventados"]);
+    let (_, _, hints) = decide(vec![closing(), signature]);
+    assert!(!hints.contains(&"formula_cierre".to_string()), "{hints:?}");
+    let other = prose(2, &[
+        "Señor Juez: una persona inventada se presenta en este expediente inventado y dice lo que sigue,",
+        "con muchas palabras de un escrito propio que no es una firma, para que se vea que es otro documento.",
+    ]);
+    let (_, _, hints) = decide(vec![closing(), other]);
+    assert!(hints.contains(&"formula_cierre".to_string()), "{hints:?}");
 }
 
 /// A file of `n` pages, every step doubtful.

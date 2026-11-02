@@ -112,7 +112,23 @@ pub struct Features {
     pub doc_codes: Vec<String>,
     pub serials: Vec<String>,
     pub sign_cues: Vec<String>,
+    /// The page only announces an annex (D-724): what it says.
+    pub announces: Option<String>,
+    /// Every line of the page, of any zone and firm or not, as its letters
+    /// and digits (four or more), and those of its foot: the lines of the
+    /// zones of the foot and those at its bottom.
+    pub own_lines: Vec<String>,
+    pub foot: Vec<String>,
+    /// Nothing is on the page but lines read whole: no image, table or
+    /// seal of its own, and no line left untranscribed.
+    pub only_lines: bool,
+    /// The page is only a signature: a few words of prose, with the cues of
+    /// a signature or its mark (`cut.json`, `zones.signatureOnlyMaxWords`).
+    pub only_signature: bool,
 }
+
+/// Zones of the foot of a page.
+const FOOT: [&str; 3] = ["footer", "footer_image", "number"];
 
 struct Patterns {
     page_of: [Regex; 3],
@@ -300,7 +316,44 @@ pub fn features(e: &PageReading, scan: &PageScan) -> Features {
     let serials: BTreeSet<String> = p.serial.captures_iter(&safe_text).map(|c| format!("{}{}", &c[1], &c[2])).collect();
     f.serials = serials.into_iter().collect();
     f.sign_cues = sign_cues(&lines);
+    f.announces = announcement(e, &lines, blockers.is_empty());
+    for z in &e.zonas {
+        for r in &z.renglones {
+            let t: String = fold(&r.texto).chars().filter(|c| c.is_alphanumeric()).collect();
+            if t.chars().count() < 4 {
+                continue;
+            }
+            let b = boxed(r, z);
+            if FOOT.contains(&z.clase.as_str()) || (b[1] + b[3]) / 2.0 > 0.85 * h {
+                f.foot.push(t.clone());
+            }
+            f.own_lines.push(t);
+        }
+    }
+    let own_zones: BTreeSet<&str> = e.zonas.iter().filter(|z| !EDGE.contains(&z.clase.as_str())).map(|z| z.id.as_str()).collect();
+    f.only_lines = blockers.is_empty() && !e.evidencia.iter().any(|d| own_zones.contains(d.zona.as_str()));
+    let words: usize = lines.iter().map(|l| l.text.split_whitespace().count()).sum();
+    f.only_signature = !lines.is_empty()
+        && words <= super::super::catalog::catalog().zones.signature_only_max_words
+        && (!f.sign_cues.is_empty() || f.signature_mark == "handwritten" || f.signature_mark == "system");
     f
+}
+
+/// What a page says when its only content announces an annex (D-724,
+/// `cut.json`, `zones.annex`): all its own lines are firm, nothing but its
+/// edges is on it besides them, it has a few words and the first one is a
+/// word of an announcement («ANEXO 1», «EXHIBIT A»).
+fn announcement(e: &PageReading, lines: &[ProseLine], nothing_else: bool) -> Option<String> {
+    let annex = &super::super::catalog::catalog().zones.annex;
+    let own_zones: BTreeSet<&str> = e.zonas.iter().filter(|z| !EDGE.contains(&z.clase.as_str())).map(|z| z.id.as_str()).collect();
+    if !nothing_else || lines.is_empty() || lines.iter().any(|l| !l.safe) || e.evidencia.iter().any(|d| own_zones.contains(d.zona.as_str())) {
+        return None;
+    }
+    let text = lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join(" ");
+    let folded = fold(&text);
+    let words: Vec<&str> = folded.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    let first = words.first()?;
+    (words.len() <= annex.max_words && annex.words.iter().any(|w| fold(w) == *first)).then(|| text.chars().take(60).collect())
 }
 
 /// (first, last) of a column of line numbers in the margin that runs one

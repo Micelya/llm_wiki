@@ -31,7 +31,7 @@ pub(crate) mod check;
 #[cfg(test)]
 mod check_zones;
 #[cfg(test)]
-mod export;
+mod check_rules;
 #[cfg(test)]
 mod tests;
 

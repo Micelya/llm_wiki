@@ -2,9 +2,11 @@
 //! has its reading by zones (derivative `zones`); a file without it keeps
 //! the cut of before (`rules.rs`), unchanged.
 //!
-//! The four rules that decide only say «goes on» (`cut.json`, `zones.finals`);
-//! the others are hints. The parts are the runs between two cuts of a rule
-//! (with those rules, the whole file); a part with some doubtful step is
+//! The rules that decide (`cut.json`, `zones.finals`) say «goes on», but
+//! the two of a page that only announces an annex, which cut before it and
+//! after it (D-724): that page is a piece of the structure (`parts.rs`).
+//! The others are hints. The parts are the runs between two cuts of a rule
+//! (most often, the whole file); a part with some doubtful step is
 //! asked in windows of up to ten pages that share two (`window.rs`): one
 //! question each, with the images, the firm text by zones and the hints.
 //! The windows are kept in `cut_window`, with their key; the answers in

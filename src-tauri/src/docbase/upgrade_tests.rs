@@ -52,7 +52,10 @@ const PERSON_DECISIONS: &[&str] = &[
 /// The data an update changes on purpose, for the version that does it to
 /// say why: (version, table, why). The test leaves those rows alone.
 const CHANGED_ON_PURPOSE: &[(i64, &str, &str)] =
-    &[(6, "cut_applied", "every cut file has its parts made again, to mark what is uncertain (D-603)")];
+    &[
+        (6, "cut_applied", "every cut file has its parts made again, to mark what is uncertain (D-603)"),
+        (10, "cut_applied", "every cut file has its parts made again, to find its pieces and its annexes (D-724)"),
+    ];
 
 /// The tables and columns an update renamed, (version, before, after): their
 /// rows are looked for under the new name.
@@ -576,7 +579,7 @@ fn a_failed_update_keeps_its_backup_and_names_it() {
     {
         // A table the next version adds is already there: its change fails.
         let conn = Connection::open(data.join(PRIVATE_DB_FILE)).unwrap();
-        conn.execute_batch("CREATE TABLE appearance_v9 (id INTEGER PRIMARY KEY)").unwrap();
+        conn.execute_batch("CREATE TABLE structure_piece (id INTEGER PRIMARY KEY)").unwrap();
     }
     let (base, opening) = DocBase::open_in_data_folder(data);
     let problem = base.unwrap_err();

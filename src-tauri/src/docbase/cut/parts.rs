@@ -20,6 +20,13 @@
 //!   version goes (`knowledge_gone`); the new ones are made.
 //! - A PDF with one part changes nothing.
 //!
+//! - A part of one page that only announces an annex (as the rules of
+//!   its steps say) is a piece of the structure, not a document
+//!   (`structure_piece`, D-724): it has no version, it is joined to the
+//!   part before it and to the one after it when they are there, and the
+//!   part after it is marked as an annex (`appearance.annex`). A file where
+//!   only pieces would be left keeps them as documents.
+//!
 //! The parts are made once the file has its text, also while some of its
 //! pages wait for recognition: a part with too little text waits with them
 //! (`needs-recognition`), and when they are read the parts whose text
@@ -32,7 +39,7 @@ use serde::Serialize;
 
 use crate::source_volume::catalog::{fingerprint, is_page_heading};
 
-use super::CutStep;
+use super::{CutStep, Verdict};
 use crate::docbase::{now_ms, sql_err, DocBase};
 
 /// What a person says of a page: it starts another document, or it goes
@@ -116,6 +123,58 @@ pub(crate) fn partition(pages: u32, steps: &[CutStep], decisions: &BTreeMap<u32,
             Part { first, last, by, confirmed, uncertain }
         })
         .collect()
+}
+
+/// The kind of the piece of a page that only announces an annex (D-724).
+pub(crate) const ANNEX_ANNOUNCEMENT: &str = "annex-announcement";
+/// The rules of the cut by zones that say a page only announces an annex:
+/// on the step before that page, and on the step after it.
+pub(crate) const ANNOUNCED: &str = "anuncia_anexo";
+pub(crate) const AFTER_ANNOUNCEMENT: &str = "anexo_tras_anuncio";
+
+/// The pages that only announce an annex, as the rules that decided the
+/// steps around them say.
+fn announcements(steps: &[CutStep]) -> BTreeSet<u32> {
+    let mut out = BTreeSet::new();
+    for step in steps.iter().filter(|s| s.after > 0 && s.verdict == Verdict::New) {
+        if step.rule.split('+').any(|r| r == ANNOUNCED) {
+            out.insert(step.after + 1);
+        }
+        if step.rule.split('+').any(|r| r == AFTER_ANNOUNCEMENT) {
+            out.insert(step.after);
+        }
+    }
+    out
+}
+
+/// A piece of the structure of a file: a page that only announces an
+/// annex, joined to the part before it and to the one after it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Piece {
+    pub page: u32,
+    pub joins_previous: bool,
+    pub joins_next: bool,
+}
+
+/// The documents of a file, its pieces and the first pages of its annexes:
+/// a part of one page that announces an annex is a piece, and the part
+/// after it an annex. When only pieces would be left, they stay documents.
+pub(crate) fn split_pieces(parts: Vec<Part>, announced: &BTreeSet<u32>) -> (Vec<Part>, Vec<Piece>, BTreeSet<u32>) {
+    let is_piece = |p: &Part| p.first == p.last && announced.contains(&p.first);
+    if parts.iter().all(is_piece) {
+        return (parts, Vec::new(), BTreeSet::new());
+    }
+    let (documents, pieces): (Vec<Part>, Vec<Part>) = parts.into_iter().partition(|p| !is_piece(p));
+    let annexes = pieces.iter().map(|p| p.last + 1).filter(|first| documents.iter().any(|d| d.first == *first)).collect();
+    let pieces = pieces
+        .iter()
+        .map(|p| Piece {
+            page: p.first,
+            joins_previous: documents.iter().any(|d| d.last + 1 == p.first),
+            joins_next: documents.iter().any(|d| d.first == p.last + 1),
+        })
+        .collect();
+    (documents, pieces, annexes)
 }
 
 /// The text of pages `first` to `last` of a text joined by pages, as the
@@ -282,7 +341,7 @@ impl DocBase {
             return Ok(());
         };
         let pages = steps.iter().map(|s| s.after).max().unwrap_or(0) + 1;
-        let mut parts = partition(pages, &steps, &decisions(&tx, hash)?);
+        let parts = partition(pages, &steps, &decisions(&tx, hash)?);
         // The whole file is uncertain when any of its steps is: for a PDF
         // of one part, what is said of its only document.
         tx.execute(
@@ -290,6 +349,16 @@ impl DocBase {
             params![parts.iter().any(|p| p.uncertain), hash],
         )
         .map_err(sql_err)?;
+        let (mut parts, pieces, annexes) = split_pieces(parts, &announcements(&steps));
+        tx.execute("DELETE FROM structure_piece WHERE resource_hash = ?1", [hash]).map_err(sql_err)?;
+        for piece in &pieces {
+            tx.execute(
+                "INSERT INTO structure_piece (resource_hash, page, kind, joins_previous, joins_next) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![hash, piece.page, ANNEX_ANNOUNCEMENT, piece.joins_previous, piece.joins_next],
+            )
+            .map_err(sql_err)?;
+        }
+        let annex = |part: &Part| annexes.contains(&part.first);
         let now = now_ms();
         // Its structure (D-718): one document, with the version of the file
         // and its place `all`; or two or more, its parts, and no `all`.
@@ -301,11 +370,11 @@ impl DocBase {
             let by = parts.first().map_or("rule", |p| p.by);
             let uncertain = parts.first().is_some_and(|p| p.uncertain);
             tx.execute(
-                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at)
-                 VALUES (?1, ?2, ?3, 1, ?4, 'confirmed', ?5, ?6)
+                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at, annex)
+                 VALUES (?1, ?2, ?3, 1, ?4, 'confirmed', ?5, ?6, ?7)
                  ON CONFLICT (resource_hash, selector) DO UPDATE SET version_id = excluded.version_id, cut_by = excluded.cut_by,
-                     uncertain = excluded.uncertain",
-                params![whole_id, hash, ONE_DOCUMENT, by, uncertain, now],
+                     uncertain = excluded.uncertain, annex = excluded.annex",
+                params![whole_id, hash, ONE_DOCUMENT, by, uncertain, now, parts.first().is_some_and(annex)],
             )
             .map_err(sql_err)?;
             parts.clear();
@@ -345,8 +414,8 @@ impl DocBase {
                 Some(e) => {
                     kept.insert(e.id);
                     tx.execute(
-                        "UPDATE appearance SET position = ?1, cut_by = ?2, cut_state = ?3, uncertain = ?4 WHERE id = ?5",
-                        params![index as i64 + 1, part.by, state(part), part.uncertain, e.id],
+                        "UPDATE appearance SET position = ?1, cut_by = ?2, cut_state = ?3, uncertain = ?4, annex = ?5 WHERE id = ?6",
+                        params![index as i64 + 1, part.by, state(part), part.uncertain, annex(part), e.id],
                     )
                     .map_err(sql_err)?;
                 }
@@ -393,9 +462,9 @@ impl DocBase {
                 }
             };
             tx.execute(
-                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![version_id, hash, selector, index as i64 + 1, part.by, state(part), part.uncertain, now],
+                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at, annex)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![version_id, hash, selector, index as i64 + 1, part.by, state(part), part.uncertain, now, annex(part)],
             )
             .map_err(sql_err)?;
             left.remove(&version_id);
@@ -671,6 +740,75 @@ mod tests {
 
     fn spans(parts: &[IncludedPart]) -> Vec<(u32, u32, &str, &str)> {
         parts.iter().map(|p| (p.first_page, p.last_page, p.cut_by.as_str(), p.cut_state.as_str())).collect()
+    }
+
+    /// The rule of a step, as the cut by zones writes it.
+    fn rule(base: &DocBase, hash: &str, after: u32, rule: &str) {
+        base.conn()
+            .execute("UPDATE cut_step SET rule = ?3 WHERE resource_hash = ?1 AND after_page = ?2", params![hash, after, rule])
+            .unwrap();
+    }
+
+    fn pieces(base: &DocBase, hash: &str) -> Vec<(u32, bool, bool)> {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT page, joins_previous, joins_next FROM structure_piece WHERE resource_hash = ?1 AND kind = ?2 ORDER BY page")
+            .unwrap();
+        let rows = statement.query_map(params![hash, ANNEX_ANNOUNCEMENT], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    }
+
+    fn annexes(base: &DocBase, hash: &str) -> Vec<String> {
+        let conn = base.conn();
+        let mut statement =
+            conn.prepare("SELECT selector FROM appearance WHERE resource_hash = ?1 AND annex = 1 ORDER BY selector").unwrap();
+        let rows = statement.query_map([hash], |r| r.get(0)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    }
+
+    /// A page that only announces an annex is a piece of the structure, not
+    /// a document (D-724): in the middle of the file it is joined to the
+    /// part before and to the one after, which is an annex; at the start,
+    /// only to the one after; at the end, only to the one before. A person
+    /// who joins it to a part makes it a page of that part again.
+    #[test]
+    fn a_page_that_only_announces_an_annex_is_a_piece_and_the_part_after_it_an_annex() {
+        let (_dir, base) = open();
+        // In the middle: pages 1-2, the announcement in 3, the annex in 4-6.
+        add_file(&base, 1, "medio", &joined(&[1, 2, 3, 4, 5, 6]));
+        cut(&base, "medio", 6, &[3, 4], &[], 1);
+        rule(&base, "medio", 2, ANNOUNCED);
+        rule(&base, "medio", 3, AFTER_ANNOUNCEMENT);
+        // At the start: the announcement in 1, one document after it.
+        add_file(&base, 2, "inicio", &joined(&[7, 8, 9]));
+        cut(&base, "inicio", 3, &[2], &[], 1);
+        rule(&base, "inicio", 1, AFTER_ANNOUNCEMENT);
+        // At the end: one document, and an announcement with nothing after.
+        add_file(&base, 3, "final", &joined(&[10, 11, 12, 13]));
+        cut(&base, "final", 4, &[4], &[], 1);
+        rule(&base, "final", 3, ANNOUNCED);
+        assert_eq!(base.cut_parts_pending(10).unwrap(), 3);
+        let parts = base.included_parts("medio").unwrap();
+        assert_eq!(spans(&parts), vec![(1, 2, "rule", "proposed"), (4, 6, "rule", "proposed")]);
+        assert_eq!(pieces(&base, "medio"), vec![(3, true, true)]);
+        assert_eq!(annexes(&base, "medio"), vec!["pages:4-6".to_string()]);
+        // The piece is no document: it has no version nor appearance.
+        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE resource_hash = 'medio' AND selector = 'pages:3-3'"), 0);
+        assert!(base.included_parts("inicio").unwrap().is_empty());
+        assert_eq!(pieces(&base, "inicio"), vec![(1, false, true)]);
+        assert_eq!(annexes(&base, "inicio"), vec![ONE_DOCUMENT.to_string()]);
+        assert!(base.included_parts("final").unwrap().is_empty());
+        assert_eq!(pieces(&base, "final"), vec![(4, true, false)]);
+        assert!(annexes(&base, "final").is_empty());
+        // A person joins the announcement to the part before it: no piece.
+        base.cut_join_with_previous("medio", 3).unwrap();
+        assert!(pieces(&base, "medio").is_empty());
+        assert_eq!(spans(&base.included_parts("medio").unwrap()).iter().map(|s| (s.0, s.1)).collect::<Vec<_>>(), vec![(1, 3), (4, 6)]);
+        assert!(annexes(&base, "medio").is_empty());
+        // A file of one page that only announces is a document all the same.
+        let (documents, pieces, annexes) =
+            split_pieces(vec![Part { first: 1, last: 1, by: "rule", confirmed: false, uncertain: false }], &BTreeSet::from([1]));
+        assert_eq!((documents.len(), pieces.len(), annexes.len()), (1, 0, 0));
     }
 
     #[test]
