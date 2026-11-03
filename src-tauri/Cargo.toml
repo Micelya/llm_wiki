@@ -86,6 +86,8 @@ base64 = "0.22"
 sha2 = "0.10"
 regex = "1.12"
 walkdir = "2"
+# The watcher of the folders of the base (A3 of 2 nov), the one the wiki had.
+notify = "8"
 # The accents out of the text of a page before its print (`page_print.rs`).
 unicode-normalization = "0.1"
 epub = "2.1.5"

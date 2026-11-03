@@ -430,6 +430,7 @@ function FactBox({
         <Fact label="En la base desde">{formatDate(document.firstSeenAt)}</Fact>
         <Fact label="Copias">{document.copies > 1 ? `${document.copies} ubicaciones` : "Única"}</Fact>
         {document.wordCount !== null && <Fact label="Palabras">{formatCount(document.wordCount)}</Fact>}
+        {document.lowConfidence && <Fact label="Confianza baja">{document.lowConfidence}</Fact>}
         {document.textEngine && (
           <Fact label="Texto obtenido por">
             {document.textEngine === "extraction"

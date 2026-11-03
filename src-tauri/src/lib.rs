@@ -19,6 +19,15 @@ use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use uuid::Uuid;
 
+/// The identifier of the person's app (`tauri.conf.json`): its data
+/// folder, with its base. The review app (`tauri.revision.conf.json`,
+/// D-780) has another one, so it never opens the person's base.
+pub(crate) const MAIN_IDENTIFIER: &str = "com.micelya.desktop";
+/// Set by `herramientas\abrir-revision.ps1`: this launch has to be the
+/// review app. With the identifier of the person's app it stops before
+/// touching anything of its data folder.
+const REVIEW_LAUNCH_VAR: &str = "MICELYA_REVISION";
+
 struct CloseBehaviorState(Mutex<String>);
 struct TrayAvailabilityState(Mutex<bool>);
 
@@ -355,6 +364,15 @@ fn only_app_webview<R: tauri::Runtime>(
 pub fn run() {
     apply_linux_webkit_compat_env();
 
+    let context = tauri::generate_context!();
+    if std::env::var_os(REVIEW_LAUNCH_VAR).is_some() && context.config().identifier == MAIN_IDENTIFIER {
+        eprintln!(
+            "[revision] {REVIEW_LAUNCH_VAR} pide la app de revisión, pero esta se armó con el identificador {MAIN_IDENTIFIER}: \
+             no se abre, para no tocar la base de la carpeta de datos de siempre. Abrila con --config src-tauri/tauri.revision.conf.json."
+        );
+        std::process::exit(2);
+    }
+
     tauri::Builder::default()
         // Has to be the first plugin. Closing the window only hides the
         // app in the tray, so opening it again used to start a second
@@ -462,6 +480,7 @@ pub fn run() {
             docbase::commands::docbase_add_origin,
             docbase::commands::docbase_remove_origin,
             docbase::commands::docbase_rescan,
+            docbase::commands::docbase_reprocess,
             docbase::commands::docbase_home,
             docbase::commands::docbase_list_documents,
             docbase::commands::docbase_list_folder,
@@ -510,10 +529,7 @@ pub fn run() {
             docbase::commands::docbase_graph,
             docbase::commands::docbase_knowledge_plan,
             docbase::commands::docbase_knowledge_document,
-            docbase::commands::docbase_knowledge_run,
-            docbase::commands::docbase_knowledge_project,
             docbase::commands::docbase_set_wiki_language,
-            docbase::commands::docbase_knowledge_resolve,
             docbase::commands::docbase_knowledge_entities,
             docbase::commands::docbase_knowledge_entity,
             docbase::commands::docbase_knowledge_article,
@@ -542,7 +558,10 @@ pub fn run() {
             docbase::commands::docbase_background_reading,
             docbase::commands::docbase_set_background_reading,
             docbase::commands::docbase_progress,
+            docbase::commands::docbase_process_state,
             docbase::commands::docbase_recognize_text,
+            docbase::commands::docbase_ai_reading_cost,
+            docbase::commands::docbase_read_with_ai,
             docbase::commands::docbase_progress_items,
             docbase::commands::docbase_progress_folders,
             docbase::commands::docbase_knowledge_doubts,
@@ -555,6 +574,14 @@ pub fn run() {
             docbase::commands::docbase_auto_questions_decide,
             docbase::commands::docbase_knowledge_decide_many,
             docbase::commands::docbase_knowledge_attention,
+            docbase::commands::docbase_failures,
+            docbase::commands::docbase_thresholds,
+            docbase::commands::docbase_set_thresholds,
+            docbase::commands::docbase_reading_quality,
+            docbase::commands::docbase_type_hint,
+            docbase::commands::docbase_set_type_hint,
+            docbase::commands::docbase_types_by_similarity,
+            docbase::commands::docbase_confidence_effect,
             docbase::commands::docbase_knowledge_matters,
             docbase::commands::docbase_knowledge_matter,
             docbase::commands::docbase_knowledge_document_entities,
@@ -679,7 +706,7 @@ pub fn run() {
                 }
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| {
             #[cfg(target_os = "macos")]

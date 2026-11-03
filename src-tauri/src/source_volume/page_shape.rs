@@ -24,7 +24,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-const CATALOG: &str = include_str!("../../resources/catalog/page-shapes.json");
+pub(crate) const CATALOG: &str = include_str!("../../resources/catalog/page-shapes.json");
 /// What wrote the fichas kept in the base: a ficha of an earlier version
 /// is computed again.
 pub const SHAPES_ENGINE: &str = "page-shape/1";

@@ -326,8 +326,8 @@ pub(crate) fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &
             .map_err(sql_err)?
             > 0;
         if taken {
-            let words = identity.map(|(_, words)| words).unwrap_or_default();
-            return store_alone(tx, content_id, text, engine, state, words as i64, now);
+            let words = super::safe_words::words_of(text) as i64;
+            return store_alone(tx, content_id, text, engine, state, words, now);
         }
     }
     if let Some((text_hash, _)) = &identity {
@@ -358,10 +358,9 @@ pub(crate) fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &
             return Ok(twin);
         }
     }
-    let words = match &identity {
-        Some((_, words)) => *words as i64,
-        None => text.split_whitespace().count() as i64,
-    };
+    // Every word of its text, firm or approximate: the one count the steps
+    // that ask go by (E3 of 2 nov, `safe_words::ASKED_WORDS`).
+    let words = super::safe_words::words_of(text) as i64;
     tx.execute(
         "UPDATE version SET state = ?1, text_hash = ?2, word_count = ?3, error = NULL, processed_at = ?4 WHERE id = ?5",
         params![state, identity.map(|(hash, _)| hash), words, now, content_id],

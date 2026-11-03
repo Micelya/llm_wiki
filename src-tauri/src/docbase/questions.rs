@@ -562,6 +562,7 @@ fn engine_note(definition: &Definition, engine: Option<&EngineChoice>) -> Option
         Service::Ask => "«Preguntar al modelo»",
         Service::Recognize => "«Reconocer escaneos»",
         Service::Research => "«Investigar en internet»",
+        Service::Embed => "«Calcular vectores»",
     };
     match engine {
         None if definition.id == "chat" => Some(format!("Sin motor en {service}, el chat no contesta.")),

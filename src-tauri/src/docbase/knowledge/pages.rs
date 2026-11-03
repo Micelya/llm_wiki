@@ -67,7 +67,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-13";
+const PROJECTION_VERSION: &str = "proyeccion-14";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -90,6 +90,8 @@ pub const WORDS: &[&str] = &[
     "notesMark",
     "aliases",
     "page",
+    "partPage",
+    "partPages",
     "documentWord",
     "documentsWord",
     "kept",
@@ -148,6 +150,12 @@ pub const WORDS: &[&str] = &[
     "docKind",
     "docDate",
     "docPending",
+    "docParts",
+    "docPartsNote",
+    "docPartPage",
+    "docPartPages",
+    "docPartLow",
+    "docPartUnread",
     "docAmounts",
     "docVersions",
     "docVersionsNote",
@@ -211,6 +219,11 @@ pub struct ProjectReport {
     pub asked: usize,
     pub failed: usize,
     pub left: usize,
+    /// Questions a failure holds now (P-533): not left for another run but
+    /// set aside until the failure does not hold them, each as
+    /// `{content_id}:{key}` (arreglo 1 of the small test of 2 nov).
+    pub held: usize,
+    pub held_questions: BTreeSet<String>,
     /// Sentences of the syntheses in the pages, and thrown away by the check.
     pub sentences: usize,
     pub discarded: usize,
@@ -328,15 +341,57 @@ struct Entity {
 
 #[derive(Debug, Clone, Default)]
 struct Document {
+    /// The name of its file, as the questions to the model say it: none
+    /// for a document cut from a file (it has no file of its own).
     name: String,
-    /// What the wiki calls it (`<origin>/<path inside it>`).
+    /// What the wiki calls it (`<origin>/<path inside it>`): for a document
+    /// cut from a file, the whole file.
     identity: Option<String>,
-    /// The page the wiki wrote from it.
+    /// The page the wiki wrote from it: for a document cut from a file,
+    /// the page of the whole file.
     page: Option<String>,
     doc_type: Option<String>,
+    /// How the tables of the pages name its type (P-594, etapa P): the name
+    /// the model proposed, with its accents, or the type of the catalog in
+    /// words; never its code.
+    type_shown: Option<String>,
     /// Joined with another one as the same document, and that one chosen
     /// as the wiki's source.
     chosen: Option<i64>,
+    /// Where it is, when it is a document cut from a file (D-667).
+    part: Option<Part>,
+}
+
+/// A document cut from a file (D-667): the pages name it by its file and
+/// its pages, never the questions (their text, and so their answers, stay).
+#[derive(Debug, Clone)]
+struct Part {
+    /// The version of the whole file.
+    whole: i64,
+    /// The name of the file ("Acuerdo.pdf").
+    file: String,
+    /// Its pages in the file ("págs. 5-10").
+    pages: String,
+    /// Where the file is, when another document cut from another file
+    /// would read the same (as `family::titles` does with two pages).
+    place: Option<String>,
+}
+
+impl Document {
+    /// What a page calls it: its file's name, and for a document cut from
+    /// a file, the file's name with its pages when `pages`. A quote with
+    /// its page says the file alone: the page is the file's.
+    fn shown(&self, pages: bool) -> String {
+        let Some(part) = &self.part else { return self.name.clone() };
+        let mut out = part.file.clone();
+        if pages {
+            out.push_str(&format!(", {}", part.pages));
+        }
+        if let Some(place) = &part.place {
+            out.push_str(&format!(" ({place})"));
+        }
+        out
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1070,11 +1125,14 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
         );
     }
     {
-        let mut statement = conn.prepare("SELECT version_id, doc_type FROM document_type").map_err(sql_err)?;
-        let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT version_id, doc_type, proposed_name FROM document_type").map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)))
+            .map_err(sql_err)?;
         for row in rows {
-            let (content, doc_type) = row.map_err(sql_err)?;
+            let (content, doc_type, proposed) = row.map_err(sql_err)?;
             if let Some(document) = documents.get_mut(&content) {
+                document.type_shown = Some(type_shown(&doc_type, proposed.as_deref()));
                 document.doc_type = Some(doc_type);
             }
         }
@@ -1114,7 +1172,56 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
             );
         }
     }
+    name_parts(conn, &mut documents, identities)?;
     Ok(Record { entities, documents, pages, matters, matter_of, proposed })
+}
+
+/// Each document is named by its place in the structure of its file
+/// (D-718), the same way for one or several: the one document of a file,
+/// by the file (`classify::name_of`); a part of a file of several, which
+/// has no file of its own, by its file's name and its pages ("Acuerdo.pdf,
+/// págs. 5-10"), and it goes with the whole file in `sources:` and to its
+/// page until each part has its own (P-527). Its name for the questions
+/// stays empty.
+fn name_parts(conn: &Connection, documents: &mut BTreeMap<i64, Document>, identities: &HashMap<i64, String>) -> Result<(), String> {
+    let words = &vocabulary().pages;
+    let mut statement = conn
+        .prepare(
+            "SELECT a.selector, f.version_id FROM appearance a JOIN file f ON f.hash = a.resource_hash
+             WHERE a.version_id = ?1 AND a.selector GLOB 'pages:*' AND f.version_id IS NOT NULL ORDER BY a.id LIMIT 1",
+        )
+        .map_err(sql_err)?;
+    for (content, document) in documents.iter_mut().filter(|(_, d)| d.name.is_empty()) {
+        let found = statement.query_row([content], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))).optional().map_err(sql_err)?;
+        let Some((selector, whole)) = found else { continue };
+        let Some((first, last)) = selector.strip_prefix("pages:").and_then(|s| s.split_once('-')) else { continue };
+        let file = classify::name_of(conn, whole)?;
+        if file.is_empty() {
+            continue;
+        }
+        let pages = if first == last {
+            format!("{} {first}", words.word("partPage"))
+        } else {
+            format!("{} {first}-{last}", words.word("partPages"))
+        };
+        document.identity = identities.get(&whole).cloned();
+        document.part = Some(Part { whole, file, pages, place: None });
+    }
+    // Two of two files that would read the same say where their file is.
+    let mut files: HashMap<String, BTreeSet<i64>> = HashMap::new();
+    for document in documents.values() {
+        if let Some(part) = &document.part {
+            files.entry(document.shown(true).to_lowercase()).or_default().insert(part.whole);
+        }
+    }
+    for document in documents.values_mut() {
+        let shown = document.shown(true).to_lowercase();
+        let identity = document.identity.clone();
+        if let Some(part) = document.part.as_mut().filter(|_| files.get(&shown).is_some_and(|f| f.len() > 1)) {
+            part.place = identity;
+        }
+    }
+    Ok(())
 }
 
 /// The language the wiki is written in, as the wiki said it; none when it
@@ -1263,6 +1370,8 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
                     "attribution" => Some("la cita nombra a otra persona u organización"),
                     "states" => Some("los documentos dicen estados distintos"),
                     "contradicted" => Some("el mismo documento dice un estado civil que no corresponde"),
+                    "backwards" => Some("otra afirmación dice la relación al revés"),
+                    "far" => Some("el documento no nombra cerca de la cita a quién corresponde el dato"),
                     _ => None,
                 })
                 .collect();
@@ -1466,15 +1575,31 @@ struct Rendered {
     discarded: usize,
 }
 
-fn document_link(record: &Record, content: i64) -> String {
+/// How a page names a type: the name proposed for it (it has its accents),
+/// or the name the catalog gives it in words, with its first letter in
+/// capitals. The same as the title of a document (`family::type_name`).
+fn type_shown(doc_type: &str, proposed: Option<&str>) -> String {
+    match proposed.map(one_line).filter(|p| !p.trim().is_empty()) {
+        Some(name) => name,
+        None => {
+            let words = doc_type.replace('-', " ");
+            let mut chars = words.chars();
+            chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default()
+        }
+    }
+}
+
+/// A document as a page names it, linked to its page; `pages`: with the
+/// pages of a document cut from a file (`Document::shown`).
+fn document_link(record: &Record, content: i64, pages: bool) -> String {
     match record.documents.get(&content) {
         // A copy joined with the chosen one: its own name (the quote is in
         // its text), and the one the wiki reads.
-        Some(Document { chosen: Some(chosen), name, .. }) if *chosen != content => {
-            format!("{name} → {}", document_link(record, *chosen))
+        Some(document @ Document { chosen: Some(chosen), .. }) if *chosen != content => {
+            format!("{} → {}", document.shown(pages), document_link(record, *chosen, pages))
         }
-        Some(Document { page: Some(page), name, .. }) => link(page, name),
-        Some(document) => document.name.clone(),
+        Some(document @ Document { page: Some(page), .. }) => link(page, &document.shown(pages)),
+        Some(document) => document.shown(pages),
         None => format!("#{content}"),
     }
 }
@@ -1618,7 +1743,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             .iter()
             .map(|(content, quote, page)| {
                 let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
+                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content, page.is_none()))
             })
             .collect();
         let time = claim.valid_from.as_deref().map(|t| format!(" ({})", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
@@ -1702,10 +1827,10 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         let kind = record
             .documents
             .get(&content)
-            .and_then(|d| d.doc_type.as_deref())
-            .map(|t| format!(" · {}", t.replace('-', " ")))
+            .and_then(|d| d.type_shown.as_deref())
+            .map(|t| format!(" · {t}"))
             .unwrap_or_default();
-        format!("- {} — {}{kind}\n", document_link(record, content), roles.join(", "))
+        format!("- {} — {}{kind}\n", document_link(record, content, true), roles.join(", "))
     };
     if entity.kind == "asunto" && !vocabulary.pages.rule("asunto").is_some_and(|r| r.by_matter) {
         for (content, roles) in &entity.documents {
@@ -1773,9 +1898,13 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
     // documents say, each with its quote. Nothing is derived (R-02).
     // A claim and its inverse said from the other side ("deudor de" here,
     // "acreedor de" there) are one line, with the quotes of both (D-239).
+    // Two relations between the same two said the other way round are in
+    // conflict: listed apart, never as a fact (E6 of 2 nov).
     let mut ties: Vec<((String, String), Vec<String>)> = Vec::new();
-    let mut tie = |label: &str, other: &str, quotes: Vec<String>| {
+    let mut contested: Vec<((String, String), Vec<String>)> = Vec::new();
+    let mut tie = |label: &str, other: &str, quotes: Vec<String>, conflict: bool| {
         let key = (label.to_string(), other.to_string());
+        let ties = if conflict { &mut contested } else { &mut ties };
         match ties.iter_mut().find(|(k, _)| *k == key) {
             Some((_, list)) => {
                 for quote in quotes {
@@ -1799,7 +1928,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             .evidence
             .iter()
             .take(QUOTES_PER_CLAIM)
-            .map(|(content, quote, _)| format!("«{}» ({})", one_line(quote), document_link(record, *content)))
+            .map(|(content, quote, _)| format!("«{}» ({})", one_line(quote), document_link(record, *content, true)))
             .collect()
     };
     for claim in &entity.claims {
@@ -1810,7 +1939,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         if let Some(object) = &claim.object_entity {
             if record.entities.get(object).is_some_and(|o| o.kind != "asunto") {
                 let label = format!("{}{}", vocabulary.predicate_label(&claim.predicate), certainty_mark(vocabulary, claim));
-                tie(&label, object, quotes_of(claim));
+                tie(&label, object, quotes_of(claim), claim.state == "conflict");
             }
         }
     }
@@ -1821,13 +1950,22 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 continue;
             }
             let label = format!("{inverse}{}", certainty_mark(vocabulary, claim));
-            tie(&label, &other.id, quotes_of(claim));
+            tie(&label, &other.id, quotes_of(claim), claim.state == "conflict");
         }
     }
-    if !ties.is_empty() {
+    if !ties.is_empty() || !contested.is_empty() {
         out.push_str(&format!("## {}\n\n", words.word("relations")));
         for ((label, other), quotes) in &ties {
             out.push_str(&format!("- {label} {}{}\n", name_of(other), notes.mark(&quotes.join("; "))));
+        }
+        if !contested.is_empty() {
+            if !ties.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&format!("**{}**\n\n", words.word("relationsInConflict")));
+            for ((label, other), quotes) in &contested {
+                out.push_str(&format!("- {label} {}{}\n", name_of(other), notes.mark(&quotes.join("; "))));
+            }
         }
         out.push('\n');
     }
@@ -2268,7 +2406,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
             .take(QUOTES_PER_CLAIM)
             .map(|(content, quote, page)| {
                 let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
+                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content, page.is_none()))
             })
             .collect()
     };
@@ -2337,10 +2475,10 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         let kind = record
             .documents
             .get(content)
-            .and_then(|d| d.doc_type.as_deref())
-            .map(|t| format!(" · {}", t.replace('-', " ")))
+            .and_then(|d| d.type_shown.as_deref())
+            .map(|t| format!(" · {t}"))
             .unwrap_or_default();
-        out.push_str(&format!("- {}{kind}\n", document_link(record, *content)));
+        out.push_str(&format!("- {}{kind}\n", document_link(record, *content, true)));
     }
     out.push('\n');
     let proposed: Vec<(i64, Option<&String>)> = record
@@ -2352,7 +2490,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         out.push_str(&format!("### {}\n\n*{}*\n\n", words.word("matterProposed"), words.word("matterProposedNote")));
         for (content, reason) in proposed {
             let reason = reason.map(|r| format!(" — {}", one_line(r))).unwrap_or_default();
-            out.push_str(&format!("- {}{reason}\n", document_link(record, content)));
+            out.push_str(&format!("- {}{reason}\n", document_link(record, content, true)));
         }
         out.push('\n');
     }
@@ -2651,8 +2789,9 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
     let (mut record, language, basis_before, dirty) = {
         let conn = base.conn();
         let record = load(&conn, &identities)?;
-        let dirty: i64 =
-            conn.query_row("SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'", [], |row| row.get(0)).map_err(sql_err)?;
+        // The marks, and the questions set aside whose failure no longer
+        // holds them: the same the step of the process counts.
+        let dirty = pages_left(&conn)?.pending;
         (record, wiki_language(&conn)?, setting(&conn, BASIS_SETTING)?, dirty)
     };
     // What the pages are computed on, besides the record: the documents,
@@ -2721,6 +2860,12 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             }
         }
     }
+    // A part of a file of several documents links to the page of the
+    // whole file, until it has its own (P-527).
+    for document in record.documents.values_mut().filter(|d| d.page.is_none()) {
+        let whole = document.part.as_ref().and_then(|p| families.family_of(p.whole));
+        document.page = whole.and_then(|f| document_paths.get(&f.id)).cloned();
+    }
     paths.extend(document_paths.clone());
     report.source_pages = families.list.len();
 
@@ -2744,6 +2889,12 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
                 None => {
                     if let Some(collect) = &mut asking.collect {
                         collect.push(question);
+                    } else if asking.asker.is_some() && base.question_held(question.task, question.content_id, &question.key) {
+                        // Its failure holds: it waits for its next attempt,
+                        // or for a person (P-533), set aside; the next
+                        // operation could not take it either.
+                        report.held += 1;
+                        report.held_questions.insert(format!("{}:{}", question.content_id, question.key));
                     } else if let (Some(asker), true) = (asking.asker, asking.budget > 0) {
                         asking.budget -= 1;
                         report.asked += 1;
@@ -2908,11 +3059,63 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
 
     if report.left == 0 && report.failed == 0 {
         base.conn().execute("DELETE FROM knowledge_dirty WHERE scope = 'project' AND since <= ?1", [started]).map_err(sql_err)?;
+        // The questions a failure holds stay set aside until it does not
+        // hold them (`pages_left`): they do not leave the step counting
+        // what its operation cannot take.
+        let held: Vec<&str> = report.held_questions.iter().map(String::as_str).collect();
+        set_setting(&base.conn(), HELD_SETTING, &held.join("
+"))?;
         // What the next projection compares with.
         let basis = basis_of(base, vocabulary, language.as_deref(), &documents_digest)?;
         set_setting(&base.conn(), BASIS_SETTING, &basis)?;
     }
     Ok(())
+}
+
+/// The questions of the pages a failure held at the last complete
+/// projection, one `{content_id}:{key}` per line.
+const HELD_SETTING: &str = "pages:held-questions";
+
+/// What the pages have left, as the step of the process counts it and as
+/// its operation takes it (the same rule in both, arreglo 1 of the small
+/// test of 2 nov).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct PagesLeft {
+    /// The marks of what changed, and the questions set aside whose
+    /// failure no longer holds them: a projection takes them.
+    pub pending: usize,
+    /// The questions a failure still holds: set aside.
+    pub held: usize,
+    /// Of those, the ones that wait for a person (no next attempt).
+    pub person: usize,
+}
+
+pub(crate) fn pages_left(conn: &Connection) -> Result<PagesLeft, String> {
+    let marked: i64 =
+        conn.query_row("SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'", [], |row| row.get(0)).map_err(sql_err)?;
+    let mut left = PagesLeft { pending: marked.max(0) as usize, ..PagesLeft::default() };
+    let kept = setting(conn, HELD_SETTING)?.unwrap_or_default();
+    for line in kept.lines().filter(|l| !l.trim().is_empty()) {
+        let Some((content, key)) = line.split_once(':') else { continue };
+        let content_id: i64 = content.parse().unwrap_or(0);
+        let about = crate::docbase::failures::question_about(content_id, key);
+        let stage = crate::docbase::failures::question_stage("pages");
+        if crate::docbase::failures::holds(conn, stage, &about)? {
+            left.held += 1;
+            let next: bool = conn
+                .query_row(
+                    "SELECT EXISTS (SELECT 1 FROM failure WHERE state <> 'resolved' AND item_kind = ?1 AND item = ?2 AND next_at IS NOT NULL
+                       AND (stage = ?3 OR stage = ?4))",
+                    params![about.kind(), about.item(), stage, crate::docbase::failures::BACK_STAGE],
+                    |row| row.get(0),
+                )
+                .map_err(sql_err)?;
+            left.person += usize::from(!next);
+        } else {
+            left.pending += 1;
+        }
+    }
+    Ok(left)
 }
 
 #[cfg(test)]

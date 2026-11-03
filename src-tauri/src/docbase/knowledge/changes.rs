@@ -25,8 +25,11 @@
 //!   not processed (`base-documental.md`): its mentions do not count, but
 //!   its reading is kept, so taking the exclusion back costs nothing. A
 //!   document joined as the same document with another one chosen as the
-//!   wiki's source still counts (its text is real evidence); its pages
-//!   name the chosen one (`pages.rs`).
+//!   wiki's source still counts; its pages name the chosen one
+//!   (`pages.rs`). A copy the search of similar documents finds (almost
+//!   the same text, its signed copy) is not read again by the model: it
+//!   takes the reading of its original, checked against its own text
+//!   (D-708, P-537; `extract::copy_originals`, E6 of 2 nov).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -40,26 +43,31 @@ const LEFT_OUT_SETTING: &str = "knowledge-left-out";
 /// SQL condition: the content `{column}` has a location that is not
 /// excluded, through any file it appears in (a part of a joined PDF
 /// appears in its file, D-560). A document with none is not processed by
-/// the layer, nor the version of a whole file that has parts: its parts
-/// are read instead.
+/// the layer. Only documents are (D-718): a version with its place in the
+/// structure of a file, never a whole file as such (the one of two or more
+/// documents is read in its parts).
 pub(crate) fn active_content(column: &str) -> String {
     format!(
         "EXISTS (SELECT 1 FROM appearance af JOIN location l ON l.file_hash = af.resource_hash
-                 WHERE af.version_id = {column} AND NOT {}) AND NOT {}",
+                 WHERE af.version_id = {column} AND NOT {}) AND {}",
         excluded_sql!(),
-        crate::docbase::cut::parts::has_included_sql(column)
+        crate::docbase::cut::parts::is_document_sql(column)
     )
 }
 
 /// The contents read by the layer that are left out now: every location
-/// they have is excluded.
+/// they have is excluded, or they are of a type of low confidence now
+/// (D-769, E3 of 2 nov): read before the threshold left them out, what
+/// they said goes out of the record the same way, and comes back when it
+/// lets them in.
 pub(crate) fn left_out(conn: &Connection) -> Result<BTreeSet<i64>, String> {
     let mut statement = conn
         .prepare(&format!(
             "SELECT k.version_id FROM knowledge_extraction k
              WHERE EXISTS (SELECT 1 FROM appearance f JOIN location l ON l.file_hash = f.resource_hash WHERE f.version_id = k.version_id)
-               AND NOT {}",
-            active_content("k.version_id")
+               AND (NOT {} OR {})",
+            active_content("k.version_id"),
+            crate::docbase::safe_words::low_sql("k.version_id", crate::docbase::safe_words::limit(conn)?)
         ))
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;

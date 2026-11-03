@@ -59,7 +59,12 @@ pub struct NoisyReading {
     pub discarded: usize,
 }
 
-/// The claims of an entity about one thing whose values differ.
+/// The key of the conflicts of two relations said the other way round.
+const BACKWARDS: &str = "relacion-al-reves";
+
+/// The claims of an entity about one thing whose values differ; or two
+/// relations between the same two said the other way round (E6 of 2 nov),
+/// each value then the relation said in full.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConflictGroup {
@@ -452,7 +457,7 @@ impl DocBase {
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT DISTINCT c.id, c.subject, s.name, s.kind, c.predicate, c.context_entity, w.name, c.qualifier,
-                            coalesce(o.name, c.object_value)
+                            coalesce(o.name, c.object_value), c.object_entity
                      FROM knowledge_claim c JOIN knowledge_entity s ON s.id = c.subject
                      LEFT JOIN knowledge_entity o ON o.id = c.object_entity LEFT JOIN knowledge_entity w ON w.id = c.context_entity
                      JOIN knowledge_evidence e ON e.claim_id = c.id
@@ -472,12 +477,24 @@ impl DocBase {
                         row.get::<_, Option<String>>(6)?,
                         row.get::<_, Option<String>>(7)?,
                         row.get::<_, Option<String>>(8)?,
+                        row.get::<_, Option<String>>(9)?,
                     ))
                 })
                 .map_err(sql_err)?;
             for row in rows {
-                let (id, subject, name, kind, predicate, context, within, qualifier, value) = row.map_err(sql_err)?;
-                let group = conflicts.entry((subject.clone(), predicate.clone(), context, qualifier)).or_insert_with(|| ConflictGroup {
+                let (id, subject, name, kind, predicate, context, within, qualifier, value, object) = row.map_err(sql_err)?;
+                // Two relations between the same two said the other way
+                // round are one decision, by the two (E6 of 2 nov): each
+                // value says who is what of whom.
+                let (key, value) = match object {
+                    Some(object) => {
+                        let (low, high) = if subject <= object { (subject.clone(), object.clone()) } else { (object.clone(), subject.clone()) };
+                        let label = vocabulary().predicate_label(&predicate).to_lowercase();
+                        ((low, BACKWARDS.to_string(), Some(high), None), value.map(|o| format!("{name} {label} {o}")))
+                    }
+                    None => ((subject.clone(), predicate.clone(), context, qualifier), value),
+                };
+                let group = conflicts.entry(key).or_insert_with(|| ConflictGroup {
                     entity_id: subject,
                     entity_name: name,
                     kind,

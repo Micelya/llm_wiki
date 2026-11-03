@@ -1,8 +1,9 @@
 //! The registry of the AI services (P-141, D-443): which engine each
 //! service uses, with which model and reasoning, and an alternative engine.
 //!
-//! Three services: asking the model (the reading of the base and the chat),
-//! recognizing the text of scans, and researching on the internet. The
+//! Four services: asking the model (the reading of the base and the chat),
+//! recognizing the text of scans, researching on the internet, and
+//! computing the vectors of the documents (C1 of 2 nov). The
 //! registry is one setting of the base (`docbase_setting`, `ai-services`):
 //! the base reads it at every request, so a change made in Ajustes is used
 //! by the next question without the screens having to push anything. The
@@ -44,13 +45,18 @@ const LEGACY_RECOGNITION_SETTING: &str = "recognition-engine";
 
 const CATALOG: &str = include_str!("../../resources/catalog/ai-engines.json");
 
-/// The three services.
+/// The four services.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Service {
     Ask,
     Recognize,
     Research,
+    /// «Calcular vectores» (C1 of 2 nov): Micelya Core by default, or none.
+    Embed,
 }
+
+/// Every service, in the order of the catalog.
+pub const SERVICES: [Service; 4] = [Service::Ask, Service::Recognize, Service::Research, Service::Embed];
 
 impl Service {
     pub fn id(self) -> &'static str {
@@ -58,6 +64,7 @@ impl Service {
             Service::Ask => "ask",
             Service::Recognize => "recognize",
             Service::Research => "research",
+            Service::Embed => "embed",
         }
     }
 }
@@ -101,6 +108,10 @@ pub struct AiServices {
     pub recognize: ServiceChoice,
     #[serde(default)]
     pub research: ServiceChoice,
+    /// A registry saved before C1 has none: the vectors use the engine by
+    /// default, Micelya Core (switched on, D-805).
+    #[serde(default)]
+    pub embed: ServiceChoice,
 }
 
 impl AiServices {
@@ -109,6 +120,16 @@ impl AiServices {
             Service::Ask => &self.ask,
             Service::Recognize => &self.recognize,
             Service::Research => &self.research,
+            Service::Embed => &self.embed,
+        }
+    }
+
+    fn service_mut(&mut self, service: Service) -> &mut ServiceChoice {
+        match service {
+            Service::Ask => &mut self.ask,
+            Service::Recognize => &mut self.recognize,
+            Service::Research => &mut self.research,
+            Service::Embed => &mut self.embed,
         }
     }
 }
@@ -137,6 +158,13 @@ struct CatalogEngine {
     /// The model it is saved with when none is given.
     #[serde(default)]
     default_model: Option<String>,
+    /// The engine the service uses when none is chosen (D-764: for the
+    /// scans, the one of this computer).
+    #[serde(default)]
+    by_default: bool,
+    /// The numbers of each vector, for an engine of vectors.
+    #[serde(default)]
+    dimensions: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -191,6 +219,7 @@ fn legacy(conn: &Connection) -> Result<AiServices, String> {
             alternative: None,
         },
         research: ServiceChoice::default(),
+        embed: ServiceChoice::default(),
     })
 }
 
@@ -213,27 +242,159 @@ pub(crate) fn ask_engine(conn: &Connection) -> Result<Option<AskConfig>, String>
         .map(|choice| AskConfig { engine: choice.engine, model: choice.model, reasoning: choice.reasoning }))
 }
 
-/// The engine that recognizes scans: the one of «Reconocer escaneos» when
-/// the base can run it.
-pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
+/// WHERE THE READER OF THE SCANS IS CHOSEN (E2 of 2 nov, D-764): the reader
+/// of «Reconocer escaneos» in Ajustes; when none is chosen, the one the
+/// catalog marks `byDefault` (the one of this computer). Nothing else in the
+/// base names a reader: the step of the scans (`process/run.rs`,
+/// `scans_operation`) reads with this one, or with the one a request of a
+/// person was made with (`recognize.rs`). `None` only when the chosen engine
+/// is one the base cannot run. With or without the models of this computer:
+/// without them its scans wait with their failure (`recognition_engine`).
+///
+/// The SHAPE of the pages (their zones and lines, which the cut needs) is
+/// not chosen here: it is always read on this computer (`structure/`,
+/// `structure/reader.rs`), because Codex and Core do not give it (D-764).
+pub(crate) fn recognition_choice(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
     let (services, _) = ai_services(conn)?;
-    let chosen = services.recognize.engine.filter(|choice| runs_in_base(Service::Recognize, &choice.engine));
-    Ok(match chosen {
-        // The engine of this computer, only while its models are there.
-        Some(choice) if choice.engine == recognition_local::ENGINE => local_recognition_engine(),
-        Some(choice) => Some(RecognitionConfig { engine: choice.engine, model: choice.model }),
-        // None chosen: the one of this computer, by default (D-558).
-        None => local_recognition_engine(),
-    })
+    let choice = match services.recognize.engine {
+        Some(choice) => choice,
+        None => match default_engine(Service::Recognize) {
+            Some(entry) => EngineChoice {
+                engine: entry.id.clone(),
+                model: entry.default_model.clone().unwrap_or_default(),
+                ..Default::default()
+            },
+            None => return Ok(None),
+        },
+    };
+    if !runs_in_base(Service::Recognize, &choice.engine) {
+        return Ok(None);
+    }
+    Ok(Some(reader_config(choice.engine, choice.model)))
 }
 
-/// The engine of this computer (D-558), when its models are there. It
-/// reads the new scans in the background, the automatic reading on or off
-/// (`recognize.rs`): no model in the cloud is asked.
-pub(crate) fn local_recognition_engine() -> Option<RecognitionConfig> {
-    recognition_local::unavailable()
-        .is_none()
-        .then(|| RecognitionConfig { engine: recognition_local::ENGINE.to_string(), model: recognition_local::catalog().model_set.clone() })
+/// The engine that computes the vectors of the documents, as Ajustes says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VectorsConfig {
+    /// As the catalog names it (`core`).
+    pub engine: String,
+    /// The model the vectors are asked with (`us.cohere.embed-v4:0`).
+    pub model: String,
+    /// The numbers of each vector (1.024).
+    pub dimension: usize,
+}
+
+/// The engine whose «Ninguno» computes no vector.
+pub(crate) const NO_VECTORS: &str = "none";
+
+/// WHERE THE ENGINE OF THE VECTORS IS CHOSEN (C1 of 2 nov): the one of
+/// «Calcular vectores» in Ajustes; when none is chosen, the one the catalog
+/// marks `byDefault`, Micelya Core with Cohere Embed V4 and 1.024 numbers
+/// (switched on by default, decision 4 of 2 nov and D-805). `None` with
+/// «Ninguno», or with an engine the base cannot run: the step of the
+/// vectors is complete then (`vectors.rs`).
+pub(crate) fn vectors_choice(conn: &Connection) -> Result<Option<VectorsConfig>, String> {
+    let (services, _) = ai_services(conn)?;
+    let choice = match services.embed.engine {
+        Some(choice) => choice,
+        None => match default_engine(Service::Embed) {
+            Some(entry) => EngineChoice { engine: entry.id.clone(), ..Default::default() },
+            None => return Ok(None),
+        },
+    };
+    if choice.engine == NO_VECTORS || !runs_in_base(Service::Embed, &choice.engine) {
+        return Ok(None);
+    }
+    let Some(entry) = catalog_engine(Service::Embed, &choice.engine) else {
+        return Ok(None);
+    };
+    let model = match choice.model.trim() {
+        "" => entry.default_model.clone().unwrap_or_default(),
+        model => model.to_string(),
+    };
+    Ok(Some(VectorsConfig { engine: choice.engine, model, dimension: entry.dimensions.unwrap_or(1024) }))
+}
+
+/// The engine of the catalog a service uses when none is chosen.
+fn default_engine(service: Service) -> Option<&'static CatalogEngine> {
+    catalog().engines.iter().find(|entry| entry.service == service.id() && entry.by_default)
+}
+
+/// A reader as the base names it; the one of this computer always with its
+/// own set of models.
+fn reader_config(engine: String, model: String) -> RecognitionConfig {
+    if is_local(&engine) {
+        return RecognitionConfig { engine, model: recognition_local::catalog().model_set.clone() };
+    }
+    RecognitionConfig { engine, model }
+}
+
+/// Whether a reader is the one of this computer: its step is local work,
+/// not a question (`process/steps.rs`, `class_now`).
+pub(crate) fn is_local(engine: &str) -> bool {
+    engine == recognition_local::ENGINE
+}
+
+/// The reader of the scans when it can read now (`recognition_choice`):
+/// the one of this computer only while its models are there.
+pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
+    Ok(recognition_choice(conn)?.filter(|config| !is_local(&config.engine) || recognition_local::unavailable().is_none()))
+}
+
+/// The reader of «Leer con IA» (E2 point 6; D-670, D-705): a person asks
+/// for it, for a document that cannot be read well or an old manuscript.
+/// The alternative of «Reconocer escaneos» when it is a reader in the cloud
+/// the base runs; otherwise the principal one, when it is in the cloud.
+/// `None`: there is no reader of AI chosen, and the screen says where to
+/// choose it. Never the one of this computer, which already read it.
+pub(crate) fn ai_reading_engine(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
+    let (services, _) = ai_services(conn)?;
+    let cloud = |choice: Option<EngineChoice>| {
+        choice.filter(|c| runs_in_base(Service::Recognize, &c.engine) && !is_local(&c.engine)).map(|c| reader_config(c.engine, c.model))
+    };
+    Ok(cloud(services.recognize.alternative).or_else(|| cloud(services.recognize.engine)))
+}
+
+/// Where a base keeps that the reader of the scans went back once to the
+/// one of this computer (D-775, point 1).
+const BACK_TO_LOCAL: &str = "recognition:back-to-local";
+/// The stage of the record of failures where Atención tells it, once.
+pub const READER_NOTICE_STAGE: &str = "recognition-reader";
+
+/// Once per base (D-775, point 1): a base whose reader of the scans was
+/// Codex (the screens put it there when Codex asked the questions, before
+/// E2) goes back to the one of this computer, so no scan goes to the
+/// cloud by surprise now that the base uses the reader chosen. Codex stays
+/// as the reader of «Leer con IA», unless another was chosen there, and
+/// Atención says so once. A person can choose Codex again afterwards: this
+/// is never done again. Returns whether it went back.
+pub(crate) fn reader_back_to_local_once(conn: &Connection) -> Result<bool, String> {
+    if setting(conn, BACK_TO_LOCAL)?.is_some() {
+        return Ok(false);
+    }
+    conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![BACK_TO_LOCAL, super::now_ms().to_string()])
+        .map_err(sql_err)?;
+    let (mut services, saved) = ai_services(conn)?;
+    let Some(codex) = services.recognize.engine.clone().filter(|choice| choice.engine == "codex-cli") else {
+        return Ok(false);
+    };
+    services.recognize.engine = None;
+    if services.recognize.alternative.is_none() {
+        services.recognize.alternative = Some(codex);
+    }
+    store(conn, &services)?;
+    if !saved {
+        // The old setting goes too, so the registry is what counts.
+        conn.execute("DELETE FROM docbase_setting WHERE key = ?1", [LEGACY_RECOGNITION_SETTING]).map_err(sql_err)?;
+    }
+    let mut notice = super::failures::Failure::new(
+        READER_NOTICE_STAGE,
+        super::failures::About::Thread("recognition-reader".to_string()),
+        "El lector de escaneos era Codex: volvió una vez al de esta computadora, que es el de por omisión (D-775). Codex quedó para «Leer con IA». Si querés que Codex lea todos los escaneos, elegilo de nuevo en Ajustes → Servicios de IA → Reconocer escaneos: cada página es una consulta.",
+    );
+    notice.cause = super::failures::cause("reader-back-to-local");
+    super::failures::record(conn, &notice)?;
+    Ok(true)
 }
 
 /// The catalog for the screens: the engine of this computer says why it is
@@ -302,7 +463,7 @@ impl DocBase {
     /// must be one of the catalog for its service.
     pub fn set_ai_services(&self, services: AiServices) -> Result<(), String> {
         let mut checked = AiServices::default();
-        for service in [Service::Ask, Service::Recognize, Service::Research] {
+        for service in SERVICES {
             let given = services.service(service).clone();
             let engine = given.engine.map(|c| normalized(service, c)).filter(|c| !c.engine.is_empty());
             let alternative = given.alternative.map(|c| normalized(service, c)).filter(|c| !c.engine.is_empty());
@@ -311,28 +472,26 @@ impl DocBase {
                     return Err(error);
                 }
             }
-            let choice = ServiceChoice { engine, alternative };
-            match service {
-                Service::Ask => checked.ask = choice,
-                Service::Recognize => checked.recognize = choice,
-                Service::Research => checked.research = choice,
-            }
+            *checked.service_mut(service) = ServiceChoice { engine, alternative };
         }
-        store(&self.conn(), &checked)
+        let conn = self.conn();
+        // Another engine of the vectors: what failed with the one before
+        // waits no more (the step asks again with the new one, C1 of 2 nov).
+        let before = vectors_choice(&conn)?;
+        store(&conn, &checked)?;
+        if vectors_choice(&conn)? != before {
+            super::failures::resolve(&conn, super::vectors::STAGE, &super::vectors::about())?;
+        }
+        Ok(())
     }
 
     /// Changes only the engine of one service, keeping the rest of the
     /// registry (and, before it was saved, what the base had). The app
     /// saves the whole registry (`set_ai_services`); these are for tests.
     #[cfg(test)]
-    fn set_engine_of(&self, service: Service, engine: Option<EngineChoice>) -> Result<(), String> {
+    pub(crate) fn set_engine_of(&self, service: Service, engine: Option<EngineChoice>) -> Result<(), String> {
         let (mut services, _) = ai_services(&self.conn())?;
-        let target = match service {
-            Service::Ask => &mut services.ask,
-            Service::Recognize => &mut services.recognize,
-            Service::Research => &mut services.research,
-        };
-        target.engine = engine;
+        services.service_mut(service).engine = engine;
         self.set_ai_services(services)
     }
 
@@ -392,7 +551,8 @@ mod tests {
             .iter()
             .map(|s| s["id"].as_str().unwrap().to_string())
             .collect();
-        assert_eq!(services, ["ask", "recognize", "research"]);
+        assert_eq!(services, ["ask", "recognize", "research", "embed"]);
+        assert_eq!(SERVICES.map(Service::id), ["ask", "recognize", "research", "embed"]);
         assert!(runs_in_base(Service::Ask, "codex-cli"));
         assert!(runs_in_base(Service::Recognize, "codex-cli"));
         assert!(runs_in_base(Service::Recognize, "core"));
@@ -416,6 +576,8 @@ mod tests {
                     model: String::new()
                 })
                 .is_ok()),
+                // The vectors: Micelya Core (`vectors.rs`), or none.
+                "embed" => assert!(["core", NO_VECTORS].contains(&entry.id.as_str()), "{}", entry.id),
                 other => panic!("the base runs nothing for {other}"),
             }
         }
@@ -425,7 +587,8 @@ mod tests {
     fn an_old_base_keeps_its_engines_until_the_registry_is_saved() {
         let base = DocBase::in_memory().unwrap();
         assert_eq!(ask_engine(&base.conn()).unwrap(), None);
-        assert_eq!(recognition_engine(&base.conn()).unwrap(), None);
+        // None chosen: the reader of this computer, by default (D-764).
+        assert_eq!(recognition_choice(&base.conn()).unwrap().unwrap().engine, recognition_local::ENGINE);
         put(&base, LEGACY_ASK_SETTING, r#"{"engine":"codex-cli","model":"m","reasoning":"high"}"#);
         put(&base, LEGACY_RECOGNITION_SETTING, r#"{"engine":"codex-cli","model":"r"}"#);
         let ask = ask_engine(&base.conn()).unwrap().unwrap();
@@ -476,7 +639,8 @@ mod tests {
         assert_eq!(recognition_engine(&base.conn()).unwrap().unwrap().model, "m");
         services.recognize.engine = None;
         base.set_ai_services(services).unwrap();
-        assert_eq!(recognition_engine(&base.conn()).unwrap(), None);
+        // None chosen: the reader of this computer, by default (D-764).
+        assert_eq!(recognition_choice(&base.conn()).unwrap().unwrap().engine, recognition_local::ENGINE);
     }
 
     #[test]
@@ -485,11 +649,7 @@ mod tests {
         let with = |service: Service, choice: EngineChoice| {
             let mut services = AiServices::default();
             let target = ServiceChoice { engine: Some(choice), alternative: None };
-            match service {
-                Service::Ask => services.ask = target,
-                Service::Recognize => services.recognize = target,
-                Service::Research => services.research = target,
-            }
+            *services.service_mut(service) = target;
             base.set_ai_services(services)
         };
         assert!(with(Service::Ask, EngineChoice { engine: "nada".into(), ..Default::default() }).is_err());
@@ -529,6 +689,57 @@ mod tests {
     }
 
     #[test]
+    fn the_scans_have_three_readers_the_one_of_this_computer_by_default_and_the_one_chosen_is_kept() {
+        // Three readers in the catalog, the one of this computer first and by
+        // default: adding a reader is adding an entry.
+        let readers: Vec<(&str, bool)> = catalog()
+            .engines
+            .iter()
+            .filter(|e| e.service == "recognize")
+            .map(|e| (e.id.as_str(), e.by_default))
+            .collect();
+        assert_eq!(readers, [(recognition_local::ENGINE, true), ("codex-cli", false), ("core", false)]);
+        let base = DocBase::in_memory().unwrap();
+        assert_eq!(recognition_choice(&base.conn()).unwrap().unwrap().engine, recognition_local::ENGINE);
+        for (engine, connection, model, id) in [
+            ("codex-cli", "codex-cli", "m", "codex-cli:m"),
+            ("core", crate::micelya_core::CONNECTION_ID, "", "core:textract-1.0"),
+            (recognition_local::ENGINE, "", "", "rapidocr-onnx:"),
+        ] {
+            let choice = EngineChoice { engine: engine.into(), connection: connection.into(), model: model.into(), ..Default::default() };
+            base.set_ai_services(AiServices { recognize: ServiceChoice { engine: Some(choice), alternative: None }, ..Default::default() })
+                .unwrap();
+            assert_eq!(base.ai_services().unwrap().services.recognize.engine.unwrap().engine, engine);
+            let config = recognition_choice(&base.conn()).unwrap().unwrap();
+            let named = crate::source_volume::recognition::engine_id(&config).unwrap();
+            assert!(named.starts_with(id), "{named}");
+        }
+    }
+
+    #[test]
+    fn a_base_whose_reader_was_codex_goes_back_once_to_the_one_of_this_computer_with_a_notice() {
+        let base = DocBase::in_memory().unwrap();
+        // A base of before: the screens left Codex as the reader.
+        base.conn().execute("DELETE FROM docbase_setting WHERE key = ?1", [BACK_TO_LOCAL]).unwrap();
+        base.set_ai_services(AiServices { recognize: ServiceChoice { engine: Some(codex("m", "")), alternative: None }, ..Default::default() })
+            .unwrap();
+        assert!(reader_back_to_local_once(&base.conn()).unwrap());
+        assert_eq!(recognition_choice(&base.conn()).unwrap().unwrap().engine, recognition_local::ENGINE);
+        // Codex stays for «Leer con IA».
+        assert_eq!(ai_reading_engine(&base.conn()).unwrap().unwrap().engine, "codex-cli");
+        let notices = base.failures_open().unwrap();
+        assert!(notices.iter().any(|n| n.stage == READER_NOTICE_STAGE && n.cause == "reader-back-to-local"), "{notices:?}");
+        // Once: Codex chosen again by a person stays.
+        base.set_ai_services(AiServices { recognize: ServiceChoice { engine: Some(codex("m", "")), alternative: None }, ..Default::default() })
+            .unwrap();
+        assert!(!reader_back_to_local_once(&base.conn()).unwrap());
+        assert_eq!(recognition_choice(&base.conn()).unwrap().unwrap().engine, "codex-cli");
+        // A new base has nothing to go back from.
+        let new = DocBase::in_memory().unwrap();
+        assert!(new.failures_open().unwrap().is_empty());
+    }
+
+    #[test]
     fn setting_one_engine_keeps_the_rest_of_the_registry() {
         let base = DocBase::in_memory().unwrap();
         put(&base, LEGACY_RECOGNITION_SETTING, r#"{"engine":"codex-cli","model":"r"}"#);
@@ -548,9 +759,31 @@ mod tests {
         assert_eq!((ask.model.as_str(), ask.connection.as_str()), ("m2", "codex-otra"));
         assert_eq!(services.ask.alternative, Some(codex("alt", "")));
         base.set_recognition_engine(None).unwrap();
-        assert_eq!(recognition_engine(&base.conn()).unwrap(), None);
+        // None chosen: the reader of this computer, by default (D-764).
+        assert_eq!(recognition_choice(&base.conn()).unwrap().unwrap().engine, recognition_local::ENGINE);
         assert_eq!(engine_id(&ask_engine(&base.conn()).unwrap().unwrap()), "codex-cli:m2");
         base.set_ask_engine(None).unwrap();
         assert_eq!(ask_engine(&base.conn()).unwrap(), None);
+    }
+
+    #[test]
+    fn the_vectors_come_from_micelya_core_by_default_with_1024_numbers_and_none_turns_them_off() {
+        let base = DocBase::in_memory().unwrap();
+        let core = VectorsConfig { engine: "core".into(), model: "us.cohere.embed-v4:0".into(), dimension: 1024 };
+        // A new base, and one whose registry was saved before C1: switched on.
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), Some(core.clone()));
+        put(&base, AI_SERVICES_SETTING, r#"{"ask":{"engine":null},"recognize":{"engine":null},"research":{"engine":null}}"#);
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), Some(core.clone()));
+        // «Ninguno»: no vector.
+        let none = EngineChoice { engine: NO_VECTORS.into(), ..Default::default() };
+        base.set_engine_of(Service::Embed, Some(none)).unwrap();
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), None);
+        assert_eq!(ai_services(&base.conn()).unwrap().0.embed.engine.unwrap().engine, NO_VECTORS);
+        // Core chosen again, with its connection: the model of the catalog.
+        let chosen = EngineChoice { engine: "core".into(), connection: "micelya-core".into(), ..Default::default() };
+        base.set_engine_of(Service::Embed, Some(chosen)).unwrap();
+        assert_eq!(vectors_choice(&base.conn()).unwrap(), Some(core));
+        // An engine of another service is not one of the vectors.
+        assert!(base.set_engine_of(Service::Embed, Some(codex("m", ""))).is_err());
     }
 }

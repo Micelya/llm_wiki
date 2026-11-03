@@ -737,6 +737,14 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
         }
     }
 
+    // Two relations between the same two that cannot both be true, said
+    // the other way round (A parent of B and B parent of A): both are in
+    // conflict, written as no fact, for a person to decide (E6 of 2 nov).
+    let backwards = backwards_conflicts(vocabulary, &drafts);
+    for key in &backwards {
+        drafts.get_mut(key).expect("listed").state = "conflict";
+    }
+
     // How sure each claim is (D-320).
     let by_id: HashMap<i64, &Piece> = pieces.iter().map(|p| (p.id, p)).collect();
     // The values each document gives each entity, by predicate, for what
@@ -755,6 +763,9 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
         if draft.amount_states.len() > 1 {
             reasons.insert("states");
         }
+        if backwards.contains(key) {
+            reasons.insert("backwards");
+        }
         let list: Vec<&Piece> = draft.evidence.iter().filter_map(|id| by_id.get(id).copied()).collect();
         if !list.is_empty()
             && list.iter().all(|p| doubted.contains(&p.subject_mention) || p.object_mention.is_some_and(|o| doubted.contains(&o)))
@@ -769,6 +780,11 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
             && list.iter().all(|p| names_someone_else(vocabulary, &named, p, draft.subject.as_str(), draft.context.as_deref()))
         {
             reasons.insert("attribution");
+        }
+        // A value whose every quote is far from its subject: the text does
+        // not name it in the quote nor last before it (E6 of 2 nov).
+        if draft.object_entity.is_none() && !money && !list.is_empty() && list.iter().all(|p| far_from_subject(p)) {
+            reasons.insert("far");
         }
         // A relation whose every quote names others and not its subject
         // (the object aside; the first person is whoever signs; a role of
@@ -934,6 +950,39 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
     out.claims = drafts.values().filter(|d| d.state != "retired").count();
     out.conflicts = drafts.values().filter(|d| d.state == "conflict").count();
     Ok(out)
+}
+
+/// The claims of relations between the same two that cannot both be true
+/// (`vocabulary::backwards_contradict`), said the other way round.
+fn backwards_conflicts(vocabulary: &Vocabulary, drafts: &BTreeMap<String, Draft>) -> BTreeSet<String> {
+    let mut ways: HashMap<(&str, &str), Vec<&String>> = HashMap::new();
+    for (key, draft) in drafts {
+        if let Some(object) = draft.object_entity.as_deref().filter(|_| draft.state != "retired" && draft.amount.is_none()) {
+            ways.entry((draft.subject.as_str(), object)).or_default().push(key);
+        }
+    }
+    let mut out = BTreeSet::new();
+    for ((subject, object), keys) in &ways {
+        let Some(back) = ways.get(&(*object, *subject)) else { continue };
+        for a in keys {
+            for b in back {
+                let (Some(ahead), Some(other)) = (vocabulary.predicate(&drafts[*a].predicate), vocabulary.predicate(&drafts[*b].predicate)) else {
+                    continue;
+                };
+                if super::vocabulary::backwards_contradict(ahead, other) {
+                    out.insert((*a).clone());
+                    out.insert((*b).clone());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether the reading marked a piece of a value as far from its subject
+/// (`extract.rs`, E6 of 2 nov).
+fn far_from_subject(piece: &Piece) -> bool {
+    piece.detail.as_ref().and_then(|d| d.get(super::extract::FAR_FROM_SUBJECT)).and_then(|v| v.as_bool()) == Some(true)
 }
 
 /// The key a person decides a claim by (`claim_key`), of a draft.

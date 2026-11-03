@@ -25,6 +25,48 @@ use super::quote;
 use super::vocabulary::Vocabulary;
 use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
+/// A label of a form in a quote ("Apellido y Nombre del Padre: X"): its
+/// last words before the colon, and where its value starts and ends in
+/// the normalized words of the quote (the next label, or the end).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FormLabel {
+    pub words: Vec<String>,
+    pub start: usize,
+    pub end: usize,
+}
+
+impl FormLabel {
+    /// The beginning of a word of the label that is one of `beginnings`.
+    pub fn has<'a>(&self, beginnings: &'a [String]) -> Option<&'a String> {
+        beginnings.iter().find(|b| !b.is_empty() && self.words.iter().any(|w| w.starts_with(b.as_str())))
+    }
+}
+
+/// The labels of a form a quote has (E6 of 2 nov): for each colon, at most
+/// `width` words before it, not before the colon before.
+pub fn form_labels(quote_text: &str, width: usize) -> Vec<FormLabel> {
+    let words = quote::words(quote_text);
+    let cuts: Vec<usize> = quote_text.char_indices().filter(|(_, c)| *c == ':').map(|(i, _)| quote::words(&quote_text[..i]).len()).collect();
+    let mut out: Vec<FormLabel> = Vec::new();
+    let mut floor = 0;
+    for at in cuts {
+        let from = at.saturating_sub(width).max(floor);
+        floor = at;
+        if from < at && at <= words.len() {
+            if let Some(last) = out.last_mut() {
+                last.end = from.max(last.start);
+            }
+            out.push(FormLabel { words: words[from..at].to_vec(), start: at, end: words.len() });
+        }
+    }
+    out
+}
+
+/// The label among `labels` whose value holds the words at `at`.
+pub fn label_at(labels: &[FormLabel], at: usize) -> Option<&FormLabel> {
+    labels.iter().find(|l| l.start <= at && at < l.end)
+}
+
 /// Where `needle` starts in `haystack`, every time.
 pub fn positions(haystack: &[String], needle: &[String]) -> Vec<usize> {
     if needle.is_empty() || needle.len() > haystack.len() {

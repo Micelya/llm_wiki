@@ -160,6 +160,9 @@ fn one_question_per_family_and_it_is_never_asked_twice() {
     // Everything computed forgotten: the answer kept is used, not asked again.
     base.conn().execute_batch("DELETE FROM document_type; DELETE FROM document_data;").unwrap();
     assert_eq!(base.types_plan().unwrap().type_questions, 0);
+    // Looking writes nothing (P-593, A3 of 2 nov): the process applies it.
+    assert!(type_of(&base, "febrero.md").is_none());
+    base.types_refresh().unwrap();
     assert_eq!(type_of(&base, "febrero.md").unwrap().doc_type, "factura");
     let stored: (String, String) = base
         .conn()
@@ -456,12 +459,15 @@ fn round(base: &DocBase, model: &FakeModel, a: &str, b: &str) -> (Option<String>
 }
 
 #[test]
-fn a_member_of_the_template_whose_rule_parts_the_family_is_typed_alone_and_it_settles() {
+fn a_member_of_the_template_with_other_data_stays_in_its_family_and_it_settles() {
     // A letter and the postal form of another shipment printed over the
     // same template: the model reads the second, alone, as the delivery
-    // receipt; asked as a member of the letter's family it would be
-    // given the letter's type, which the rule of different shipment
-    // numbers then uses to take the family apart.
+    // receipt. The rule of different shipment numbers used to take the
+    // family apart (to only similar), so the member was typed alone to
+    // keep the type from going back and forth. Since P-485 (D-685) the rule
+    // keeps two letters that share a template's worth of text in the same
+    // template, which keeps the family: the member is typed with it, and
+    // the type and the relation must still settle.
     let letter = format!("CARTA DOCUMENTO\nEnvío XY111111111AR\nRemitente: Ejemplo Uno S.A.\n{LETTER}");
     let other = format!(
         "CARTA DOCUMENTO\nEnvío XY222222222AR\nRemitente: Ejemplo Uno S.A.\n{LETTER}\n\
@@ -484,5 +490,7 @@ fn a_member_of_the_template_whose_rule_parts_the_family_is_typed_alone_and_it_se
     }
     assert_eq!(seen[4], seen[5], "the type and the relation settle: {seen:?}");
     assert_eq!(seen[3], seen[5], "and stay: {seen:?}");
-    assert_eq!(seen[5].0.as_deref(), Some("acuse-de-recibo"), "{seen:?}");
+    // From the first round: the family's type, and the same template.
+    assert_eq!(seen[0], seen[5], "{seen:?}");
+    assert_eq!((seen[5].0.as_deref(), seen[5].1.as_deref()), (Some("carta-documento"), Some("same-template")), "{seen:?}");
 }

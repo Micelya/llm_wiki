@@ -27,7 +27,7 @@
 //!   asked twice by itself (R-20). A document whose type is still to be
 //!   asked waits for it: the type goes into the question.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -39,10 +39,11 @@ use super::vocabulary::{vocabulary, RoleReference, Vocabulary};
 use super::{mark_dirty, visible_content, Discarded};
 use crate::docbase::similar::changes::{classify as kind_of_token, Kind};
 use crate::docbase::similar::classify::{
-    self as classify, cached_answer, parse_json, stops_the_run, Question, ASKING, MIN_TYPE_WORDS,
+    self as classify, cached_answer, parse_json, stops_the_run, Question, ASKING,
 };
+use crate::docbase::safe_words::ASKED_WORDS;
 use crate::docbase::similar::data::Datum;
-use crate::docbase::similar::text::{pages, Prepared};
+use crate::docbase::similar::text::{firm_pages, Prepared};
 use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
@@ -51,13 +52,28 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 /// made before are kept, as of an earlier version (D-432). `conocimiento-7`
 /// asks for one claim per pair a sentence joins (each parent of each
 /// child), of every person of the document, with a quote that names both
-/// and skips nothing (D-459).
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-7";
+/// and skips nothing (D-459). `conocimiento-8` says three ways of naming
+/// that are mentions (D-665, D-680): an identifier with the label of a
+/// matter ("Expediente N°", "Orden de compra") is a mention of the matter;
+/// a mail address alone is someone's, a person's or, for a general mailbox
+/// of an organization, the organization's; and the names of the parties in
+/// the caption of a case ("X c/ Y s/ …") are people joined to the case.
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-8";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
 /// whole pages.
 pub const PART_WORDS: usize = 4000;
+
+/// The words of one part: `PART_WORDS`, or, only in the tests, the size
+/// in `MICELYA_PART_WORDS` (a measurement; the app never reads it).
+fn part_words() -> usize {
+    #[cfg(test)]
+    if let Some(words) = std::env::var("MICELYA_PART_WORDS").ok().and_then(|w| w.trim().parse::<usize>().ok()) {
+        return words.max(1);
+    }
+    PART_WORDS
+}
 
 /// The type of entity of a person (`knowledge.json`), and how many words
 /// before a number are looked at to tell whose it is.
@@ -82,10 +98,14 @@ pub struct KnowledgeReport {
     /// Documents left for another run (limit reached, or the provider
     /// stopped answering).
     pub left: usize,
-    /// Documents waiting for their type to be asked first.
+    /// Documents waiting for what goes first (D-666): the cut of their
+    /// file and its parts, the search of similar documents, their type.
     pub waiting_for_type: usize,
     /// Readings checked again from the answers kept, without asking.
     pub rechecked: usize,
+    /// Copies that took the reading of their original, without asking
+    /// (D-708, P-537; E6 of 2 nov).
+    pub inherited: usize,
     pub mentions: usize,
     pub evidence: usize,
     pub discarded: usize,
@@ -102,6 +122,7 @@ impl KnowledgeReport {
         self.left = other.left;
         self.waiting_for_type = other.waiting_for_type;
         self.rechecked += other.rechecked;
+        self.inherited += other.inherited;
         self.mentions += other.mentions;
         self.evidence += other.evidence;
         self.discarded += other.discarded;
@@ -117,7 +138,8 @@ pub struct KnowledgePlan {
     pub documents: usize,
     /// Questions that takes.
     pub questions: usize,
-    /// Documents that wait for their type to be asked first.
+    /// Documents that wait for what goes first (D-666): the cut of their
+    /// file and its parts, the search of similar documents, their type.
     pub waiting_for_type: usize,
     /// The engine that reads while the archive's wiki is active.
     pub engine: Option<crate::source_volume::asking::AskConfig>,
@@ -147,6 +169,103 @@ fn basis(vocabulary: &Vocabulary, text_hash: &str) -> String {
 /// (`releer:<when>|<basis>`): kept in the base, so that the request
 /// survives closing the app, and gone when the new reading is written.
 const REREAD: &str = "releer:";
+
+/// How the basis of the reading a copy took from its original starts
+/// (`copia:<original>|<basis>`): D-708, P-537, E6 of 2 nov.
+const COPY: &str = "copia:";
+
+/// The original a reading was taken from, from its basis.
+fn inherited_from(basis: &str) -> Option<i64> {
+    basis.strip_prefix(COPY)?.split('|').next()?.parse().ok()
+}
+
+/// The original whose reading each copy takes (D-708, P-537; E6 of 2 nov).
+/// The documents the search of similar documents joins by a relation that
+/// inherits the reading (`inheritsReading` in the catalog: almost the same
+/// text, its signed copy), proposed or joined and not discarded by a
+/// person, are one group. Its original is the one a person chose as the
+/// wiki's source, or else the first one (the lowest id), a document that is
+/// processed before one left out and one of good confidence before one of
+/// low confidence. Every other one of the group is a copy of it: it is not
+/// read again by the model.
+pub(crate) fn copy_originals(conn: &Connection) -> Result<BTreeMap<i64, i64>, String> {
+    let relations: Vec<String> = crate::docbase::similar::types::catalog()
+        .relations
+        .iter()
+        .filter(|r| r.inherits_reading)
+        .map(|r| format!("'{}'", r.id.replace('\'', "''")))
+        .collect();
+    if relations.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT a, b, wiki_source FROM similar_pair
+             WHERE state <> 'discarded' AND coalesce(chosen_relation, relation) IN ({})",
+            relations.join(", ")
+        ))
+        .map_err(sql_err)?;
+    let pairs: Vec<(i64, i64, Option<i64>)> = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(sql_err)?
+        .collect::<Result<_, _>>()
+        .map_err(sql_err)?;
+    if pairs.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let mut parent: BTreeMap<i64, i64> = BTreeMap::new();
+    fn root(parent: &mut BTreeMap<i64, i64>, x: i64) -> i64 {
+        let up = *parent.entry(x).or_insert(x);
+        if up == x {
+            return x;
+        }
+        let top = root(parent, up);
+        parent.insert(x, top);
+        top
+    }
+    let mut chosen: BTreeSet<i64> = BTreeSet::new();
+    for &(a, b, source) in &pairs {
+        let (ra, rb) = (root(&mut parent, a), root(&mut parent, b));
+        if ra != rb {
+            parent.insert(ra.max(rb), ra.min(rb));
+        }
+        chosen.extend(source);
+    }
+    let low = crate::docbase::safe_words::low_confidence(conn)?;
+    let active: BTreeSet<i64> = {
+        let mut statement =
+            conn.prepare(&format!("SELECT c.id FROM version c WHERE {}", super::changes::active_content("c.id"))).map_err(sql_err)?;
+        let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    let members: Vec<i64> = parent.keys().copied().collect();
+    let mut groups: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    for member in members {
+        let top = root(&mut parent, member);
+        groups.entry(top).or_default().push(member);
+    }
+    let mut out = BTreeMap::new();
+    for list in groups.values() {
+        let original = *list
+            .iter()
+            .min_by_key(|m| (!active.contains(m), !chosen.contains(m), low.contains(m), **m))
+            .expect("a group has members");
+        for &copy in list.iter().filter(|m| **m != original) {
+            out.insert(copy, original);
+        }
+    }
+    Ok(out)
+}
+
+/// What became of a copy whose original is known (`inherit_reading`).
+enum Inherited {
+    /// It took the reading of its original.
+    Done,
+    /// Its original is not read yet: it waits for it.
+    NotYet,
+    /// The answers of its original are not kept: it is read as itself.
+    Cannot,
+}
 
 /// When a person asked to read it again, from its basis.
 fn reread_since(basis: &str) -> Option<i64> {
@@ -201,14 +320,17 @@ impl ReadingRow {
     }
 }
 
-/// The documents with enough text to be read (all of them, or `only`),
-/// over what `visible` lets see, and how their reading stands. Whether a
+/// The documents with a word in their text (the one rule of the steps that
+/// ask, `safe_words::ASKED_WORDS`, E3 of 2 nov), all of them or `only`,
+/// over what `visible` lets see, and how their reading stands. Those of a
+/// type of low confidence are here too: the step of the reading sets them
+/// aside, with their reason (`knowledge_pending`, `process::steps`). Whether a
 /// reading is current is told without reading the texts: the same text
 /// (by when it was written), question and vocabulary.
 pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>) -> Result<Vec<Standing>, String> {
     let vocabulary = vocabulary();
     let (condition, params) = visible_content("c.id", visible);
-    let mut values: Vec<rusqlite::types::Value> = vec![MIN_TYPE_WORDS.into(), only.into()];
+    let mut values: Vec<rusqlite::types::Value> = vec![ASKED_WORDS.into(), only.into()];
     values.extend(params.into_iter().map(rusqlite::types::Value::from));
     let mut statement = conn
         .prepare(&format!(
@@ -270,16 +392,17 @@ pub fn parts(body: &str) -> Vec<String> {
         }
         blocks.last_mut().expect("one").push(line);
     }
+    let limit = part_words();
     let words = |lines: &[&str]| lines.iter().map(|l| l.split_whitespace().count()).sum::<usize>();
     let mut pieces: Vec<Vec<&str>> = Vec::new();
     for block in blocks {
-        if words(&block) <= PART_WORDS {
+        if words(&block) <= limit {
             pieces.push(block);
             continue;
         }
         let mut current: Vec<&str> = Vec::new();
         for line in block {
-            if !current.is_empty() && words(&current) + line.split_whitespace().count() > PART_WORDS {
+            if !current.is_empty() && words(&current) + line.split_whitespace().count() > limit {
                 pieces.push(std::mem::take(&mut current));
             }
             current.push(line);
@@ -289,7 +412,7 @@ pub fn parts(body: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut current: Vec<&str> = Vec::new();
     for piece in pieces {
-        if !current.is_empty() && words(&current) + words(&piece) > PART_WORDS {
+        if !current.is_empty() && words(&current) + words(&piece) > limit {
             out.push(current.join("\n").trim().to_string());
             current.clear();
         }
@@ -302,9 +425,10 @@ pub fn parts(body: &str) -> Vec<String> {
     out
 }
 
-/// The identifiers the base recognizes by their shape, without a model.
+/// The identifiers the base recognizes by their shape, without a model,
+/// in the firm text (one read with low confidence is no hint, E1 of 2 nov).
 pub fn identifiers_by_shape(body: &str) -> Vec<String> {
-    let prepared = Prepared::new(&pages(body), &[], &[]);
+    let prepared = Prepared::new(&firm_pages(body), &[], &[]);
     let mut out: Vec<String> = Vec::new();
     for raw in &prepared.raws {
         if kind_of_token(raw) == Kind::Identifier && !out.contains(&raw.text) {
@@ -402,18 +526,36 @@ pub fn prompt(vocabulary: &Vocabulary, hints: &Hints, part: &str, index: usize, 
         String::new()
     };
     let summary_note = if total > 1 { " (de esta parte; el tema, del documento según lo que se ve en ella)" } else { "" };
+    // The lines read with low confidence go in the question, marked, to
+    // understand the document; nothing of them is a datum (D-668, E1 of
+    // 2 nov). A text without them has the question it had.
+    let approximate = if crate::source_volume::bands::has_approximate(part) {
+        format!("- {}\n", crate::source_volume::bands::NOTE)
+    } else {
+        String::new()
+    };
     format!(
         "Sos asistente de un estudio jurídico. Leé el documento de abajo y registrá las personas, organizaciones y asuntos \
 que nombra, con qué papel aparece cada uno, y lo que el documento dice de ellos.{part_note}\n\n\
 Reglas:\n\
-- Solo lo que dice este documento. No agregues nada que sepas por otro lado ni completes datos que el texto no trae.\n\
+{approximate}- Solo lo que dice este documento. No agregues nada que sepas por otro lado ni completes datos que el texto no trae.\n\
 - Cada cita es un fragmento copiado literalmente del texto, continuo, de no más de 40 palabras, sin puntos suspensivos ni cambios. \
 Si la frase es más larga, la cita es el tramo continuo que hace falta (en una relación, el que nombra a los dos); nunca saltees \
 palabras con «...» o «…»: esa cita se descarta. Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
 - Una mención por cada forma en que el documento escribe a una entidad y por cada papel que tiene. \"escrito\" es el nombre \
 tal como aparece, y su cita lo contiene. Si dos menciones de este documento son la misma entidad (\"el locatario\" y su nombre, \
-la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre \
-ni un papel sin nombre (\"el locatario\") si el documento no dice quién es.\n\
+la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre, \
+un papel ni un cargo sin nombre (\"el locatario\", \"el gerente\") si el documento no dice quién es.\n\
+- Tres formas de nombrar que sí son menciones:\n\
+  - Un identificador con el rótulo de un asunto (\"Expediente N°\", \"Proyecto:\", \"Orden de compra\" seguidos de un código) \
+es una mención de ese asunto aunque el documento no le dé otro nombre: \"escrito\" es el rótulo con el código, tal como están, y el \
+código va también en sus identificadores.\n\
+  - Una dirección de correo electrónico es un dato de alguien. Si el documento dice de quién es, va como \"contacto\" de esa persona. \
+Si está sola, sin nombre, es una mención de una persona (todavía desconocida) cuyo \"escrito\" es la dirección. Una dirección general \
+de una organización (un buzón como info@, contacto@ o ventas@ con el dominio de ella) va con la organización: \"contacto\" de la \
+organización si el documento la nombra; si no, una mención de una organización cuyo \"escrito\" es la dirección.\n\
+  - En la carátula de un expediente (\"X c/ Y s/ cobro\"), cada nombre de una parte es una mención con el papel \"parte\", y \
+\"parte_en\" del asunto que la carátula nombra, con la carátula como cita.\n\
 - Los términos definidos (\"en adelante «la Empresa»\", \"(«la Locataria»)\", \"hereinafter the «Company»\") no son nombres: \
 van en \"definiciones\", con la \"ref\" de la mención con nombre propio que definen y una cita que tiene el término y ese nombre. \
 Si además registrás el término como mención, en \"misma_que\" poné la \"ref\" de lo que define. Un rótulo de formulario \
@@ -1071,6 +1213,53 @@ impl ClaimCheck<'_> {
         child.is_some_and(|c| self.children(quote_words, parent, roles).contains(c))
     }
 
+    /// Whether the quote puts the group of these names under a label of a
+    /// form that holds a parent («Apellido y Nombre del Padre: X», «Madre:»),
+    /// E6 of 2 nov.
+    fn under_parent_label(&self, quote_text: &str, names: Option<&Vec<Vec<String>>>) -> bool {
+        let Some(names) = names.filter(|n| !n.is_empty()) else { return false };
+        let parents = self.vocabulary.reading.filiation.label_words();
+        if parents.is_empty() {
+            return false;
+        }
+        let words = quote::words(quote_text);
+        read_checks::form_labels(quote_text, self.vocabulary.reading.form_label_words)
+            .iter()
+            .filter(|l| l.has(&parents).is_some())
+            .any(|l| names.iter().any(|n| !n.is_empty() && read_checks::name_in_quote(&words[l.start..l.end], n)))
+    }
+
+    /// Whether the text names the subject of a value near its quote: in it
+    /// (by a name of its group, in the first person when it signs, or by a
+    /// role it has in the document), or as the last person or organization
+    /// it names before the quote, at most `subjectWindow` words before (E6
+    /// of 2 nov). A quote the text does not have as one run is not judged.
+    fn subject_near(&self, quote_words: &[String], subject: &str, roles: Option<&Roles>) -> bool {
+        let rules = &self.vocabulary.reading;
+        if rules.subject_window == 0 || self.named_in(quote_words, subject) {
+            return true;
+        }
+        if self.signers.contains(subject) && quote_words.iter().any(|w| rules.first_person.iter().any(|f| f == w)) {
+            return true;
+        }
+        if roles.is_some_and(|r| r.names(quote_words, self.names(subject))) {
+            return true;
+        }
+        let Some(own) = self.names(subject).filter(|n| !n.is_empty()) else { return false };
+        let starts = self.text.starts(quote_words);
+        if starts.is_empty() {
+            return true;
+        }
+        let who: Vec<&Vec<Vec<String>>> = self
+            .groups
+            .iter()
+            .filter(|(_, kind, _)| kind == PERSON_KIND || kind == ORGANIZATION_KIND)
+            .map(|(_, _, names)| names)
+            .collect();
+        let words = self.text.words();
+        starts.iter().any(|&start| read_checks::last_named(&words[start.saturating_sub(rules.subject_window)..start], &who, &[]) == Some(own))
+    }
+
     /// A mention of the group of these names.
     fn mention_of(&self, names: &Vec<Vec<String>>) -> Option<String> {
         self.groups.iter().find(|(_, kind, other)| kind == PERSON_KIND && other == names).map(|(reference, _, _)| reference.clone())
@@ -1172,10 +1361,15 @@ impl ClaimCheck<'_> {
         // A filiation given the other way round: the filiation of the quote
         // says the one given as the parent is the child of the other ("Z,
         // hijo de X" given as Z parent of X), D-460.
+        // A label of a form says it too, without «hijo de»: the name under
+        // «Apellido y Nombre del Padre:» is the parent (E6 of 2 nov).
         if let Some(object) = object_mention.clone().filter(|_| parent_to_child || child_to_parent) {
             let (parent, child) = if parent_to_child { (&object, &subject) } else { (&subject, &object) };
             if self.is_child(&quote_words, self.names(parent), roles, self.names(child)) {
                 corrections.push(("filiacion-dada-vuelta", said.predicado.clone()));
+                object_mention = Some(std::mem::replace(&mut subject, object));
+            } else if self.under_parent_label(&said.cita, self.names(parent)) && !self.under_parent_label(&said.cita, self.names(child)) {
+                corrections.push(("filiacion-por-rotulo", said.predicado.clone()));
                 object_mention = Some(std::mem::replace(&mut subject, object));
             }
         }
@@ -1272,6 +1466,14 @@ impl ClaimCheck<'_> {
         if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| label_verified(self.text, &said.cita, &value_words, Some(l), self.window)) {
             detail.insert("rotulo".into(), label.into());
         }
+        // A value whose subject the text does not name near its quote (in
+        // it, in the first person, by a role, or last before it) is kept in
+        // doubt, not as a fact: the domicile of a client the model gave the
+        // company that wrote the invoice (E6 of 2 nov).
+        if object_value.is_some() && !self.subject_near(&quote_words, &subject, roles) {
+            detail.insert(FAR_FROM_SUBJECT.into(), true.into());
+            corrections.push(("sujeto-lejos", said.predicado.clone()));
+        }
         // The other side of a relation is kept as that relation, once
         // ("hijo de" as "padre o madre de", swapped).
         let (subject, object_mention, predicate_id) = match (predicate.inverse_of.as_str(), object_mention) {
@@ -1296,11 +1498,41 @@ impl ClaimCheck<'_> {
     }
 }
 
+/// The mark in the detail of a value whose subject the text does not name
+/// near its quote: its claim is in doubt (`claims.rs`, E6 of 2 nov).
+pub const FAR_FROM_SUBJECT: &str = "sujeto_lejos";
+
+/// Why something the model said is left out when its quote is only in the
+/// lines read with low confidence (D-668, E1 of 2 nov).
+pub const APPROXIMATE_QUOTE: &str = "cita-en-texto-aproximado";
+
 /// Checks the answers about the parts of one document against its text,
 /// and puts them together: the mentions of every part, the same mention
 /// (type, name and role) once, and each claim once.
+///
+/// Only the firm text gives data (D-668, E1 of 2 nov): the answers are
+/// checked against it, so a name, a number, a relation, an amount or a
+/// point of the summary whose quote is only in the lines read with low
+/// confidence is left out, with its reason (`APPROXIMATE_QUOTE`).
 pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &[Answer]) -> Reading {
-    let text = Located::new(body);
+    if !crate::source_volume::bands::has_approximate(body) {
+        return verify_firm(vocabulary, body, shapes, answers);
+    }
+    let mut reading = verify_firm(vocabulary, &crate::source_volume::bands::firm(body), shapes, answers);
+    let whole = crate::source_volume::bands::unmarked(body);
+    let whole = Located::new(&whole).with_forms(&vocabulary.closing_legal_forms());
+    for discarded in reading.discarded.iter_mut().filter(|d| d.reason == "cita-no-encontrada") {
+        if whole.locate(&discarded.quote, None).is_some() {
+            discarded.reason = APPROXIMATE_QUOTE.to_string();
+        }
+    }
+    reading
+}
+
+fn verify_firm(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &[Answer]) -> Reading {
+    // A quote that differs from the text only in the legal form that closes
+    // a name is the text (P-480).
+    let text = Located::new(body).with_forms(&vocabulary.closing_legal_forms());
     let shapes: BTreeSet<String> = shapes.iter().map(|s| names::identifier_value(s)).collect();
     let certificate = read_checks::certificate_pages(vocabulary, body);
     let window = vocabulary.reading.label_window;
@@ -1495,6 +1727,8 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     // the mentions that are the same entity (the defined term and what it
     // defines, the short name and the full one).
     let group_names = group_names(&reading.mentions);
+    // Who sends the document, said by its quote too (E6 of 2 nov).
+    sender_roles(vocabulary, &group_names, &mut reading);
     // Whoever signs or writes the document: the mentions of a group with a
     // role of a signer, for a quote in the first person (D-434).
     let signers: BTreeSet<String> = {
@@ -2120,50 +2354,126 @@ fn owner_by_prefix(vocabulary: &Vocabulary, reading: &mut Reading) {
 }
 
 /// A value the quote puts under a label of another person of a form
-/// ("cónyuge") is that person's, when the reading names one such person
-/// whose own quote has that label; otherwise it is nobody's (D-248).
+/// ("Cónyuge: X, DNI 1", "Apellido y Nombre del Padre: X") is that
+/// person's (D-248; E6 of 2 nov: the labels of a parent too, and only what
+/// is under the label, never what the quote says before it). The person is
+/// the one named under the same label before the value; with none, the
+/// only one of the reading named under such a label; otherwise it is
+/// nobody's. A value under the label of the subject itself stays.
 fn other_person(vocabulary: &Vocabulary, _body: &str, reading: &mut Reading) {
     let labels = &vocabulary.reading.other_person_labels;
+    let width = vocabulary.reading.form_label_words;
     if labels.is_empty() {
         return;
     }
-    let has_label = |text: &str| quote::words(text).iter().any(|w| labels.iter().any(|l| w.starts_with(l.as_str())));
-    let labelled: Vec<String> =
-        reading.mentions.iter().filter(|m| m.kind == PERSON_KIND && has_label(&m.quote)).map(|m| m.reference.clone()).collect();
     let person: BTreeSet<String> = reading.mentions.iter().filter(|m| m.kind == PERSON_KIND).map(|m| m.reference.clone()).collect();
+    let written: HashMap<String, Vec<String>> =
+        reading.mentions.iter().map(|m| (m.reference.clone(), quote::words(&m.written))).filter(|(_, w)| !w.is_empty()).collect();
+    // The label of another person whose value holds `value` in `quote`, and
+    // who is named under it before the value.
+    let under = |quote_text: &str, value: &[String]| -> Option<(String, Vec<String>)> {
+        let words = quote::words(quote_text);
+        let at = read_checks::positions(&words, value).into_iter().next()?;
+        let found = read_checks::form_labels(quote_text, width);
+        let label = read_checks::label_at(&found, at)?;
+        let beginning = label.has(labels)?.clone();
+        let named: Vec<String> = written
+            .iter()
+            .filter(|(r, w)| person.contains(*r) && read_checks::name_in_quote(&words[label.start..at], w))
+            .map(|(r, _)| r.clone())
+            .collect();
+        Some((beginning, named))
+    };
+    // Who the reading names under a label of another person, by the label.
+    let labelled: Vec<(String, String)> = reading
+        .mentions
+        .iter()
+        .filter(|m| m.kind == PERSON_KIND)
+        .filter_map(|m| {
+            let own = written.get(&m.reference)?;
+            let words = quote::words(&m.quote);
+            let at = read_checks::positions(&words, own).into_iter().next()?;
+            let found = read_checks::form_labels(&m.quote, width);
+            Some((m.reference.clone(), read_checks::label_at(&found, at)?.has(labels)?.clone()))
+        })
+        .collect();
+    // Whose a value under that label is, apart from `subject`.
+    let owner = |subject: &str, beginning: &str, named: &[String]| -> Result<Option<String>, ()> {
+        if named.iter().any(|n| n == subject) || labelled.iter().any(|(r, b)| r == subject && b == beginning) {
+            return Ok(None);
+        }
+        let others: BTreeSet<&String> = named.iter().filter(|n| n.as_str() != subject).collect();
+        if others.len() == 1 {
+            return Ok(others.into_iter().next().cloned());
+        }
+        if !others.is_empty() {
+            return Err(());
+        }
+        let others: BTreeSet<&String> = labelled.iter().filter(|(r, b)| r != subject && b == beginning).map(|(r, _)| r).collect();
+        match others.len() {
+            1 => Ok(others.into_iter().next().cloned()),
+            _ => Err(()),
+        }
+    };
     let mut kept = Vec::new();
     let evidence = std::mem::take(&mut reading.evidence);
     for mut item in evidence {
-        let under = has_label(&item.quote) || item.detail.as_ref().and_then(|d| d.get("rotulo")).and_then(|r| r.as_str()).is_some_and(has_label);
-        // A relation between the two (the spouse of) says it of both.
-        let between = item.object_mention.as_ref().is_some_and(|o| labelled.contains(o));
-        if !under || !person.contains(&item.subject) || labelled.contains(&item.subject) || between {
+        if !person.contains(&item.subject) {
             kept.push(item);
             continue;
         }
-        match labelled.as_slice() {
-            [other] => {
+        // What the value is: a value, or the name of the other side.
+        let value: Vec<String> = match (&item.object_value, &item.object_mention) {
+            (Some(value), _) => quote::words(value),
+            (None, Some(object)) => written.get(object).cloned().unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let mut found = under(&item.quote, &value);
+        // The label the model gave apart from the value ("Cónyuge:").
+        if found.is_none() {
+            let given = item.detail.as_ref().and_then(|d| d.get("rotulo")).and_then(|r| r.as_str()).unwrap_or_default();
+            if let Some(beginning) = quote::words(given).iter().find_map(|w| labels.iter().find(|l| w.starts_with(l.as_str()))) {
+                found = Some((beginning.clone(), Vec::new()));
+            }
+        }
+        let Some((beginning, named)) = found else {
+            kept.push(item);
+            continue;
+        };
+        // A relation with the one under the label says it of both.
+        if item.object_mention.as_ref().is_some_and(|o| named.contains(o) || labelled.iter().any(|(r, b)| r == o && *b == beginning)) {
+            kept.push(item);
+            continue;
+        }
+        match owner(&item.subject, &beginning, &named) {
+            Ok(None) => kept.push(item),
+            Ok(Some(other)) => {
                 corrected(reading, "de-otra-persona", &item.predicate, &item.quote);
-                item.subject = other.clone();
+                item.subject = other;
                 kept.push(item);
             }
-            _ => discard(reading, "claim", "de-otra-persona", &item.predicate, &item.quote),
+            Err(()) => discard(reading, "claim", "de-otra-persona", &item.predicate, &item.quote),
         }
     }
     reading.evidence = kept;
     // The same for identifiers.
     let mut moved: Vec<(String, Identifier)> = Vec::new();
     let mut dropped: Vec<(String, String)> = Vec::new();
-    for mention in reading.mentions.iter_mut().filter(|m| m.kind == PERSON_KIND && !labelled.contains(&m.reference)) {
+    for mention in reading.mentions.iter_mut().filter(|m| m.kind == PERSON_KIND) {
+        let reference = mention.reference.clone();
         mention.identifiers.retain(|identifier| {
-            if !has_label(&identifier.quote) {
-                return true;
+            let Some((beginning, named)) = under(&identifier.quote, &quote::words(&identifier.value)) else { return true };
+            match owner(&reference, &beginning, &named) {
+                Ok(None) => true,
+                Ok(Some(other)) => {
+                    moved.push((other, identifier.clone()));
+                    false
+                }
+                Err(()) => {
+                    dropped.push((identifier.value.clone(), identifier.quote.clone()));
+                    false
+                }
             }
-            match labelled.as_slice() {
-                [other] => moved.push((other.clone(), identifier.clone())),
-                _ => dropped.push((identifier.value.clone(), identifier.quote.clone())),
-            }
-            false
         });
     }
     for (to, identifier) in moved {
@@ -2176,6 +2486,51 @@ fn other_person(vocabulary: &Vocabulary, _body: &str, reading: &mut Reading) {
     }
     for (value, quote) in dropped {
         discard(reading, "identifier", "de-otra-persona", &value, &quote);
+    }
+}
+
+/// A role that says who sends the document («remitente») is the model's
+/// word: its quote has to say it too (E6 of 2 nov). It does when a word of
+/// `senderCues` is right before the name («remitente X», «Carta de X»,
+/// «from X»), when the name is under a label of a form with
+/// one of them as its last word («Remitente:», «De:»), or when the same entity signs the
+/// document with another role. If not, the role is in doubt: it becomes
+/// `doubtfulSenderRole`, and the title of the document does not say it is
+/// from it (the model gave the company a letter was sent to the role of
+/// the one who sent it).
+fn sender_roles(vocabulary: &Vocabulary, group_names: &HashMap<String, Vec<Vec<String>>>, reading: &mut Reading) {
+    let rules = &vocabulary.reading;
+    if rules.sender_roles.is_empty() || rules.doubtful_sender_role.is_empty() {
+        return;
+    }
+    let cues: Vec<Vec<String>> = rules.sender_cues.iter().map(|c| quote::words(c)).filter(|c| !c.is_empty()).collect();
+    let signing: Vec<&Vec<Vec<String>>> = reading
+        .mentions
+        .iter()
+        .filter(|m| !rules.sender_roles.contains(&m.role) && rules.signer_roles.contains(&m.role))
+        .filter_map(|m| group_names.get(&m.reference))
+        .filter(|g| !g.is_empty())
+        .collect();
+    let mut doubted: Vec<(String, String)> = Vec::new();
+    for mention in reading.mentions.iter_mut().filter(|m| rules.sender_roles.contains(&m.role)) {
+        let names = group_names.get(&mention.reference).cloned().unwrap_or_default();
+        let words = quote::words(&mention.quote);
+        let places: Vec<usize> = names.iter().flat_map(|n| read_checks::positions(&words, n)).collect();
+        let cue_before = places.iter().any(|&at| {
+            cues.iter().any(|c| at >= c.len() && words[at - c.len()..at] == c[..])
+        });
+        let labels = read_checks::form_labels(&mention.quote, rules.form_label_words);
+        let under_label = places.iter().any(|&at| {
+            read_checks::label_at(&labels, at).is_some_and(|l| cues.iter().any(|c| l.words.ends_with(c)))
+        });
+        let signs = !names.is_empty() && signing.contains(&&names);
+        if !(cue_before || under_label || signs) {
+            doubted.push((mention.written.clone(), mention.quote.clone()));
+            mention.role = rules.doubtful_sender_role.clone();
+        }
+    }
+    for (written, quote) in doubted {
+        corrected(reading, "remitente-sin-cita", &written, &quote);
     }
 }
 
@@ -2463,24 +2818,67 @@ pub struct RereadPlan {
 }
 
 impl DocBase {
+    /// What the reading waits for, in the order of the worker (D-666, as
+    /// `check::in_order_before_reading` runs it): the cut of a whole file
+    /// and its parts, the answers about its doubtful steps the model is
+    /// still to give by itself (an engine that looks at images:
+    /// `sees_images`), the signature of the search of similar documents,
+    /// and the type. Each document is read once, as what it is. What failed
+    /// or waits for a person is not waited for: it is read as it is.
+    /// What waits before its reading: the same rule as
+    /// `waiting_before_reading_in`, which the count of the step uses.
+    fn waiting_before_reading(&self, sees_images: bool) -> Result<BTreeSet<i64>, String> {
+        let mut waiting = self.waiting_for_cut()?;
+        waiting.extend(self.waiting_for_cut_answers(sees_images)?);
+        waiting.extend(self.waiting_for_similar()?);
+        waiting.extend(self.contents_waiting_for_type()?);
+        Ok(waiting)
+    }
+
     /// The documents to ask the model about: never read, read over another
     /// text, failed under other instructions, or asked again by a person
     /// (those first; `only_requested`: only those). A reading of an earlier
-    /// version of the instructions is not one of them (D-432). Those whose
-    /// type is still to be asked are left out and counted.
-    fn knowledge_pending(&self, only_requested: bool) -> Result<(Vec<Pending>, usize), String> {
+    /// version of the instructions is not one of them (D-432). Those that
+    /// wait for what goes before the reading (`waiting_before_reading`) are
+    /// left out and counted.
+    fn knowledge_pending(&self, only_requested: bool, sees_images: bool) -> Result<(Vec<Pending>, usize), String> {
+        // A reading a copy took from its original goes when it is not its
+        // copy any more (a person said they are not the same), or when the
+        // original was read again (E6 of 2 nov).
+        let copies = copy_originals(&self.conn())?;
+        let restale: BTreeSet<i64> = {
+            let conn = self.conn();
+            let keys_of = |content: i64| -> Result<Option<String>, String> {
+                conn.query_row("SELECT questions FROM knowledge_extraction WHERE version_id = ?1", [content], |row| row.get(0))
+                    .optional()
+                    .map_err(sql_err)
+            };
+            let mut out = BTreeSet::new();
+            for standing in standings(&conn, &Visible::All, None)? {
+                let Some(original) = standing.reading.as_ref().filter(|r| r.current).and_then(|r| inherited_from(&r.basis)) else { continue };
+                if copies.get(&standing.content_id) != Some(&original) || keys_of(original)? != keys_of(standing.content_id)? {
+                    out.insert(standing.content_id);
+                }
+            }
+            out
+        };
         let mut stale: Vec<Standing> = standings(&self.conn(), &Visible::All, None)?
             .into_iter()
-            .filter(|s| !s.reading.as_ref().is_some_and(|r| r.current))
+            .filter(|s| !s.reading.as_ref().is_some_and(|r| r.current) || restale.contains(&s.content_id))
             .filter(|s| !only_requested || s.reading.as_ref().is_some_and(|r| r.reread))
             .collect();
         if stale.is_empty() {
             return Ok((Vec::new(), 0));
         }
         stale.sort_by_key(|s| !s.reading.as_ref().is_some_and(|r| r.reread));
-        let waiting = self.contents_waiting_for_type()?;
+        let waiting = self.waiting_before_reading(sees_images)?;
         let vocabulary = vocabulary();
         let conn = self.conn();
+        // A document of a type of low confidence is read too, and its
+        // reading kept, marked: the model is never skipped (E6 of 2 nov,
+        // over E3). What it says goes to no process: its mentions are left
+        // out of the identities (`resolve::load_rows`, `changes::left_out`),
+        // the matters and the pages; it is only for queries.
         let mut pending = Vec::new();
         let mut waiting_count = 0;
         for standing in stale {
@@ -2489,7 +2887,7 @@ impl DocBase {
                 .map_err(sql_err)?;
             let hash = text_hash(&body);
             let reading = standing.reading.as_ref();
-            if reading.is_some_and(|r| !r.reread && r.hash == hash && !(r.state == "failed" && r.older)) {
+            if !restale.contains(&standing.content_id) && reading.is_some_and(|r| !r.reread && r.hash == hash && !(r.state == "failed" && r.older)) {
                 // The same text written again: the reading stands as it was.
                 conn.execute("UPDATE knowledge_extraction SET text_at = ?1 WHERE version_id = ?2", params![standing.text_at, standing.content_id])
                     .map_err(sql_err)?;
@@ -2510,7 +2908,60 @@ impl DocBase {
                 extracted_at: None,
             });
         }
+        // A copy goes after its original, which may be read in this run.
+        pending.sort_by_key(|p| copies.contains_key(&p.content_id));
         Ok((pending, waiting_count))
+    }
+
+    /// The reading of a copy, taken from its original (D-708, P-537; E6 of 2
+    /// nov): the answers the model gave about the original, checked against
+    /// the text of the copy (only what its text says, and only its firm
+    /// text, gives data), written with the questions and the engine of the
+    /// original. Nothing is asked.
+    fn inherit_reading(&self, item: &Pending, original: i64) -> Result<Inherited, String> {
+        let mut conn = self.conn();
+        let found: Option<(String, Option<String>, String, i64, i64)> = conn
+            .query_row(
+                "SELECT k.state, k.engine, k.questions, k.text_at, coalesce(d.created_at, -1)
+                 FROM knowledge_extraction k LEFT JOIN derivative d ON d.version_id = k.version_id AND d.kind = 'text'
+                 WHERE k.version_id = ?1",
+                [original],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        // Read on its current text, and read well.
+        let Some((_, engine, keys, _, _)) = found.filter(|(state, _, _, read_at, text_at)| state == "done" && read_at == text_at) else {
+            return Ok(Inherited::NotYet);
+        };
+        let keys: Vec<String> = serde_json::from_str(&keys).unwrap_or_default();
+        let mut answers: Vec<Answer> = Vec::new();
+        for key in &keys {
+            let kept = match cached_answer(&conn, key, engine.as_deref())? {
+                Some(answer) => Some(answer),
+                None => cached_answer(&conn, key, None)?,
+            };
+            match kept.as_deref().map(parse_json::<Answer>) {
+                Some(Ok(answer)) => answers.push(answer),
+                _ => return Ok(Inherited::Cannot),
+            }
+        }
+        if keys.is_empty() {
+            return Ok(Inherited::Cannot);
+        }
+        let reading = verify(vocabulary(), &item.body, &identifiers_by_shape(&item.body), &answers);
+        let pending = Pending {
+            content_id: item.content_id,
+            basis: format!("{COPY}{original}|{}", item.basis),
+            prompt_version: item.prompt_version.clone(),
+            text_hash: item.text_hash.clone(),
+            text_at: item.text_at,
+            body: String::new(),
+            fresh_since: None,
+            extracted_at: None,
+        };
+        write_reading(&mut conn, &pending, &keys, engine.as_deref().unwrap_or_default(), Ok(&reading))?;
+        Ok(Inherited::Done)
     }
 
     /// Checks again, from the answers kept, the readings checked with an
@@ -2655,7 +3106,7 @@ impl DocBase {
     /// warms its cache with them before the run).
     #[cfg(test)]
     pub(crate) fn knowledge_questions(&self) -> Result<Vec<Question>, String> {
-        let (pending, _) = self.knowledge_pending(false)?;
+        let (pending, _) = self.knowledge_pending(false, false)?;
         let conn = self.conn();
         let mut out = Vec::new();
         for item in pending {
@@ -2670,11 +3121,19 @@ impl DocBase {
     pub fn knowledge_plan(&self) -> Result<KnowledgePlan, String> {
         let engine = classify::ask_engine(&self.conn())?;
         let engine_id = engine.as_ref().map(crate::source_volume::asking::engine_id);
-        let (pending, waiting) = self.knowledge_pending(false)?;
+        // Whether that engine would ask by itself about the doubtful steps
+        // of the cuts, whose answers the reading waits for.
+        let sees_images = engine
+            .as_ref()
+            .and_then(|config| crate::source_volume::asking::asker_for(config).ok())
+            .is_some_and(|asker| asker.sees_images());
+        let (pending, waiting) = self.knowledge_pending(false, sees_images)?;
         let conn = self.conn();
         let mut count = 0;
         let min_words = vocabulary().attention.empty_min_words;
-        for item in &pending {
+        // A copy asks nothing: it takes the reading of its original (E6).
+        let copies = copy_originals(&conn)?;
+        for item in pending.iter().filter(|p| !copies.contains_key(&p.content_id)) {
             let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
             for (index, question) in questions(&conn, vocabulary(), item.content_id, &item.body)?.0.into_iter().enumerate() {
                 let long = part_words.get(index).copied().unwrap_or(0) >= min_words;
@@ -2724,8 +3183,9 @@ impl DocBase {
         if !only_requested {
             report.rechecked = self.knowledge_recheck(usize::MAX)?;
         }
-        let (pending, waiting) = self.knowledge_pending(only_requested)?;
+        let (pending, waiting) = self.knowledge_pending(only_requested, asker.sees_images())?;
         report.waiting_for_type = waiting;
+        let copies = copy_originals(&self.conn())?;
         let vocabulary = vocabulary();
         let engine = asker.engine_id();
         let mut budget = max_questions;
@@ -2734,6 +3194,27 @@ impl DocBase {
             if stopped {
                 report.left += 1;
                 continue;
+            }
+            // A document whose reading failed waits for its next attempt,
+            // or for a person (P-533, D-714): it takes no place in the run.
+            // What a person asked to read again goes all the same.
+            if !only_requested && self.question_held(TASK, item.content_id, "") {
+                continue;
+            }
+            // A copy takes the reading of its original: it is not read
+            // again by the model (D-708, P-537; E6 of 2 nov).
+            if let Some(&original) = copies.get(&item.content_id) {
+                match self.inherit_reading(&item, original)? {
+                    Inherited::Done => {
+                        report.inherited += 1;
+                        continue;
+                    }
+                    Inherited::NotYet => {
+                        report.left += 1;
+                        continue;
+                    }
+                    Inherited::Cannot => {}
+                }
             }
             let (item_questions, shapes) = questions(&self.conn(), vocabulary, item.content_id, &item.body)?;
             let keys: Vec<String> = item_questions.iter().map(|q| q.key.clone()).collect();
@@ -2838,8 +3319,14 @@ fn ask_fresh(
     base.engine_state().asking(question.task, question.content_id);
     let answer = asker.ask(&question.prompt, &question.schema);
     base.engine_state().asked(answer.is_ok());
-    let answer = answer?;
-    parse_json::<serde_json::Value>(&answer)?;
+    // A failure stays over its document, with its class and its waits
+    // (P-533, D-714); one of the whole engine pauses the engine.
+    let answer = answer.inspect_err(|error| base.question_failed(question.task, question.content_id, &question.key, engine, error, None))?;
+    if let Err(error) = parse_json::<serde_json::Value>(&answer) {
+        base.question_failed(question.task, question.content_id, &question.key, engine, &error, Some(&answer));
+        return Err(error);
+    }
+    base.question_answered(question.task, question.content_id, &question.key, engine);
     if !usable(&answer) {
         return Ok(None);
     }
@@ -2917,4 +3404,44 @@ mod tests {
         let roles = &schema["properties"]["menciones"]["items"]["properties"]["rol"]["enum"];
         assert_eq!(roles.as_array().unwrap().len(), vocabulary.roles.len());
     }
+
+    #[test]
+    fn the_question_says_the_three_ways_of_naming_that_are_mentions() {
+        // D-665, D-680: general rules, with invented examples only (R-24).
+        assert_eq!(KNOWLEDGE_PROMPT, "conocimiento-8");
+        let vocabulary = Vocabulary::builtin();
+        let prompt = prompt(&vocabulary, &Hints::default(), "texto", 0, 1);
+        for rule in [
+            "Un identificador con el rótulo de un asunto",
+            "es una mención de ese asunto aunque el documento no le dé otro nombre",
+            "Si está sola, sin nombre, es una mención de una persona (todavía desconocida)",
+            "va con la organización",
+            "En la carátula de un expediente",
+            "\"parte_en\" del asunto que la carátula nombra",
+            // What does not change: an office with no name is no one.
+            "un papel ni un cargo sin nombre",
+        ] {
+            assert!(prompt.contains(rule), "the question does not say: {rule}");
+        }
+        // The words inside are the canonical ones (D-512): the vocabulary's
+        // ids, which the question and the answer's lists share.
+        for id in ["asunto", "persona", "organizacion", "parte", "contacto", "parte_en"] {
+            assert!(prompt.contains(id), "{id}");
+        }
+        let types = &schema(&vocabulary)["properties"]["menciones"]["items"]["properties"]["tipo"]["enum"];
+        assert!(["asunto", "persona", "organizacion"].iter().all(|t| types.as_array().unwrap().iter().any(|x| x == t)));
+    }
+}
+
+/// The documents whose reading waits for a step before (`DocBase::
+/// waiting_before_reading`): their cut, the answers of their cut, their
+/// signature and their type. Over a connection, and read-only: the count
+/// of the step of the reading says what its operation leaves waiting
+/// (arreglo 1 of the small test of 2 nov).
+pub(crate) fn waiting_before_reading_in(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    let mut waiting = crate::docbase::cut::waiting_for_cut_in(conn)?;
+    waiting.extend(crate::docbase::cut::waiting_for_cut_answers_in(conn)?);
+    waiting.extend(crate::docbase::similar::store::waiting_for_similar_in(conn)?);
+    waiting.extend(crate::docbase::similar::classify::types_left(conn, None)?.waiting);
+    Ok(waiting)
 }

@@ -22,8 +22,9 @@ use super::{sql_err, DocBase};
 pub const CAP: usize = 50;
 
 /// The stages whose questions make the round, in the order they ask: the
+/// pages of the scans read by a reader in the cloud (E2 of 2 nov), the
 /// doubtful steps of the cutter, the identities and the pages.
-pub const STAGES: [&str; 3] = ["cut", "resolve", "pages"];
+pub const STAGES: [&str; 4] = ["recognition", "cut", "resolve", "pages"];
 
 /// What a person said of the round (`docbase_setting`).
 const SETTING: &str = "auto_questions";
@@ -59,14 +60,20 @@ pub(crate) fn pending(now: &EngineNow) -> usize {
 }
 
 /// Whether a round with `asked` questions asked and `pending` left may go on.
+#[cfg(test)]
 pub(crate) fn may_go(asked: usize, pending: usize, permit: Option<Permit>) -> bool {
+    may_go_capped(asked, pending, permit, CAP)
+}
+
+/// The same, with the cap of the configuration (`thresholds.rs`, D-722).
+pub(crate) fn may_go_capped(asked: usize, pending: usize, permit: Option<Permit>, cap: usize) -> bool {
     if pending == 0 {
         return true;
     }
     let total = asked + pending;
     match permit {
-        None => total <= CAP,
-        Some(Permit::Allowed { total: allowed }) => total <= allowed + CAP,
+        None => total <= cap,
+        Some(Permit::Allowed { total: allowed }) => total <= allowed + cap,
         Some(Permit::Later) => false,
     }
 }
@@ -149,7 +156,7 @@ impl AutoQuestions {
             pending: pending(now),
             cut_pending: now.left.get("cut").copied().unwrap_or(0),
             asked: now.auto_asked,
-            cap: CAP,
+            cap: super::thresholds::round_cap(conn)?,
             held: now.auto_held,
             decision: permit.map(|permit| match permit {
                 Permit::Allowed { .. } => "allowed",
@@ -170,16 +177,19 @@ impl DocBase {
     pub(crate) fn auto_questions_go(&self, stage: &'static str) -> Result<bool, String> {
         let state = self.engine_state();
         let permit = permit(&self.conn())?;
+        let cap = super::thresholds::round_cap(&self.conn())?;
         let now = state.snapshot();
         let known = now.left.get(stage).copied().unwrap_or(0);
         let recount = match permit {
-            Some(Permit::Allowed { total }) => now.auto_asked + pending(&now) > total + CAP,
+            Some(Permit::Allowed { total }) => now.auto_asked + pending(&now) > total + cap,
             // Left for later: counted again only once what was counted is gone.
             Some(Permit::Later) => known == 0,
             None => true,
         };
         if recount {
-            if stage == "cut" {
+            if stage == "recognition" {
+                state.ran(stage, self.scan_questions_left()?);
+            } else if stage == "cut" {
                 state.ran(stage, self.cut_questions()?.by_itself);
             } else if stage == "resolve" {
                 let report = self.knowledge_resolve(None, 0)?;
@@ -201,7 +211,8 @@ impl DocBase {
         let state = self.engine_state();
         let now = state.snapshot();
         let own = now.left.get(stage).copied().unwrap_or(0);
-        let round_goes = may_go(now.auto_asked, pending(&now), permit(&self.conn())?);
+        let cap = super::thresholds::round_cap(&self.conn())?;
+        let round_goes = may_go_capped(now.auto_asked, pending(&now), permit(&self.conn())?, cap);
         let go = own == 0 || round_goes;
         // A stage with nothing to ask leaves another's wait as it is.
         if !go {

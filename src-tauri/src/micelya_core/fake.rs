@@ -72,6 +72,10 @@ pub(crate) struct FakeState {
     pub fails_named: Vec<String>,
     /// The most readings asked and not deleted at the same time.
     pub open_most: usize,
+    /// The next calls of vectors answer these errors, one each.
+    pub embed_failures: Vec<u16>,
+    /// Every call of vectors that got its vectors: how many texts each.
+    pub embedded: Vec<usize>,
 }
 
 /// How a reading ends.
@@ -126,6 +130,8 @@ impl Default for FakeState {
             delete_failures: Vec::new(),
             fails_named: Vec::new(),
             open_most: 0,
+            embed_failures: Vec::new(),
+            embedded: Vec::new(),
         }
     }
 }
@@ -307,6 +313,22 @@ fn result_json(reading: &FakeReading, model_version: &str) -> Value {
             "provider": "textract", "modelVersion": model_version, "analysis": null })
 }
 
+/// The vector the fake gives a text: made from its SHA-256, the same for
+/// the same text and model at every call, of norm 1.
+pub(crate) fn fake_vector(model: &str, text: &str, dimensions: usize) -> Vec<f32> {
+    use sha2::{Digest, Sha256};
+    let mut numbers = Vec::with_capacity(dimensions);
+    let mut round = 0u32;
+    while numbers.len() < dimensions {
+        let digest = Sha256::digest(format!("{model}|{round}|{text}").as_bytes());
+        numbers.extend(digest.iter().map(|b| *b as f32 - 127.5));
+        round += 1;
+    }
+    numbers.truncate(dimensions);
+    let norm = numbers.iter().map(|n| n * n).sum::<f32>().sqrt();
+    numbers.iter().map(|n| n / norm).collect()
+}
+
 fn handle(state: &mut FakeState, url: &str, seen: &Seen) -> (u16, Value) {
     let (path, _query) = seen.path.split_once('?').unwrap_or((&seen.path, ""));
     // The upload goes straight to the storage, without the permit.
@@ -353,6 +375,25 @@ fn handle(state: &mut FakeState, url: &str, seen: &Seen) -> (u16, Value) {
         return problem(403, "PERMISSION_DENIED", "Otra organización");
     }
     match (seen.method.as_str(), route) {
+        // The vectors, as Core's message C002 tells them: at most 96 texts.
+        ("POST", "tenant/inference/embeddings") => {
+            if !state.embed_failures.is_empty() {
+                let status = state.embed_failures.remove(0);
+                return problem(status, "DEPENDENCY_UNAVAILABLE", "No disponible por un momento");
+            }
+            let asked: Value = serde_json::from_slice(&seen.body).unwrap_or(Value::Null);
+            let model = asked["model"].as_str().unwrap_or("").to_string();
+            let dimensions = asked["dimensions"].as_u64().unwrap_or(1536) as usize;
+            let texts: Vec<String> =
+                asked["texts"].as_array().map(|t| t.iter().filter_map(|v| v.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            if texts.is_empty() || texts.len() > 96 || texts.iter().any(|t| t.is_empty()) {
+                return problem(400, "request.invalid_body", "Entre 1 y 96 textos, ninguno vacío");
+            }
+            state.embedded.push(texts.len());
+            let vectors: Vec<Vec<f32>> = texts.iter().map(|t| fake_vector(&model, t, dimensions)).collect();
+            (200, json!({ "executionId": "ejecucion-de-prueba", "model": model, "dimensions": dimensions, "normalized": true,
+                          "vectors": vectors, "usage": { "inputTokens": 10 * texts.len() } }))
+        }
         ("GET", "tenant/document-readings") => {
             if let Some(status) = state.list_status {
                 return problem(status, "DEPENDENCY_UNAVAILABLE", "No disponible");

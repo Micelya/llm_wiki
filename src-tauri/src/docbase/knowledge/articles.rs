@@ -220,7 +220,7 @@ impl DocBase {
         let of_file = match (content_id, own) {
             (Some(content), None) => first_location(
                 "SELECT l.id FROM appearance a JOIN location l ON l.file_hash = a.resource_hash
-                 WHERE a.version_id = ?1 AND a.selector <> 'file' AND l.kind = 'file' ORDER BY l.id LIMIT 1",
+                 WHERE a.version_id = ?1 AND a.selector GLOB 'pages:*' AND l.kind = 'file' ORDER BY l.id LIMIT 1",
                 content,
             )?,
             _ => None,

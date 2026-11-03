@@ -20,6 +20,13 @@
 //!   version goes (`knowledge_gone`); the new ones are made.
 //! - A PDF with one part changes nothing.
 //!
+//! - A part of one page that only announces an annex (as the rules of
+//!   its steps say) is a piece of the structure, not a document
+//!   (`structure_piece`, D-724): it has no version, it is joined to the
+//!   part before it and to the one after it when they are there, and the
+//!   part after it is marked as an annex (`appearance.annex`). A file where
+//!   only pieces would be left keeps them as documents.
+//!
 //! The parts are made once the file has its text, also while some of its
 //! pages wait for recognition: a part with too little text waits with them
 //! (`needs-recognition`), and when they are read the parts whose text
@@ -32,7 +39,7 @@ use serde::Serialize;
 
 use crate::source_volume::catalog::{fingerprint, is_page_heading};
 
-use super::CutStep;
+use super::{CutStep, Verdict};
 use crate::docbase::{now_ms, sql_err, DocBase};
 
 /// What a person says of a page: it starts another document, or it goes
@@ -118,6 +125,58 @@ pub(crate) fn partition(pages: u32, steps: &[CutStep], decisions: &BTreeMap<u32,
         .collect()
 }
 
+/// The kind of the piece of a page that only announces an annex (D-724).
+pub(crate) const ANNEX_ANNOUNCEMENT: &str = "annex-announcement";
+/// The rules of the cut by zones that say a page only announces an annex:
+/// on the step before that page, and on the step after it.
+pub(crate) const ANNOUNCED: &str = "anuncia_anexo";
+pub(crate) const AFTER_ANNOUNCEMENT: &str = "anexo_tras_anuncio";
+
+/// The pages that only announce an annex, as the rules that decided the
+/// steps around them say.
+fn announcements(steps: &[CutStep]) -> BTreeSet<u32> {
+    let mut out = BTreeSet::new();
+    for step in steps.iter().filter(|s| s.after > 0 && s.verdict == Verdict::New) {
+        if step.rule.split('+').any(|r| r == ANNOUNCED) {
+            out.insert(step.after + 1);
+        }
+        if step.rule.split('+').any(|r| r == AFTER_ANNOUNCEMENT) {
+            out.insert(step.after);
+        }
+    }
+    out
+}
+
+/// A piece of the structure of a file: a page that only announces an
+/// annex, joined to the part before it and to the one after it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Piece {
+    pub page: u32,
+    pub joins_previous: bool,
+    pub joins_next: bool,
+}
+
+/// The documents of a file, its pieces and the first pages of its annexes:
+/// a part of one page that announces an annex is a piece, and the part
+/// after it an annex. When only pieces would be left, they stay documents.
+pub(crate) fn split_pieces(parts: Vec<Part>, announced: &BTreeSet<u32>) -> (Vec<Part>, Vec<Piece>, BTreeSet<u32>) {
+    let is_piece = |p: &Part| p.first == p.last && announced.contains(&p.first);
+    if parts.iter().all(is_piece) {
+        return (parts, Vec::new(), BTreeSet::new());
+    }
+    let (documents, pieces): (Vec<Part>, Vec<Part>) = parts.into_iter().partition(|p| !is_piece(p));
+    let annexes = pieces.iter().map(|p| p.last + 1).filter(|first| documents.iter().any(|d| d.first == *first)).collect();
+    let pieces = pieces
+        .iter()
+        .map(|p| Piece {
+            page: p.first,
+            joins_previous: documents.iter().any(|d| d.last + 1 == p.first),
+            joins_next: documents.iter().any(|d| d.first == p.last + 1),
+        })
+        .collect();
+    (documents, pieces, annexes)
+}
+
 /// The text of pages `first` to `last` of a text joined by pages, as the
 /// text of a whole file is: each page with its heading and its number.
 pub(crate) fn pages_text(text: &str, first: u32, last: u32) -> String {
@@ -135,13 +194,26 @@ pub(crate) fn pages_text(text: &str, first: u32, last: u32) -> String {
     out.join("\n").trim_end().to_string()
 }
 
-/// SQL: the version in `column` is the version of a whole file that has
-/// included parts. It is not read whole: its parts are (D-560).
-pub(crate) fn has_included_sql(column: &str) -> String {
-    format!(
-        "EXISTS (SELECT 1 FROM appearance wa JOIN appearance wp ON wp.resource_hash = wa.resource_hash AND wp.selector <> 'file'
-                 WHERE wa.version_id = {column} AND wa.selector = 'file')"
-    )
+/// The selector of the one document of a file of one document (D-718):
+/// from its first page to its last, with the version of the file.
+pub(crate) const ONE_DOCUMENT: &str = "all";
+
+/// SQL: the version in `column` is a document (D-718): it has its place
+/// in the structure of a file, as the one document of its file (`all`) or
+/// as one of the parts of a file of several (`pages:`), one way for both.
+/// A whole file is not, as such: the version of a file of two or more
+/// documents, or of one still without its structure, never goes to the
+/// steps of documents (the signature, the type, the reading, the
+/// identities, the pages); its documents do (D-560, D-718).
+pub(crate) fn is_document_sql(column: &str) -> String {
+    format!("EXISTS (SELECT 1 FROM appearance ds WHERE ds.version_id = {column} AND ds.selector <> 'file')")
+}
+
+/// SQL: the appearance `alias` is one of the parts of a file of two or
+/// more documents (a «documento compuesto», D-718), not the one document
+/// of its file nor the file itself.
+pub(crate) fn is_part_sql(alias: &str) -> String {
+    format!("{alias}.selector GLOB 'pages:*'")
 }
 
 /// The versions that appear only in uncertain cuts. What comes out of them
@@ -165,11 +237,37 @@ pub(crate) fn only_uncertain_sql(column: &str) -> String {
 /// What the parts of a file are made from: its version and the time of
 /// its text, its steps and the model's answers, and a person's word (both
 /// tables are read in the order of their key).
-const BASIS_SQL: &str = "c.id || ':' || d.created_at
+pub(crate) const BASIS_SQL: &str = "c.id || ':' || d.created_at
     || ':' || (SELECT max(s.created_at) FROM cut_step s WHERE s.resource_hash = f.hash)
     || ':' || coalesce((SELECT group_concat(s.after_page || '=' || coalesce(s.model_says, '') || '/' || coalesce(s.model_confidence, ''), ',') FROM cut_step s
                         WHERE s.resource_hash = f.hash AND (s.verdict = 'doubtful' OR s.rule = 'uniform')), '')
     || ':' || coalesce((SELECT group_concat(k.page || k.decision, ',') FROM cut_decision k WHERE k.resource_hash = f.hash), '')";
+
+/// The files whose parts `parts_pending_sql` tells: `f`, its version `c`
+/// and the text `d` of that version.
+pub(crate) const PARTS_FROM: &str = "file f
+     JOIN version c ON c.id = f.version_id AND c.state IN ('processed', 'needs-recognition')
+     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'";
+
+/// SQL over `PARTS_FROM`: the file is cut and its parts are not made from
+/// what they are made of now (`BASIS_SQL`), nor did making them from it
+/// fail (`note_failure`).
+pub(crate) fn parts_pending_sql() -> String {
+    format!(
+        "EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash)
+         AND ({BASIS_SQL}) IS NOT (SELECT a.basis FROM cut_applied a WHERE a.resource_hash = f.hash)
+         AND NOT {failed}",
+        failed = super::failed_sql(super::PARTS_STAGE, "f.hash", &format!("({BASIS_SQL})"))
+    )
+}
+
+/// How many cut files still have their parts to make, `free` (an SQL
+/// condition over the version `c`) saying which count (`process::steps::free_sql`).
+pub(crate) fn parts_left(conn: &rusqlite::Connection, free: &str) -> Result<usize, String> {
+    conn.query_row(&format!("SELECT count(*) FROM {PARTS_FROM} WHERE {} AND {free}", parts_pending_sql()), [], |row| row.get::<_, i64>(0))
+        .map(|n| n as usize)
+        .map_err(super::super::sql_err)
+}
 
 /// The pages for a person to look at: those whose step from the page
 /// before nothing backs, and no person decided (D-603).
@@ -207,19 +305,21 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT f.hash, {BASIS_SQL} AS basis FROM file f
-                     JOIN version c ON c.id = f.version_id AND c.state IN ('processed', 'needs-recognition')
-                     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
-                     WHERE EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash)
-                       AND basis IS NOT (SELECT a.basis FROM cut_applied a WHERE a.resource_hash = f.hash)
-                     ORDER BY f.hash LIMIT ?1"
+                    "SELECT f.hash, {BASIS_SQL} AS basis FROM {PARTS_FROM} WHERE {pending} ORDER BY f.hash LIMIT ?1",
+                    pending = parts_pending_sql()
                 ))
                 .map_err(sql_err)?;
             let rows = statement.query_map([limit as i64], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
+        // One file at a time: parts that fail are written down and the
+        // others go on (D-488); that file waits, with the parts it had, as
+        // they were (D-717).
         for (hash, basis) in &jobs {
-            self.make_parts(hash, basis)?;
+            match self.make_parts(hash, basis) {
+                Ok(()) => super::note_success(&self.conn(), super::PARTS_STAGE, hash)?,
+                Err(error) => super::note_failure(&self.conn(), super::PARTS_STAGE, hash, basis, &error)?,
+            }
         }
         Ok(jobs.len())
     }
@@ -241,7 +341,7 @@ impl DocBase {
             return Ok(());
         };
         let pages = steps.iter().map(|s| s.after).max().unwrap_or(0) + 1;
-        let mut parts = partition(pages, &steps, &decisions(&tx, hash)?);
+        let parts = partition(pages, &steps, &decisions(&tx, hash)?);
         // The whole file is uncertain when any of its steps is: for a PDF
         // of one part, what is said of its only document.
         tx.execute(
@@ -249,17 +349,48 @@ impl DocBase {
             params![parts.iter().any(|p| p.uncertain), hash],
         )
         .map_err(sql_err)?;
-        if parts.len() < 2 {
+        let (mut parts, pieces, annexes) = split_pieces(parts, &announcements(&steps));
+        tx.execute("DELETE FROM structure_piece WHERE resource_hash = ?1", [hash]).map_err(sql_err)?;
+        for piece in &pieces {
+            tx.execute(
+                "INSERT INTO structure_piece (resource_hash, page, kind, joins_previous, joins_next) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![hash, piece.page, ANNEX_ANNOUNCEMENT, piece.joins_previous, piece.joins_next],
+            )
+            .map_err(sql_err)?;
+        }
+        let annex = |part: &Part| annexes.contains(&part.first);
+        let now = now_ms();
+        // Its structure (D-718): one document, with the version of the file
+        // and its place `all`; or two or more, its parts, and no `all`.
+        let had_one: bool = tx
+            .query_row("SELECT EXISTS (SELECT 1 FROM appearance WHERE resource_hash = ?1 AND selector = ?2)", params![hash, ONE_DOCUMENT], |row| row.get(0))
+            .map_err(sql_err)?;
+        let one = parts.len() < 2;
+        if one {
+            let by = parts.first().map_or("rule", |p| p.by);
+            let uncertain = parts.first().is_some_and(|p| p.uncertain);
+            tx.execute(
+                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at, annex)
+                 VALUES (?1, ?2, ?3, 1, ?4, 'confirmed', ?5, ?6, ?7)
+                 ON CONFLICT (resource_hash, selector) DO UPDATE SET version_id = excluded.version_id, cut_by = excluded.cut_by,
+                     uncertain = excluded.uncertain, annex = excluded.annex",
+                params![whole_id, hash, ONE_DOCUMENT, by, uncertain, now, parts.first().is_some_and(annex)],
+            )
+            .map_err(sql_err)?;
             parts.clear();
+        } else {
+            tx.execute("DELETE FROM appearance WHERE resource_hash = ?1 AND selector = ?2", params![hash, ONE_DOCUMENT])
+                .map_err(sql_err)?;
         }
         let existing: Vec<Existing> = {
             let mut statement = tx
-                .prepare(
+                .prepare(&format!(
                     "SELECT a.id, a.version_id, a.selector, v.text_hash, d.body FROM appearance a
                      JOIN version v ON v.id = a.version_id
                      LEFT JOIN derivative d ON d.version_id = a.version_id AND d.kind = 'text'
-                     WHERE a.resource_hash = ?1 AND a.selector <> 'file'",
-                )
+                     WHERE a.resource_hash = ?1 AND {}",
+                    is_part_sql("a")
+                ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([hash], |row| {
@@ -268,7 +399,6 @@ impl DocBase {
                 .map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
-        let now = now_ms();
         let state = |part: &Part| if part.confirmed { "confirmed" } else { "proposed" };
         let mut kept: BTreeSet<i64> = BTreeSet::new();
         let mut to_make = Vec::new();
@@ -284,8 +414,8 @@ impl DocBase {
                 Some(e) => {
                     kept.insert(e.id);
                     tx.execute(
-                        "UPDATE appearance SET position = ?1, cut_by = ?2, cut_state = ?3, uncertain = ?4 WHERE id = ?5",
-                        params![index as i64 + 1, part.by, state(part), part.uncertain, e.id],
+                        "UPDATE appearance SET position = ?1, cut_by = ?2, cut_state = ?3, uncertain = ?4, annex = ?5 WHERE id = ?6",
+                        params![index as i64 + 1, part.by, state(part), part.uncertain, annex(part), e.id],
                     )
                     .map_err(sql_err)?;
                 }
@@ -294,7 +424,7 @@ impl DocBase {
         }
         // What one part says of another (a signing certificate, D-607)
         // is read again when the parts change.
-        let changed = !to_make.is_empty() || kept.len() < existing.len();
+        let changed = !to_make.is_empty() || kept.len() < existing.len() || had_one != one;
         let mut left: BTreeSet<i64> = BTreeSet::new();
         for e in existing.iter().filter(|e| !kept.contains(&e.id)) {
             tx.execute("DELETE FROM appearance WHERE id = ?1", [e.id]).map_err(sql_err)?;
@@ -332,9 +462,9 @@ impl DocBase {
                 }
             };
             tx.execute(
-                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![version_id, hash, selector, index as i64 + 1, part.by, state(part), part.uncertain, now],
+                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at, annex)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![version_id, hash, selector, index as i64 + 1, part.by, state(part), part.uncertain, now, annex(part)],
             )
             .map_err(sql_err)?;
             left.remove(&version_id);
@@ -377,7 +507,7 @@ impl DocBase {
             .prepare(
                 "SELECT a.position, a.version_id, v.document_id, a.selector, a.cut_by, a.cut_state, a.uncertain FROM appearance a
                  JOIN version v ON v.id = a.version_id
-                 WHERE a.resource_hash = ?1 AND a.selector <> 'file' ORDER BY a.position",
+                 WHERE a.resource_hash = ?1 AND a.selector GLOB 'pages:*' ORDER BY a.position",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -425,7 +555,7 @@ impl DocBase {
             .conn()
             .query_row(
                 "SELECT a.version_id, v.document_id FROM appearance a JOIN version v ON v.id = a.version_id
-                 WHERE a.resource_hash = ?1 AND a.selector = 'file' AND a.uncertain = 1",
+                 WHERE a.resource_hash = ?1 AND a.selector = 'all' AND a.uncertain = 1",
                 [hash],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -612,6 +742,75 @@ mod tests {
         parts.iter().map(|p| (p.first_page, p.last_page, p.cut_by.as_str(), p.cut_state.as_str())).collect()
     }
 
+    /// The rule of a step, as the cut by zones writes it.
+    fn rule(base: &DocBase, hash: &str, after: u32, rule: &str) {
+        base.conn()
+            .execute("UPDATE cut_step SET rule = ?3 WHERE resource_hash = ?1 AND after_page = ?2", params![hash, after, rule])
+            .unwrap();
+    }
+
+    fn pieces(base: &DocBase, hash: &str) -> Vec<(u32, bool, bool)> {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT page, joins_previous, joins_next FROM structure_piece WHERE resource_hash = ?1 AND kind = ?2 ORDER BY page")
+            .unwrap();
+        let rows = statement.query_map(params![hash, ANNEX_ANNOUNCEMENT], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    }
+
+    fn annexes(base: &DocBase, hash: &str) -> Vec<String> {
+        let conn = base.conn();
+        let mut statement =
+            conn.prepare("SELECT selector FROM appearance WHERE resource_hash = ?1 AND annex = 1 ORDER BY selector").unwrap();
+        let rows = statement.query_map([hash], |r| r.get(0)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    }
+
+    /// A page that only announces an annex is a piece of the structure, not
+    /// a document (D-724): in the middle of the file it is joined to the
+    /// part before and to the one after, which is an annex; at the start,
+    /// only to the one after; at the end, only to the one before. A person
+    /// who joins it to a part makes it a page of that part again.
+    #[test]
+    fn a_page_that_only_announces_an_annex_is_a_piece_and_the_part_after_it_an_annex() {
+        let (_dir, base) = open();
+        // In the middle: pages 1-2, the announcement in 3, the annex in 4-6.
+        add_file(&base, 1, "medio", &joined(&[1, 2, 3, 4, 5, 6]));
+        cut(&base, "medio", 6, &[3, 4], &[], 1);
+        rule(&base, "medio", 2, ANNOUNCED);
+        rule(&base, "medio", 3, AFTER_ANNOUNCEMENT);
+        // At the start: the announcement in 1, one document after it.
+        add_file(&base, 2, "inicio", &joined(&[7, 8, 9]));
+        cut(&base, "inicio", 3, &[2], &[], 1);
+        rule(&base, "inicio", 1, AFTER_ANNOUNCEMENT);
+        // At the end: one document, and an announcement with nothing after.
+        add_file(&base, 3, "final", &joined(&[10, 11, 12, 13]));
+        cut(&base, "final", 4, &[4], &[], 1);
+        rule(&base, "final", 3, ANNOUNCED);
+        assert_eq!(base.cut_parts_pending(10).unwrap(), 3);
+        let parts = base.included_parts("medio").unwrap();
+        assert_eq!(spans(&parts), vec![(1, 2, "rule", "proposed"), (4, 6, "rule", "proposed")]);
+        assert_eq!(pieces(&base, "medio"), vec![(3, true, true)]);
+        assert_eq!(annexes(&base, "medio"), vec!["pages:4-6".to_string()]);
+        // The piece is no document: it has no version nor appearance.
+        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE resource_hash = 'medio' AND selector = 'pages:3-3'"), 0);
+        assert!(base.included_parts("inicio").unwrap().is_empty());
+        assert_eq!(pieces(&base, "inicio"), vec![(1, false, true)]);
+        assert_eq!(annexes(&base, "inicio"), vec![ONE_DOCUMENT.to_string()]);
+        assert!(base.included_parts("final").unwrap().is_empty());
+        assert_eq!(pieces(&base, "final"), vec![(4, true, false)]);
+        assert!(annexes(&base, "final").is_empty());
+        // A person joins the announcement to the part before it: no piece.
+        base.cut_join_with_previous("medio", 3).unwrap();
+        assert!(pieces(&base, "medio").is_empty());
+        assert_eq!(spans(&base.included_parts("medio").unwrap()).iter().map(|s| (s.0, s.1)).collect::<Vec<_>>(), vec![(1, 3), (4, 6)]);
+        assert!(annexes(&base, "medio").is_empty());
+        // A file of one page that only announces is a document all the same.
+        let (documents, pieces, annexes) =
+            split_pieces(vec![Part { first: 1, last: 1, by: "rule", confirmed: false, uncertain: false }], &BTreeSet::from([1]));
+        assert_eq!((documents.len(), pieces.len(), annexes.len()), (1, 0, 0));
+    }
+
     #[test]
     fn a_pdf_of_three_parts_gives_four_versions_and_three_appearances_of_pages() {
         let (_dir, base) = open();
@@ -650,7 +849,9 @@ mod tests {
         let parts = base.included_parts("h1").unwrap();
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[1].version_id, 1);
-        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE version_id = 1"), 2);
+        // The file itself, its one document (D-718) and a part of the other.
+        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE version_id = 1"), 3);
+        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE version_id = 1 AND selector = 'all'"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM version"), 3);
     }
 

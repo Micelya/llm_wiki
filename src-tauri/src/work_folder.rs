@@ -77,11 +77,20 @@ fn chosen(app: &AppHandle) -> Option<PathBuf> {
 }
 
 fn default_folder(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .document_dir()
-        .map(|documents| documents.join("Micelya"))
-        .or_else(|_| app.path().app_data_dir().map(|data| data.join("Micelya")))
-        .map_err(|e| format!("No se encontró dónde poner la carpeta de trabajo: {e}"))
+    let documents = app.path().document_dir().ok();
+    let data = app.path().app_data_dir().ok();
+    default_in(&app.config().identifier, documents, data)
+        .ok_or_else(|| "No se encontró dónde poner la carpeta de trabajo".to_string())
+}
+
+/// The folder by default: `<Documentos>\Micelya` for the person's app (in
+/// its data folder when there are no documents). An app with another
+/// identifier, like the review app (`tauri.revision.conf.json`, D-780),
+/// keeps it in its own data folder, so it never takes the person's folder
+/// as an origin of its base.
+fn default_in(identifier: &str, documents: Option<PathBuf>, data: Option<PathBuf>) -> Option<PathBuf> {
+    let parent = if identifier == crate::MAIN_IDENTIFIER { documents.or(data) } else { data };
+    parent.map(|folder| folder.join("Micelya"))
 }
 
 /// The folder as Windows writes it (the screens keep paths with `/`).
@@ -268,5 +277,23 @@ mod tests {
         assert!(base.add_origin("Generados", &work.join(GENERATED), &[]).is_err());
         assert_eq!(base.origins(&Visible::All).unwrap().len(), 1);
         assert_eq!(normalize("C:/Usuarios/alguien/carpeta").to_string_lossy().contains('/'), !cfg!(windows));
+    }
+
+    #[test]
+    fn the_review_app_keeps_its_work_folder_in_its_own_data_folder() {
+        let documents = PathBuf::from("C:/Usuarios/alguien/Documentos");
+        let data = PathBuf::from("C:/Usuarios/alguien/AppData/Roaming/com.micelya.desktop.revision");
+        let review = "com.micelya.desktop.revision";
+        // The person's app: its documents, or its data folder without them.
+        assert_eq!(default_in(crate::MAIN_IDENTIFIER, Some(documents.clone()), Some(data.clone())), Some(documents.join("Micelya")));
+        assert_eq!(default_in(crate::MAIN_IDENTIFIER, None, Some(data.clone())), Some(data.join("Micelya")));
+        // Another identifier: never the documents.
+        assert_eq!(default_in(review, Some(documents.clone()), Some(data.clone())), Some(data.join("Micelya")));
+        assert_eq!(default_in(review, Some(documents), None), None);
+        // The identifiers of the two configurations.
+        let main: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(main["identifier"], crate::MAIN_IDENTIFIER);
+        let revision: serde_json::Value = serde_json::from_str(include_str!("../tauri.revision.conf.json")).unwrap();
+        assert_eq!(revision["identifier"], review);
     }
 }

@@ -100,6 +100,9 @@ export function runConfirmMessage(plan: TypesPlan, limit: number): string {
 
 /** What a run did, in a sentence. */
 export function runReportText(report: TypesRunReport): string {
+  if (report.requested) {
+    return "Quedó pedido: el proceso pregunta los tipos en cuanto termine lo anterior de esos documentos. «En curso» muestra cómo va."
+  }
   const asked = report.asked + report.dataAsked
   const parts = [
     asked === 0 ? "No hizo falta preguntarle nada al modelo." : `Se hicieron ${plural(asked, "pregunta", "preguntas")} al modelo.`,

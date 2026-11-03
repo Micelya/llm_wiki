@@ -56,6 +56,62 @@ export function rescanOrigins(): Promise<void> {
   return invoke<void>("docbase_rescan")
 }
 
+/**
+ * «Volver a procesar» (A3 of 2 nov): everything (no origin), a folder of an
+ * origin (`folder`, empty for all of it) or a file (`relPath`). The
+ * inventory of that scope is left incomplete and the process takes it in
+ * its order. Returns how many files have their bytes read again.
+ */
+export function reprocess(again: { originId?: string; folder?: string; relPath?: string }): Promise<number> {
+  return invoke<number>("docbase_reprocess", { again })
+}
+
+/** The places, files and documents of the base, by the one rule of every screen. */
+export interface Totals {
+  places: number
+  files: number
+  /** Each part of a file of several documents, or the file itself: a file of 3 parts is 3. */
+  documents: number
+  typed: number
+}
+
+export type StepKey =
+  | "inventory" | "file-hash" | "text" | "scans" | "shapes" | "zones" | "cut-rules" | "cut-question" | "parts"
+  | "signature" | "vectors" | "similar" | "type" | "type-data" | "template-fields" | "reading" | "identity" | "matters" | "pages"
+
+/** One of the 19 steps of the process, as the base counts it now. */
+export interface StepState {
+  about: { number: number; key: StepKey; name: string; level: "file" | "document"; class: "local" | "asks" | "bySettings" }
+  class: "local" | "asks" | "bySettings"
+  count: { pending: number; setAside: number; person: number; low: number; withoutAsking: number; known: boolean }
+  /** Why its questions are set aside now, if they are. */
+  held: string | null
+}
+
+/** How the loop of the process stands. */
+export interface LoopStatus {
+  state: "working" | "stopped" | "waiting-person" | "waiting" | ""
+  step: number | null
+  operation: string | null
+  scope: string | null
+  back: string | null
+  waitingFor: string | null
+  turns: number
+}
+
+/** What «En curso» shows: the 19 steps, the loop and the totals. */
+export interface ProcessView {
+  status: LoopStatus
+  state: { steps: StepState[]; firstIncomplete: string | null; unknown: string[] }
+  totals: Totals
+  /** Why each step set aside as a whole is, by its number. */
+  aside: Record<string, string>
+}
+
+export function processView(): Promise<ProcessView> {
+  return invoke<ProcessView>("docbase_process_state")
+}
+
 /** Fires whenever something the document base screens show may have changed. */
 export function onDocbaseChanged(handler: () => void): Promise<UnlistenFn> {
   return listen("docbase://changed", () => handler())
@@ -245,6 +301,11 @@ export interface DocumentDetail extends DocumentRow {
   generated: GeneratedLine | null
   /** When it is a document a joined file includes: which one and its pages; the rest is of that file. */
   part: PartOf | null
+  /**
+   * Of a type of low confidence: why (E6 of 2 nov). Its reading exists and
+   * is shown marked: it is only for queries, nothing derived takes it.
+   */
+  lowConfidence?: string | null
 }
 
 /** Who said where a document of a joined file starts. */
@@ -310,8 +371,11 @@ export interface Health {
   unreachableOrigins: number
   /** Files in the inventory, cloud shortcuts included. */
   locations: number
-  /** Distinct documents among the files already read. */
+  /** The documents, by the one rule of every screen: the same figure as «En curso». */
   documents: number
+  /** Distinct files read, by their bytes, and the places they are in. */
+  files?: number
+  places?: number
   /** Files by state. */
   byState: Partial<Record<DocumentState, number>>
   /** Files whose document is also somewhere else. */
@@ -919,6 +983,8 @@ export interface TypesRunReport {
   corrected: number
   left: number
   errors: string[]
+  /** Kept as an ask of a person: the process asks, in its order (change B of 2 nov). */
+  requested?: boolean
 }
 
 /** A document type of the catalog, with its stages and data; names come from the vocabulary. */
@@ -973,13 +1039,13 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
 
 /** Which engine recognizes the text of scans, and with which model. */
 export interface RecognitionConfig {
-  /** Codex, or Micelya Core (Textract, page by page). */
-  engine: "codex-cli" | "core"
+  /** The reader, as the catalog names it: the one of this computer (`rapidocr-onnx`, by default), Codex or Micelya Core; adding a reader is adding an entry to the catalog (D-764). */
+  engine: string
   model: string
 }
 
 /** The AI services of the registry (P-141, `docbase/services.rs`). */
-export type AiServiceId = "ask" | "recognize" | "research"
+export type AiServiceId = "ask" | "recognize" | "research" | "embed"
 
 /** One engine chosen for a service. */
 export interface EngineChoice {
@@ -1003,6 +1069,8 @@ export interface AiServices {
   ask: ServiceChoice
   recognize: ServiceChoice
   research: ServiceChoice
+  /** «Calcular vectores» (C1 of 2 nov): none chosen is Micelya Core, by default. */
+  embed: ServiceChoice
 }
 
 export type CapabilityLevel = "yes" | "partial" | "no"
@@ -1022,8 +1090,12 @@ export interface CatalogEngine {
   connection?: string
   /** The model it is saved with when none is chosen. */
   defaultModel?: string
+  /** The engine the service uses when none is chosen (for the scans, the one of this computer, D-764). */
+  byDefault?: boolean
   /** False: the person does not choose the model (the provider says which one reads). */
   modelChoice?: boolean
+  /** The numbers of each vector, for an engine of «Calcular vectores». */
+  dimensions?: number
   /** How it reads, in words. */
   notes?: string
   /** What it says it can do, when it declares it. */
@@ -1144,6 +1216,21 @@ export function recognizeText(contentIds: number[] | null, onlyFailed = false): 
   return invoke<number>("docbase_recognize_text", { contentIds, onlyFailed })
 }
 
+/** What «Leer con IA» would cost for a document: its reader and its pages, each a question (E2). */
+export interface AiReadingCost {
+  engine: string
+  pages: number
+}
+
+export function aiReadingCost(contentId: number): Promise<AiReadingCost> {
+  return invoke<AiReadingCost>("docbase_ai_reading_cost", { contentId })
+}
+
+/** «Leer con IA»: a request of a person, read by the process with the reader of AI chosen in Ajustes. */
+export function readWithAi(contentId: number): Promise<number> {
+  return invoke<number>("docbase_read_with_ai", { contentId })
+}
+
 export function getDocumentType(locationId: number): Promise<DocumentTypeView> {
   return invoke<DocumentTypeView>("docbase_document_type", { locationId })
 }
@@ -1173,15 +1260,6 @@ export interface KnowledgeProjectReport {
   blocksWritten: number
   overviewWritten: boolean
   errors: string[]
-}
-
-/**
- * Projects the record of the knowledge layer into the archive's wiki now.
- * Without an engine nothing is asked; with one it costs the provider's
- * quota: only on an explicit action.
- */
-export function projectKnowledge(engine: AskConfig | null, maxQuestions?: number): Promise<KnowledgeProjectReport> {
-  return invoke<KnowledgeProjectReport>("docbase_knowledge_project", { engine, maxQuestions: maxQuestions ?? null })
 }
 
 /** The language the base writes its articles in. */
@@ -1689,16 +1767,6 @@ export function getDocumentKnowledge(locationId: number): Promise<DocumentKnowle
   return invoke<DocumentKnowledge>("docbase_knowledge_document", { locationId })
 }
 
-/** Reads the pending documents for the layer. It costs the provider's quota: only on an explicit action. */
-export function runKnowledge(engine: AskConfig, maxQuestions?: number): Promise<KnowledgeRunReport> {
-  return invoke<KnowledgeRunReport>("docbase_knowledge_run", { engine, maxQuestions: maxQuestions ?? null })
-}
-
-/** Resolves identities; with an engine it costs the provider's quota: only on an explicit action. */
-export function resolveKnowledge(engine: AskConfig | null, maxQuestions?: number): Promise<KnowledgeResolveReport> {
-  return invoke<KnowledgeResolveReport>("docbase_knowledge_resolve", { engine, maxQuestions: maxQuestions ?? null })
-}
-
 export function listEntities(kind: string | null = null, query: string | null = null): Promise<EntitySummary[]> {
   return invoke<EntitySummary[]>("docbase_knowledge_entities", { kind, query })
 }
@@ -2145,6 +2213,178 @@ export function getRereadPlan(target: RereadTarget = {}): Promise<RereadPlan> {
 /** Asks to read them again with new answers of the model; kept in the base until it is done. */
 export function requestReread(target: RereadTarget = {}): Promise<number> {
   return invoke<number>("docbase_knowledge_reread", { target })
+}
+
+/** A failure of the background work still open (D-714): `docbase::failures`. */
+export interface FailureView {
+  id: number
+  /** The step where it happened: `shapes`, `cut`, `parts`, `zones`, `similar`, `cut-question`, `types`… */
+  stage: string
+  itemKind: "file" | "version" | "span" | "engine" | "origin" | "thread"
+  item: string
+  /** The code of its cause (`failures::CAUSES`). */
+  cause: string
+  message: string
+  class: "transient" | "permanent" | "unknown"
+  scope: "item" | "engine"
+  engine: string | null
+  attempt: number
+  firstAt: number
+  lastAt: number
+  nextAt: number | null
+  state: "open" | "person"
+  /** Past the threshold of attempts or time: the indicator is on. */
+  indicator: boolean
+  toDiagnose: boolean
+  /** The file it is about, by its path in its folder. */
+  path: string | null
+  locationId: number | null
+}
+
+export function listFailures(): Promise<FailureView[]> {
+  return invoke<FailureView[]>("docbase_failures")
+}
+
+/** The thresholds of the base (D-722): settings of the base, each with its value by default (`thresholds.rs`). */
+export interface Thresholds {
+  /** The low and the high threshold of the bands of a reading by zones (0..1). */
+  low: number
+  high: number
+  /** «No legible»: the share of safe words below which a document cannot be read (0..1). */
+  quality: number
+  /** The share of safe words below which a document is of a type of low confidence (0..1). */
+  lowConfidenceType: number
+  indicatorAttempts: number
+  indicatorHours: number
+  roundCap: number
+  retryMinutes: number[]
+  /** How far two names may be to join two mentions with the same number: letters, and share of the name. */
+  nameLetters: number
+  nameShare: number
+  /** The type by likeness (C2 of 2 nov): from what likeness the documents alone go in one question, and the neighbours are very close (0..1). */
+  groupSimilarity: number
+  closeSimilarity: number
+}
+
+/** «Pista del tipo por parecido» (C2 of 2 nov, D-805): the question of the type carries its 3 nearest neighbours. On by default. */
+export function getTypeHint(): Promise<boolean> {
+  return invoke<boolean>("docbase_type_hint")
+}
+
+export function setTypeHint(on: boolean): Promise<void> {
+  return invoke<void>("docbase_set_type_hint", { on })
+}
+
+/** A document typed near another one, by their vectors (`similar/hint.rs`). */
+export interface TypeNeighbour {
+  versionId: number
+  docType: string
+  name: string | null
+  origin: "catalog" | "confirmed" | "proposed"
+  similarity: number
+}
+
+/** A type the model gave against its 3 very close neighbours, that share another one. */
+export interface DoubtfulType {
+  versionId: number
+  locationId: number | null
+  name: string
+  path: string
+  firstPage: number | null
+  lastPage: number | null
+  docType: string
+  neighbourType: string
+  likeness: number[]
+}
+
+/** A document without a type, with the one its neighbours suggest. */
+export interface SuggestedType {
+  versionId: number
+  locationId: number | null
+  name: string
+  path: string
+  firstPage: number | null
+  lastPage: number | null
+  docType: string
+  likeness: number
+  neighbours: TypeNeighbour[]
+  why: string
+}
+
+export interface TypesBySimilarity {
+  doubtful: DoubtfulType[]
+  suggested: SuggestedType[]
+}
+
+/** The doubtful types and the suggestions for the documents without a type. Looking writes nothing. */
+export function getTypesBySimilarity(): Promise<TypesBySimilarity> {
+  return invoke<TypesBySimilarity>("docbase_types_by_similarity")
+}
+
+export function getThresholds(): Promise<Thresholds> {
+  return invoke<Thresholds>("docbase_thresholds")
+}
+
+/** Keeps the thresholds; the base says why when they cannot be kept. */
+export function setThresholds(thresholds: Thresholds): Promise<void> {
+  return invoke<void>("docbase_set_thresholds", { thresholds })
+}
+
+/** A document as «Calidad de la lectura» lists it. */
+export interface QualityDocument {
+  versionId: number
+  locationId: number | null
+  name: string
+  /** `<origin>/<path inside it>`. */
+  path: string
+  /** A part of a file of several: its pages in the file. */
+  firstPage: number | null
+  lastPage: number | null
+  pages: number | null
+  firm: number
+  approximate: number
+  discarded: number
+  /** The firm words over every word read. */
+  share: number
+  /** With the thresholds of now. */
+  verdict: "no-legible" | "low-confidence" | null
+}
+
+export interface QualityStep {
+  value: number
+  documents: number
+  pages: number
+}
+
+/** «Calidad de la lectura» (P-544): looking writes nothing. */
+export interface ReadingQuality {
+  quality: number
+  lowConfidenceType: number
+  documents: number
+  measured: number
+  /** The measured ones with a share below 1, the worst first. */
+  belowOne: QualityDocument[]
+  steps: QualityStep[]
+  unmeasured: QualityDocument[]
+  withoutText: QualityDocument[]
+}
+
+export function getReadingQuality(): Promise<ReadingQuality> {
+  return invoke<ReadingQuality>("docbase_reading_quality")
+}
+
+/** What keeping these two thresholds of the confidence would change, by the shares kept now. */
+export interface ConfidenceEffect {
+  toLow: number
+  toLowPages: number
+  fromLow: number
+  fromLowPages: number
+  /** At most how many pages of people, organizations and matters are written again (a question each). */
+  pagesWrittenAgain: number
+}
+
+export function getConfidenceEffect(quality: number, lowConfidenceType: number): Promise<ConfidenceEffect> {
+  return invoke<ConfidenceEffect>("docbase_confidence_effect", { quality, lowConfidenceType })
 }
 
 export function getKnowledgeAttention(): Promise<KnowledgeAttention> {

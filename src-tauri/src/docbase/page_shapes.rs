@@ -24,6 +24,7 @@ use crate::source_volume::page_shape::{profile_pdf_with_prints, PdfShapes, SHAPE
 use crate::source_volume::LocalFolderProvider;
 use crate::source_volume::SourceProvider;
 
+use super::failures;
 use super::text::EXTRACTION_ENGINE;
 use super::{now_ms, sql_err, DocBase};
 
@@ -53,8 +54,10 @@ impl DocBase {
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.state IN ('processed', 'needs-recognition') AND NOT {}
                        AND NOT EXISTS (SELECT 1 FROM derivative d WHERE d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2)
+                       AND NOT EXISTS (SELECT 1 FROM file fz WHERE fz.version_id = c.id AND {failed})
                      ORDER BY c.id LIMIT ?3",
-                    super::excluded_sql!()
+                    super::excluded_sql!(),
+                    failed = failures::holds_any_sql(failures::SHAPES_STAGE, "fz.hash"),
                 ))
                 .map_err(sql_err)?;
             let contents: Vec<i64> = statement
@@ -91,13 +94,32 @@ impl DocBase {
         for (content, files) in &jobs {
             let mut shapes: Option<PdfShapes> = None;
             let mut prints: Vec<(&str, Vec<PagePrint>)> = Vec::new();
+            let mut failed: Vec<(&str, String)> = Vec::new();
             for (hash, path) in files {
-                // A PDF pdfium cannot open keeps an empty ficha and no
-                // prints: it is not tried again until the next version of
-                // the ficha.
-                let (shape, printed) = run_guarded("docbase_page_shapes", || profile_pdf_with_prints(path)).unwrap_or_default();
-                shapes.get_or_insert(shape);
-                prints.push((hash.as_str(), printed));
+                match profile(path) {
+                    Ok((shape, printed)) => {
+                        shapes.get_or_insert(shape);
+                        prints.push((hash.as_str(), printed));
+                    }
+                    Err(error) => failed.push((hash.as_str(), failures::pdf_error_detail(path, error))),
+                }
+            }
+            // A PDF pdfium cannot open is written down with its cause
+            // (P-528, D-714): encrypted or broken, permanent; in use by
+            // another program or in the cloud, transient. It keeps no
+            // ficha, so it is not read whole: it waits (D-717).
+            {
+                let conn = self.conn();
+                for (hash, error) in &failed {
+                    eprintln!("[docbase] ficha of {hash}: {error}");
+                    failures::record(&conn, &failures::Failure::new(failures::SHAPES_STAGE, failures::About::File(hash.to_string()), error))?;
+                }
+                for (hash, _) in &prints {
+                    failures::resolve(&conn, failures::SHAPES_STAGE, &failures::About::File(hash.to_string()))?;
+                }
+            }
+            if shapes.is_none() && !failed.is_empty() {
+                continue;
             }
             let body = serde_json::to_string(&shapes.unwrap_or_default()).map_err(|e| e.to_string())?;
             let mut conn = self.conn();
@@ -115,6 +137,22 @@ impl DocBase {
         }
         Ok(jobs.len())
     }
+}
+
+/// The ficha and the prints of the pages of a PDF, by pdfium; in the
+/// tests, a failure given (`SHAPES_FAULT`).
+fn profile(path: &Path) -> Result<(PdfShapes, Vec<PagePrint>), String> {
+    #[cfg(test)]
+    if let Some(error) = SHAPES_FAULT.with(|f| f.borrow().clone()) {
+        return Err(error);
+    }
+    run_guarded("docbase_page_shapes", || profile_pdf_with_prints(path))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The failure pdfium gives in a test, when set.
+    pub(crate) static SHAPES_FAULT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
 }
 
 /// The prints of the pages of a file, in place of the ones it had. Whether

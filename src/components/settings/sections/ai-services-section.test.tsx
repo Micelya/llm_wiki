@@ -38,6 +38,7 @@ const services: AiServices = {
   ask: { engine: choice("codex-cli", "codex-cli", "modelo-a", "high"), alternative: null },
   recognize: { engine: choice("codex-cli", "codex-cli", "modelo-a"), alternative: null },
   research: { engine: choice("tavily", "tavily"), alternative: null },
+  embed: { engine: null, alternative: null },
 }
 const coreFields = { api: "https://api.ejemplo.invalid/v1", issuer: "https://emisor.ejemplo.invalid/realms/prueba", tenant: "t", clientId: "c" }
 
@@ -85,9 +86,29 @@ describe("Ajustes → Servicios de IA", () => {
     useWikiStore.setState({ taskModelRouting: { chatPresetId: "claude-code-cli", ingestPresetId: null } })
     const { words } = shown()
     expect(words).toContain("La base todavía no lee con este motor")
-    expect(words).toContain("Sin motor, los escaneos quedan sin texto.")
+    expect(words).toContain("Sin elegir otro, se usa En esta computadora (RapidOCR) (por omisión): no sale nada de esta computadora.")
     expect(words).toContain("Sin buscador no se puede investigar en internet.")
     expect(words).toContain("El chat usa otro motor, elegido antes: Claude Code CLI")
+  })
+
+  it("offers three readers of the scans, the one of this computer by default, and shows the one chosen (E2 of 2 nov)", () => {
+    useCoreConnectionStore.setState({ connection: { ...coreFields, environment: "", hasSecret: true } })
+    useAiServicesStore.setState({ services: { ...services, recognize: { engine: null, alternative: null } } })
+    let { html, words } = shown()
+    // None chosen: the one of this computer, selected, «por omisión»; no «Ninguno» for the scans.
+    expect(html).toMatch(/<option value="rapidocr-onnx" selected="">En esta computadora \(RapidOCR\) \(por omisión\)<\/option>/)
+    expect(html).toMatch(/<option value="codex-cli">Codex<\/option>/)
+    expect(html).toMatch(/<option value="core">Micelya Core \(Textract\)<\/option>/)
+    expect(words).toContain("Lector de IA para «Leer con IA» (opcional): Ninguno")
+    // The reader of «Leer con IA» does not offer the one of this computer.
+    expect((html.match(/<option value="rapidocr-onnx"/g) ?? []).length).toBe(1)
+
+    // Codex chosen and saved: it is the one selected, and the screen says each page is a question.
+    useAiServicesStore.setState({ services: { ...services, recognize: { engine: choice("codex-cli", "codex-cli", "modelo-a"), alternative: null } } })
+    ;({ html, words } = shown())
+    expect(html).toMatch(/<option value="codex-cli" selected="">Codex<\/option>/)
+    expect(html).toMatch(/<option value="rapidocr-onnx">En esta computadora \(RapidOCR\) \(por omisión\)<\/option>/)
+    expect(words).toContain("Lee en la nube: cada página es una consulta a ese proveedor.")
   })
 
   it("offers Micelya Core to recognize scans only with its connection, and says where it processes", () => {

@@ -12,7 +12,7 @@ use crate::docbase::{DocBase, Visible};
 const A: &str = "DOC-A. Contrato entre Ejemplo Uno S.A., CUIT 30-11111111-1, y Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100.";
 const B: &str = "DOC-B. Recibo firmado por DOS, Persona, DNI 22.222.222, a favor de Ejemplo Uno SA, con domicilio en Calle Uno 100.";
 const C: &str = "DOC-C. Constancia de Persona Dos, DNI 44.444.444, vecina de otra ciudad, con domicilio en Calle Dos 200.";
-const D: &str = "DOC-D. Nota de Persona Dos, DNI 22.222.223, sobre el mismo contrato y sus pagos pendientes.";
+const D: &str = "DOC-D. Nota de Persona Dos, DNI 22.222.233, sobre el mismo contrato y sus pagos pendientes.";
 const E: &str = "DOC-E. Acuerdo entre Ejemplo Uno S.A. y Ejemplo Uno LLC, firmado por Persona Tres, soltera en 2020, en nombre de ambas sociedades.";
 const F: &str = "DOC-F. Factura de EJEMPLO UNO para Persona Tres Cuatro, casada en 2024, por servicios prestados durante marzo.";
 
@@ -48,7 +48,7 @@ fn reading(prompt: &str) -> String {
         )
     } else if prompt.contains("DOC-D.") {
         (
-            vec![mention("p", "persona", "Persona Dos", "remitente", "Nota de Persona Dos, DNI 22.222.223", ids("dni", "22.222.223", "DNI 22.222.223"))],
+            vec![mention("p", "persona", "Persona Dos", "remitente", "Nota de Persona Dos, DNI 22.222.233", ids("dni", "22.222.233", "DNI 22.222.233"))],
             vec![],
         )
     } else if prompt.contains("DOC-E.") {
@@ -179,14 +179,16 @@ fn identifiers_names_and_the_model_in_cascade() {
     run(&base, &asker);
 
     // The same DNI joins two ways of writing a name; another DNI keeps
-    // the same name apart; one digit of difference is a doubt.
+    // the same name apart, also one two digits apart. One digit apart with
+    // the same name joins (the tolerance of the owner's rules, E5 of 2
+    // nov): `tests_numbers.rs`.
     let two = entity(&base, "a.txt", "Persona Dos").unwrap();
     assert_eq!(entity(&base, "b.txt", "DOS, Persona").as_ref(), Some(&two));
     assert_eq!(resolved_by(&base, "b.txt", "DOS, Persona").as_deref(), Some("identificador"));
     assert_ne!(entity(&base, "c.txt", "Persona Dos").as_ref(), Some(&two));
     assert_ne!(entity(&base, "d.txt", "Persona Dos").as_ref(), Some(&two));
     let (_, doubts) = partition(&base);
-    assert!(doubts.iter().any(|(_, reason)| reason == "identificador-parecido"), "{doubts:?}");
+    assert!(!doubts.iter().any(|(_, reason)| reason == "identificador-parecido"), "{doubts:?}");
 
     // The same name and legal form joins; another legal form never; the
     // name without a form, when two forms share it, is asked once against

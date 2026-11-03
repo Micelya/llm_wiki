@@ -239,6 +239,7 @@ const SERVICE_WORDS: Record<string, string> = {
   ask: "Preguntar al modelo",
   recognize: "Reconocer escaneos",
   research: "Investigar en internet",
+  embed: "Calcular vectores",
 }
 
 function serviceWords(service: string): string {

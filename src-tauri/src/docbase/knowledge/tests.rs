@@ -23,7 +23,7 @@ impl FakeModel {
         Self { engine: engine.into(), answer: Box::new(answer), asked: Mutex::new(Vec::new()) }
     }
 
-    fn knowledge_calls(&self) -> usize {
+    pub(crate) fn knowledge_calls(&self) -> usize {
         self.asked.lock().unwrap().iter().filter(|q| is_knowledge(q)).count()
     }
 }

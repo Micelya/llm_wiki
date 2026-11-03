@@ -12,12 +12,16 @@
 //!
 //! 0. What a person decided: a join is firm; a separation keeps two groups
 //!    apart in every pass (R-08).
-//! 1. **Strong identifiers** (DNI, CUIT, registration, file number): the
-//!    same one joins by itself (D-174); another one of the same kind keeps
-//!    two groups apart forever; one character of difference with
-//!    compatible names is doubtful (a misread scan). An identifier the
-//!    model gave to mentions of two kinds, or to two groups of one
-//!    document, is not used: it was attributed to the wrong mention.
+//! 1. **Strong identifiers** (DNI, CUIT, registration, file number), each
+//!    in its common form (`numbers.rs`, E5 of 2 nov): the same one joins by
+//!    itself (D-174), and with a name within the caps of the base's
+//!    configuration; one near (a digit misread) joins only with a name
+//!    within those caps, otherwise it is doubtful; another one of the same
+//!    kind keeps two groups apart forever, when its quote says what it is
+//!    (a number without its label may join, never separate). An
+//!    identifier the model gave to mentions of two kinds, or to two
+//!    groups of one document, is not used: it was attributed to the wrong
+//!    mention.
 //! 2. **The same name**: the same words (any order for a person, two words
 //!    at least; for an organization, the same legal form), unless an
 //!    identifier keeps them apart. Matters are never joined by their name.
@@ -44,12 +48,13 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::{changes, claims};
 use super::names::{self, Likeness, NameKey, ORGANIZATION, PERSON};
+use super::numbers::{self, Match, NameCaps};
 use super::vocabulary::{vocabulary, Vocabulary};
 use crate::docbase::similar::classify::{self as classify, ask_and_keep, cached_answer, parse_json, stops_the_run, Question, ASKING};
 use crate::docbase::{now_ms, sql_err, DocBase};
@@ -64,10 +69,19 @@ const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Why a group of mentions has no entity: it is a reference (D-377).
 pub(crate) const REFERENCE: &str = "referencia";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-16";
+const RESOLUTION_VERSION: &str = "resolucion-17";
 
-fn resolution_basis() -> String {
-    format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
+/// What the record is computed with: the program, the question, the
+/// vocabulary and the caps of the names in the base's configuration (a
+/// change of any computes it again, without asking more).
+fn resolution_basis(caps: NameCaps) -> String {
+    format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}|nombres:{}:{}", vocabulary().digest, caps.letters, caps.share)
+}
+
+/// The caps of the names, as the base's configuration has them.
+fn name_caps(conn: &Connection) -> Result<NameCaps, String> {
+    let (letters, share) = crate::docbase::thresholds::name_caps(conn)?;
+    Ok(NameCaps { letters, share })
 }
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "identity";
@@ -96,6 +110,11 @@ pub struct ResolveReport {
     pub failed: usize,
     /// Questions left for another run (the limit, or the provider stopped).
     pub left: usize,
+    /// Questions a failure holds now (P-533, D-774): not left for another
+    /// run but set aside, each over its document, until the failure does
+    /// not hold it (arreglo 1 of the small test of 2 nov).
+    pub held: usize,
+    pub held_documents: BTreeSet<i64>,
     /// Groups of mentions of one document, and the entities they make.
     pub groups: usize,
     pub entities: usize,
@@ -156,8 +175,11 @@ pub(crate) struct Cluster {
     pub canon: String,
     /// The normalized names of its mentions.
     pub names: BTreeSet<String>,
-    /// Strong identifiers by kind.
+    /// Strong identifiers by kind, in their common form (`numbers.rs`).
     pub strong: BTreeMap<String, BTreeSet<String>>,
+    /// Those of them whose quote says what they are: only these keep two
+    /// groups apart (E5 of 2 nov).
+    pub labeled: BTreeMap<String, BTreeSet<String>>,
     /// Left out of the entities: why.
     pub excluded: Option<&'static str>,
     /// The names of its mentions as compared (the principal's first),
@@ -197,9 +219,12 @@ pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
         .prepare(&format!(
             "SELECT m.id, m.version_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id, m.defined
              FROM knowledge_mention m JOIN knowledge_extraction k ON k.version_id = m.version_id AND k.state = 'done'
-             WHERE {}
+             WHERE {} AND NOT {}
              ORDER BY m.version_id, m.id",
-            changes::active_content("m.version_id")
+            changes::active_content("m.version_id"),
+            // The mentions of a document of a type of low confidence join
+            // nobody (D-769, E3 of 2 nov).
+            crate::docbase::safe_words::low_sql("m.version_id", crate::docbase::safe_words::limit(conn)?)
         ))
         .map_err(sql_err)?;
     let hints = changes::entity_hints(conn)?;
@@ -277,15 +302,36 @@ impl Sets {
     }
 }
 
+/// An identifier of a mention as the resolution reads it.
+#[derive(Debug, Clone)]
+struct Said {
+    kind: String,
+    /// Its common form (`numbers::common_form`).
+    value: String,
+    /// Whether its quote says what it is: only then it keeps apart.
+    labeled: bool,
+    raw: String,
+    quote: String,
+}
+
 /// Whether two names of one document cannot be the same entity: two
-/// legal forms, or two strong identifiers of the same kind.
-fn apart_in_document(vocabulary: &Vocabulary, a: &NameKey, b: &NameKey, ids_a: &[(String, String)], ids_b: &[(String, String)]) -> bool {
+/// legal forms, or two strong identifiers of the same kind, each with its
+/// label, that are neither the same nor near.
+fn apart_in_document(vocabulary: &Vocabulary, a: &NameKey, b: &NameKey, ids_a: &[Said], ids_b: &[Said]) -> bool {
     if matches!((&a.form, &b.form), (Some(x), Some(y)) if x != y) {
         return true;
     }
-    ids_a.iter().any(|(kind, value)| {
-        vocabulary.is_strong(kind) && ids_b.iter().any(|(k, _)| k == kind) && !ids_b.iter().any(|(k, v)| k == kind && v == value)
+    ids_a.iter().filter(|x| x.labeled && vocabulary.is_strong(&x.kind)).any(|x| {
+        let theirs: Vec<&Said> = ids_b.iter().filter(|y| y.labeled && y.kind == x.kind).collect();
+        !theirs.is_empty() && theirs.iter().all(|y| numbers::same_number(vocabulary, &x.kind, &x.value, &y.value) == Match::Other)
     })
+}
+
+/// Whether a number of this kind is long enough to join: its digits, or
+/// its characters for a kind compared as written.
+fn long_enough(vocabulary: &Vocabulary, kind: &str, value: &str) -> bool {
+    let count = if numbers::shape(vocabulary, kind).is_some() { numbers::digit_count(value) } else { value.chars().count() };
+    count >= MIN_STRONG
 }
 
 /// The way of writing a name the most mentions use. An abbreviation left
@@ -326,34 +372,59 @@ pub(crate) fn clusters(
     hashes: &HashMap<i64, String>,
 ) -> Vec<Cluster> {
     let keys: Vec<NameKey> = rows.iter().map(|r| names::key(vocabulary, &r.kind, &r.written)).collect();
-    let mut ids: Vec<Vec<(String, String)>> = rows
+    let applies = |kind: &str, entity: &str| vocabulary.identifier(kind).is_some_and(|t| t.strong && (t.types.is_empty() || t.types.iter().any(|x| x == entity)));
+    // Each number in its common form, and whether its quote says what it
+    // is (E5 of 2 nov). A number given as another kind that starts with
+    // the label of a strong one is of that one ("LE 1234 567" is a DNI).
+    let mut ids: Vec<Vec<Said>> = rows
         .iter()
         .map(|r| {
             identifiers
                 .get(&r.id)
-                .map(|list| list.iter().map(|(k, v, _)| (k.clone(), names::identifier_value(v))).collect())
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|(k, v, q)| {
+                            let by_start = if applies(k, &r.kind) { None } else { numbers::kind_by_its_start(vocabulary, &r.kind, v) };
+                            let kind = by_start.clone().unwrap_or_else(|| k.clone());
+                            let value = numbers::common_form(vocabulary, &kind, v)?;
+                            let labeled = by_start.is_some() || numbers::labeled(vocabulary, &kind, q, v);
+                            Some(Said { kind, value, labeled, raw: v.clone(), quote: q.clone() })
+                        })
+                        .collect()
+                })
                 .unwrap_or_default()
         })
         .collect();
     // The same number read as another kind ("otro número" in one document,
     // the DNI in others) is that strong identifier: the reading did not
     // say which kind it is, the number says who.
-    let applies = |kind: &str, entity: &str| vocabulary.identifier(kind).is_some_and(|t| t.strong && (t.types.is_empty() || t.types.iter().any(|x| x == entity)));
-    let mut strong_kind: HashMap<(String, String), BTreeSet<String>> = HashMap::new();
+    let least = vocabulary.identity.numbers.min_digits;
+    let mut strong_values: HashSet<(String, String, String)> = HashSet::new();
     for (row, list) in rows.iter().zip(&ids) {
-        for (kind, value) in list {
-            if applies(kind, &row.kind) && value.chars().filter(|c| c.is_ascii_digit()).count() >= 6 {
-                strong_kind.entry((row.kind.clone(), value.clone())).or_default().insert(kind.clone());
+        for said in list {
+            if applies(&said.kind, &row.kind) && numbers::digit_count(&said.value) >= least {
+                strong_values.insert((row.kind.clone(), said.kind.clone(), said.value.clone()));
             }
         }
     }
+    let strong_kinds: Vec<&str> = vocabulary.identifiers.iter().filter(|t| t.strong).map(|t| t.id.as_str()).collect();
     for (row, list) in rows.iter().zip(ids.iter_mut()) {
-        for (kind, value) in list.iter_mut() {
-            if applies(kind, &row.kind) {
+        for said in list.iter_mut() {
+            if applies(&said.kind, &row.kind) {
                 continue;
             }
-            if let Some(kinds) = strong_kind.get(&(row.kind.clone(), value.clone())).filter(|k| k.len() == 1) {
-                *kind = kinds.iter().next().unwrap().clone();
+            let found: Vec<(String, String)> = strong_kinds
+                .iter()
+                .filter(|k| applies(k, &row.kind))
+                .filter_map(|k| {
+                    let form = numbers::common_form(vocabulary, k, &said.raw)?;
+                    strong_values.contains(&(row.kind.clone(), k.to_string(), form.clone())).then(|| (k.to_string(), form))
+                })
+                .collect();
+            if let [(kind, value)] = found.as_slice() {
+                said.labeled = numbers::labeled(vocabulary, kind, &said.quote, &said.raw);
+                said.kind = kind.clone();
+                said.value = value.clone();
             }
         }
     }
@@ -414,11 +485,14 @@ pub(crate) fn clusters(
             name.email = list.iter().find_map(|&i| keys[i].email.clone());
         }
         let mut strong: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut labeled: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for &i in &list {
-            for (kind, value) in &ids[i] {
-                let applies = vocabulary.identifier(kind).is_some_and(|t| t.strong && (t.types.is_empty() || t.types.contains(&first.kind)));
-                if applies && value.chars().count() >= MIN_STRONG {
-                    strong.entry(kind.clone()).or_default().insert(value.clone());
+            for said in &ids[i] {
+                if applies(&said.kind, &first.kind) && long_enough(vocabulary, &said.kind, &said.value) {
+                    strong.entry(said.kind.clone()).or_default().insert(said.value.clone());
+                    if said.labeled {
+                        labeled.entry(said.kind.clone()).or_default().insert(said.value.clone());
+                    }
                 }
             }
         }
@@ -451,6 +525,7 @@ pub(crate) fn clusters(
             },
             name,
             strong,
+            labeled,
             rows: list,
         });
     }
@@ -479,6 +554,11 @@ pub(crate) fn clusters(
             });
         }
         cluster.strong.retain(|_, v| !v.is_empty());
+        let kept = cluster.strong.clone();
+        cluster.labeled.retain(|kind, values| {
+            values.retain(|v| kept.get(kind).is_some_and(|k| k.contains(v)));
+            !values.is_empty()
+        });
     }
     another_persons_number(&mut out);
     out.sort_by(|a, b| a.canon.cmp(&b.canon).then_with(|| a.key.cmp(&b.key)));
@@ -528,6 +608,9 @@ fn another_persons_number(out: &mut [Cluster]) {
         if let Some(values) = out[i].strong.get_mut(&kind) {
             values.remove(&value);
         }
+        if let Some(values) = out[i].labeled.get_mut(&kind) {
+            values.remove(&value);
+        }
     }
 }
 
@@ -567,7 +650,10 @@ fn coreference(vocabulary: &Vocabulary, out: &mut Vec<Cluster>) {
                 continue;
             }
             let target = complete[0];
-            let apart = out[short].strong.iter().any(|(kind, values)| out[target].strong.get(kind).is_some_and(|other| !names::same_identifier(values, other)));
+            let apart = out[short]
+                .labeled
+                .iter()
+                .any(|(kind, values)| out[target].labeled.get(kind).is_some_and(|other| numbers::sets_meet(vocabulary, kind, values, other).is_none()));
             if apart || !vocabulary.is_a_name(ORGANIZATION, &out[target].name.joined()) {
                 continue;
             }
@@ -577,6 +663,9 @@ fn coreference(vocabulary: &Vocabulary, out: &mut Vec<Cluster>) {
             into.names.extend(moved.names);
             for (kind, values) in moved.strong {
                 into.strong.entry(kind).or_default().extend(values);
+            }
+            for (kind, values) in moved.labeled {
+                into.labeled.entry(kind).or_default().extend(values);
             }
             for key in moved.keys {
                 if !into.keys.iter().any(|k| k.exact_key(ORGANIZATION) == key.exact_key(ORGANIZATION)) {
@@ -742,11 +831,31 @@ pub(crate) struct Doubt {
     pub detail: Option<String>,
 }
 
+/// Two groups whose numbers are the same or near and that the numbers did
+/// not join, because their names are farther than the caps: what the owner
+/// looks at to see where the limit is (E5 of 2 nov, note 2).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct NumberApart {
+    pub a: usize,
+    pub b: usize,
+    pub kind: String,
+    pub values: (String, String),
+    pub near: bool,
+    /// How far the names are: (letters, share of the name).
+    pub far: Option<(usize, f64)>,
+}
+
 /// The working state of one resolution.
 struct Resolver<'a> {
     clusters: &'a [Cluster],
+    vocabulary: &'a Vocabulary,
+    caps: NameCaps,
     sets: Sets,
     strong: Vec<BTreeMap<String, BTreeSet<String>>>,
+    /// The numbers that keep apart (with their label), by root.
+    labeled: Vec<BTreeMap<String, BTreeSet<String>>>,
+    /// The pairs the numbers did not join for their names.
+    numbers_apart: Vec<NumberApart>,
     forms: Vec<BTreeSet<String>>,
     size: Vec<usize>,
     /// Pairs of clusters a person kept apart.
@@ -759,11 +868,15 @@ struct Resolver<'a> {
 }
 
 impl<'a> Resolver<'a> {
-    fn new(clusters: &'a [Cluster]) -> Self {
+    fn new(clusters: &'a [Cluster], vocabulary: &'a Vocabulary, caps: NameCaps) -> Self {
         Self {
             clusters,
+            vocabulary,
+            caps,
             sets: Sets::new(clusters.len()),
             strong: clusters.iter().map(|c| c.strong.clone()).collect(),
+            labeled: clusters.iter().map(|c| c.labeled.clone()).collect(),
+            numbers_apart: Vec::new(),
             forms: clusters.iter().map(|c| c.name.form.iter().cloned().collect()).collect(),
             size: clusters.iter().map(|c| c.rows.len()).collect(),
             separated: Vec::new(),
@@ -791,9 +904,10 @@ impl<'a> Resolver<'a> {
             return None;
         }
         // Another value of the same kind keeps them apart, unless it is the
-        // same one written with more or fewer characters (D-436).
-        for (kind, values) in &self.strong[a] {
-            if self.strong[b].get(kind).is_some_and(|other| !names::same_identifier(values, other)) {
+        // same one written otherwise (D-436) or a near one; and only a value
+        // whose quote says what it is (E5 of 2 nov).
+        for (kind, values) in &self.labeled[a] {
+            if self.labeled[b].get(kind).is_some_and(|other| numbers::sets_meet(self.vocabulary, kind, values, other).is_none()) {
                 return Some("otro-identificador");
             }
         }
@@ -820,6 +934,10 @@ impl<'a> Resolver<'a> {
         let strong = std::mem::take(&mut self.strong[gone]);
         for (kind, values) in strong {
             self.strong[keep].entry(kind).or_default().extend(values);
+        }
+        let labeled = std::mem::take(&mut self.labeled[gone]);
+        for (kind, values) in labeled {
+            self.labeled[keep].entry(kind).or_default().extend(values);
         }
         let forms = std::mem::take(&mut self.forms[gone]);
         self.forms[keep].extend(forms);
@@ -892,84 +1010,150 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    /// 1. Strong identifiers.
+    /// 1. Strong identifiers, in their common form (E5 of 2 nov): the same
+    /// number joins as before (D-174), and also with a name within the caps
+    /// (a name split or joined by the scan); a near one joins only with a
+    /// name within the caps, otherwise it is a doubt when the names may be
+    /// the same. A number a CUIT holds (the DNI) joins with that DNI said
+    /// as such, never with another held one.
     fn identifiers(&mut self) {
-        let mut index: BTreeMap<(String, String, String), Vec<usize>> = BTreeMap::new();
+        let vocabulary = self.vocabulary;
+        let applies = |kind: &str, entity: &str| vocabulary.identifier(kind).is_some_and(|t| t.strong && (t.types.is_empty() || t.types.iter().any(|x| x == entity)));
+        // (entity kind, kind) -> value -> the groups with it (and whether
+        // it is held by another number of theirs).
+        let mut by_kind: BTreeMap<(String, String), BTreeMap<String, Vec<(usize, bool)>>> = BTreeMap::new();
         for (i, cluster) in self.clusters.iter().enumerate() {
             if cluster.excluded.is_some() {
                 continue;
             }
             for (kind, values) in &cluster.strong {
                 for value in values {
-                    index.entry((cluster.kind.clone(), kind.clone(), value.clone())).or_default().push(i);
-                }
-            }
-        }
-        for ((kind, id_kind, value), list) in &index {
-            let principal = list[0];
-            for &other in &list[1..] {
-                let (a, b) = (&self.clusters[principal].name, &self.clusters[other].name);
-                // The identifier both have: what a person sees to decide.
-                let shared = Some(format!("{id_kind}: {value}"));
-                match names::compare(kind, a, b) {
-                    Likeness::Unlike if a.has_name() && b.has_name() => self.doubt(principal, other, "identificador-otro-nombre", shared),
-                    Likeness::OtherForm => self.doubt(principal, other, "identificador-otra-forma", shared),
-                    _ => {
-                        if let Err(why) = self.join(principal, other, "identificador") {
-                            self.doubt(principal, other, why, None);
+                    by_kind.entry((cluster.kind.clone(), kind.clone())).or_default().entry(value.clone()).or_default().push((i, false));
+                    for rule in vocabulary.identity.numbers.holds.iter().filter(|h| &h.id == kind && applies(&h.holds, &cluster.kind)) {
+                        if let Some(inner) = numbers::held(vocabulary, kind, &rule.holds, value) {
+                            by_kind.entry((cluster.kind.clone(), rule.holds.clone())).or_default().entry(inner).or_default().push((i, true));
                         }
                     }
                 }
             }
         }
-        // One character of difference, with names that may be the same:
-        // perhaps a misread scan.
-        let mut values: BTreeMap<(String, String), BTreeSet<String>> = BTreeMap::new();
-        for cluster in self.clusters.iter().filter(|c| c.excluded.is_none()) {
-            for (kind, list) in &cluster.strong {
-                values.entry((cluster.kind.clone(), kind.clone())).or_default().extend(list.iter().cloned());
-            }
-        }
-        for ((entity_kind, kind), list) in values {
-            let mut deletions: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-            for value in &list {
-                let chars: Vec<char> = value.chars().collect();
-                deletions.entry(value.clone()).or_default().insert(value.clone());
-                for skip in 0..chars.len() {
-                    let key: String = chars.iter().enumerate().filter(|(i, _)| *i != skip).map(|(_, c)| c).collect();
-                    deletions.entry(key).or_default().insert(value.clone());
+        // The pairs of numbers that meet, found through their keys: the
+        // same ones first, then the near ones, in an order that depends
+        // only on the values.
+        let mut pairs: Vec<(Match, String, String, String, String)> = Vec::new();
+        for ((entity_kind, kind), values) in &by_kind {
+            let mut index: BTreeMap<String, Vec<&String>> = BTreeMap::new();
+            for value in values.keys() {
+                for key in numbers::keys(vocabulary, kind, value) {
+                    index.entry(key).or_default().push(value);
                 }
             }
-            let mut near: BTreeSet<(String, String)> = BTreeSet::new();
-            for group in deletions.values() {
-                let group: Vec<&String> = group.iter().collect();
-                for i in 0..group.len() {
-                    for j in i + 1..group.len() {
-                        if names::misread(group[i], group[j]) {
-                            near.insert((group[i].clone(), group[j].clone()));
-                        }
-                    }
-                }
-            }
-            for (va, vb) in near {
-                let with = |v: &str| -> Vec<usize> {
-                    index.get(&(entity_kind.clone(), kind.clone(), v.to_string())).cloned().unwrap_or_default()
-                };
-                let (xa, xb) = (with(&va), with(&vb));
-                for &x in &xa {
-                    for &y in &xb {
-                        if self.find(x) == self.find(y) {
+            let mut seen: BTreeSet<(&String, &String)> = BTreeSet::new();
+            for list in index.values() {
+                for i in 0..list.len() {
+                    for j in i + 1..list.len() {
+                        let (a, b) = if list[i] <= list[j] { (list[i], list[j]) } else { (list[j], list[i]) };
+                        if a == b || !seen.insert((a, b)) {
                             continue;
                         }
-                        match names::compare(&entity_kind, &self.clusters[x].name, &self.clusters[y].name) {
-                            Likeness::Exact | Likeness::Maybe(_) => {
-                                self.doubt(x, y, "identificador-parecido", Some(format!("{kind}: {va} / {vb}")))
-                            }
-                            _ => {}
+                        let found = numbers::same_number(vocabulary, kind, a, b);
+                        if found != Match::Other {
+                            pairs.push((found, entity_kind.clone(), kind.clone(), a.clone(), b.clone()));
                         }
                     }
                 }
             }
+            for value in values.keys() {
+                pairs.push((Match::Same, entity_kind.clone(), kind.clone(), value.clone(), value.clone()));
+            }
+        }
+        pairs.sort_by(|x, y| (x.0, x.3 != x.4, &x.1, &x.2, &x.3, &x.4).cmp(&(y.0, y.3 != y.4, &y.1, &y.2, &y.3, &y.4)));
+        for (found, entity_kind, kind, va, vb) in pairs {
+            let holders = &by_kind[&(entity_kind.clone(), kind.clone())];
+            let (xa, xb) = (holders[&va].clone(), holders[&vb].clone());
+            if va == vb {
+                // The same value: each group against the first that says it.
+                let Some(&(principal, _)) = xa.iter().find(|(_, held)| !held) else { continue };
+                for &(other, _) in &xa {
+                    if other != principal {
+                        self.by_number(principal, other, Match::Same, &kind, (&va, &vb));
+                    }
+                }
+                continue;
+            }
+            for &(x, held_x) in &xa {
+                for &(y, held_y) in &xb {
+                    if x != y && !(held_x && held_y) {
+                        self.by_number(x, y, found, &kind, (&va, &vb));
+                    }
+                }
+            }
+        }
+    }
+
+    /// The names of every group of the entity a group is in now (the
+    /// entity's ways of writing its name).
+    fn entity_names(&mut self, x: usize) -> Vec<NameKey> {
+        let root = self.find(x);
+        let clusters = self.clusters;
+        (0..clusters.len()).filter(|&i| self.find(i) == root).flat_map(|i| clusters[i].keys.iter().cloned()).collect()
+    }
+
+    /// Two groups whose numbers meet: joined, a doubt, or left apart for
+    /// their names. The names compared are those of the two entities the
+    /// groups are in (all their ways of writing), as the measurement of
+    /// audit 1C did.
+    fn by_number(&mut self, x: usize, y: usize, found: Match, kind: &str, values: (&str, &str)) {
+        if self.find(x) == self.find(y) {
+            return;
+        }
+        let clusters = self.clusters;
+        let entity_kind = clusters[x].kind.as_str();
+        let (a, b) = (&clusters[x].name, &clusters[y].name);
+        let likeness = names::compare(entity_kind, a, b);
+        let both_named = a.has_name() && b.has_name();
+        let (names_x, names_y) = (self.entity_names(x), self.entity_names(y));
+        let far = numbers::nearest(entity_kind, &names_x, &names_y);
+        let close = self.caps.close(far);
+        // The identifier both have: what a person sees to decide.
+        let shared = if values.0 == values.1 { format!("{kind}: {}", values.0) } else { format!("{kind}: {} / {}", values.0, values.1) };
+        let apart = |resolver: &mut Self| {
+            resolver.numbers_apart.push(NumberApart {
+                a: x.min(y),
+                b: x.max(y),
+                kind: kind.to_string(),
+                values: (values.0.to_string(), values.1.to_string()),
+                near: found == Match::Near,
+                far,
+            })
+        };
+        match found {
+            Match::Same => match likeness {
+                Likeness::OtherForm => self.doubt(x, y, "identificador-otra-forma", Some(shared)),
+                Likeness::Unlike if both_named && !close => {
+                    apart(self);
+                    self.doubt(x, y, "identificador-otro-nombre", Some(shared));
+                }
+                _ => {
+                    if let Err(why) = self.join(x, y, "identificador") {
+                        self.doubt(x, y, why, None);
+                    }
+                }
+            },
+            Match::Near if close => {
+                if let Err(why) = self.join(x, y, "identificador-parecido") {
+                    self.doubt(x, y, why, None);
+                }
+            }
+            Match::Near => {
+                if both_named {
+                    apart(self);
+                }
+                if matches!(likeness, Likeness::Exact | Likeness::Maybe(_)) {
+                    self.doubt(x, y, "identificador-parecido", Some(shared));
+                }
+            }
+            Match::Other => {}
         }
     }
 
@@ -1600,6 +1784,10 @@ pub(crate) struct Outcome {
     /// What joined each group to its entity ("sola" when alone).
     pub by: Vec<&'static str>,
     pub doubts: BTreeMap<(usize, usize), Doubt>,
+    /// The groups whose numbers meet and that their names kept apart (E5
+    /// of 2 nov): not written, for the measurement.
+    #[allow(dead_code)]
+    pub numbers_apart: Vec<NumberApart>,
 }
 
 /// How the model is reached during a resolution.
@@ -1663,10 +1851,15 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
         }
     }
     orphans.sort_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
-    let mut resolver = Resolver::new(&clusters);
+    let caps = name_caps(&base.conn())?;
+    let mut resolver = Resolver::new(&clusters, vocabulary, caps);
     resolver.persons(&decided);
     resolver.identifiers();
     resolver.same_names();
+    // The numbers again, now that the same names made the entities: two
+    // numbers that meet join when any way of writing of one entity is
+    // within the caps of one of the other (E5 of 2 nov).
+    resolver.identifiers();
     let loose_areas = resolver.areas();
     for (key, other, verdict) in orphans {
         if let Some(x) = heir_of_group(&clusters, &mut resolver, &key) {
@@ -1845,7 +2038,7 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
     let mut by: Vec<&'static str> = vec!["sola"; clusters.len()];
     let rank_of = |by: &str| match by {
         "persona" => 4,
-        "identificador" => 3,
+        "identificador" | "identificador-parecido" => 3,
         "nombre" | "area" => 2,
         "modelo" | "grupo" => 1,
         _ => 0,
@@ -1858,7 +2051,7 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
         }
         match how {
             "persona" => report.by_person += 1,
-            "identificador" => report.by_identifier += 1,
+            "identificador" | "identificador-parecido" => report.by_identifier += 1,
             "nombre" | "area" => report.by_name += 1,
             _ => report.by_model += 1,
         }
@@ -1876,12 +2069,16 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
         }
     }
     let mut doubts = std::mem::take(&mut resolver.doubts);
+    let mut numbers_apart = std::mem::take(&mut resolver.numbers_apart);
     drop(resolver);
     for &i in &alone {
         clusters[i].excluded = Some("casilla");
     }
     doubts.retain(|&(x, y), _| root[x] != root[y] && clusters[x].excluded.is_none() && clusters[y].excluded.is_none());
-    Ok(Outcome { rows, clusters, root, by, doubts, groups })
+    numbers_apart.retain(|p| root[p.a] != root[p.b]);
+    numbers_apart.sort_by(|x, y| (x.a, x.b, &x.kind, &x.values).cmp(&(y.a, y.b, &y.kind, &y.values)));
+    numbers_apart.dedup_by(|x, y| (x.a, x.b, &x.kind, &x.values) == (y.a, y.b, &y.kind, &y.values));
+    Ok(Outcome { rows, clusters, root, by, doubts, groups, numbers_apart })
 }
 
 /// A group of companies: one of its groups of mentions, and its companies
@@ -2121,6 +2318,16 @@ fn ask_question(
     let answer = match asking.asker {
         Some(asker) => {
             let cached = cached_answer(&base.conn(), &question.key, Some(&asker.engine_id()))?;
+            // A question whose failure holds waits for its next attempt, or
+            // for a person (P-533): it is set aside over its document, not
+            // left for the next operation, which could not take it either
+            // (arreglo 1 of the small test of 2 nov: the step counted 96
+            // and its operation took none).
+            if cached.is_none() && base.question_held(question.task, question.content_id, &question.key) {
+                report.held += 1;
+                report.held_documents.insert(question.content_id);
+                return Ok(None);
+            }
             if cached.is_none() {
                 asking.budget = asking.budget.saturating_sub(1);
                 report.asked += 1;
@@ -2547,14 +2754,13 @@ impl DocBase {
         // resolution starts so that finishing it clears the mark.
         changes::notice_left_out(&self.conn())?;
         let started = now_ms();
-        let dirty: i64 = self
-            .conn()
-            .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get(0))
-            .map_err(sql_err)?;
+        // The marks, and the questions set aside whose failure no longer
+        // holds them: the same the step of the process counts.
+        let dirty = identity_left(&self.conn())?.pending as i64;
         // Other rules (a new version of the program's or of the
         // vocabulary's) are work to do too: the record is computed again
         // from the readings and the verdicts kept, without asking more.
-        let basis = resolution_basis();
+        let basis = resolution_basis(name_caps(&self.conn())?);
         let current = self
             .conn()
             .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [RESOLUTION_SETTING], |row| row.get::<_, String>(0))
@@ -2578,13 +2784,78 @@ impl DocBase {
         let outcome = resolve(self, &mut asking, &mut report)?;
         write(self, &outcome, &mut report)?;
         if report.left == 0 {
-            self.conn()
-                .execute("DELETE FROM knowledge_dirty WHERE scope IN ('resolve', 'retire') AND since <= ?1", [started])
+            let conn = self.conn();
+            conn.execute("DELETE FROM knowledge_dirty WHERE scope IN ('resolve', 'retire') AND since <= ?1", [started])
                 .map_err(sql_err)?;
-            self.conn()
-                .execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![RESOLUTION_SETTING, basis])
+            // Nothing left that can be asked now: the resolution is complete
+            // but for the questions a failure holds, set aside each over its
+            // document. They come back to the step when the failure no
+            // longer holds them (`identity_left`), and do not hold the
+            // matters nor the pages.
+            let held: Vec<String> = report.held_documents.iter().map(i64::to_string).collect();
+            conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![HELD_SETTING, held.join(",")])
+                .map_err(sql_err)?;
+            conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![RESOLUTION_SETTING, basis])
                 .map_err(sql_err)?;
         }
         Ok(report)
     }
+}
+
+/// The documents whose question of identity a failure held at the last
+/// complete resolution, separated by commas.
+pub(crate) const HELD_SETTING: &str = "identity:held-documents";
+
+/// What the identity has left, as the step of the process counts it and as
+/// its operation takes it (the same rule in both, arreglo 1 of the small
+/// test of 2 nov).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct IdentityLeft {
+    /// The marks of what changed (readings, decisions, a document left
+    /// out), and the questions set aside whose failure no longer holds them:
+    /// a resolution takes them.
+    pub pending: usize,
+    /// The questions a failure still holds, by their document: set aside.
+    pub held: usize,
+    /// Of those, the ones that wait for a person (no next attempt).
+    pub person: usize,
+}
+
+pub(crate) fn identity_left(conn: &Connection) -> Result<IdentityLeft, String> {
+    let marked: i64 = conn
+        .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get(0))
+        .map_err(sql_err)?;
+    let set_aside: BTreeSet<i64> = conn
+        .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [HELD_SETTING], |row| row.get::<_, String>(0))
+        .optional()
+        .map_err(sql_err)?
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|d| d.trim().parse().ok())
+        .collect();
+    let mut left = IdentityLeft { pending: marked.max(0) as usize, ..IdentityLeft::default() };
+    if set_aside.is_empty() {
+        return Ok(left);
+    }
+    let stage = crate::docbase::failures::question_stage("identity");
+    let holding = crate::docbase::failures::held_versions(conn, stage)?;
+    let for_a_person: BTreeSet<i64> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT DISTINCT CAST(item AS INTEGER) FROM failure WHERE state <> 'resolved' AND item_kind = 'version'
+                   AND (stage = ?1 OR (stage = ?2 AND next_at IS NULL))",
+            )
+            .map_err(sql_err)?;
+        let rows = statement.query_map(params![crate::docbase::failures::BACK_STAGE, stage], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    for document in set_aside {
+        if holding.contains(&document) {
+            left.held += 1;
+            left.person += usize::from(for_a_person.contains(&document));
+        } else {
+            left.pending += 1;
+        }
+    }
+    Ok(left)
 }

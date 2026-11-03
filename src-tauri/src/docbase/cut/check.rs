@@ -1,14 +1,18 @@
-//! Measures the cutter over the PDFs of the parts sheet, as the prototype
-//! was measured (`docs/investigacion/corte/guiones/medir.py`): it writes
-//! the decisions of variant A (rules only) and of variant B (the model in
-//! the doubtful steps) in the format that script reads.
+//! The cutter over the folders of a test, as the prototype was measured:
+//! the parts of the joined PDFs over a whole folder, the cuts given by a
+//! sheet (`apply_given_cuts`) and the answers put in a base or written out
+//! (`seed_answers`, `written_answers`), for the other checks. The variants
+//! of the cut of before (A, the rules only; B, the model in its doubtful
+//! steps of two pages) and their count of questions are gone with it (3b
+//! of 2 nov): the rules of the cut by zones are measured against the
+//! labels in `check_rules.rs`.
 //!
 //! Not part of the normal test run: it reads real folders and, with
-//! `MICELYA_CUT_ASK`, costs the quota of the provider. The base is a
-//! scratch one, removed at the end; the folders are only read.
+//! `MICELYA_CUT_ASK`, costs the quota of the provider; the folders are only
+//! read.
 //!
 //! ```text
-//! MICELYA_DOCBASE_CHECK="C:\carpeta" MICELYA_CUT_SHEET="C:\hoja\partes.json" MICELYA_CUT_OUT="C:\tmp\corte" \
+//! MICELYA_DOCBASE_CHECK="C:\carpeta" MICELYA_CUT_SHEET="C:\hoja\partes.json" \
 //!     cargo test --lib docbase::cut::check -- --ignored --nocapture --test-threads=1
 //! ```
 //!
@@ -16,9 +20,6 @@
 //!   `MICELYA_RECOGNIZED_SEED`: as in `similar/check_types.rs`.
 //! - `MICELYA_CUT_SHEET`: the parts sheet (`files` with `name`, `sha256`,
 //!   `pages`); its files are found in the base by their hash.
-//! - `MICELYA_CUT_OUT`: the folder where `cortes-a.json` and
-//!   `cortes-b.json` are written (they name the files: keep it outside the
-//!   repository).
 //! - `MICELYA_ANSWER_SEED`: files of `model_answer` rows (a JSON list,
 //!   separated by `;`) put in the base before cutting, never over an
 //!   answer it has: the answers kept are not asked again.
@@ -29,15 +30,102 @@
 //!   keeps at the end are written, as `model_answer` rows.
 //! - `MICELYA_KNOWLEDGE_SAVE`: where a copy of the base is kept at the end.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use serde_json::{json, Value};
 
-use crate::docbase::similar::check_types::prepare;
 use crate::docbase::DocBase;
 use crate::source_volume::asking::{asker_for, AskConfig};
 
-use super::{CutAskReport, Verdict, CUT_TASK};
+use super::CUT_TASK;
+
+/// What `apply_given_cuts` did.
+#[derive(Debug, Default)]
+pub(crate) struct GivenCuts {
+    /// Files of the cuts given that the base has, already cut.
+    pub files: usize,
+    /// Pages decided as a person would (from the second of each file).
+    pub pages: usize,
+    /// Files of the cuts given the base does not have, or has not cut.
+    pub missing: usize,
+    /// Files whose number of pages is not the one of the cuts given.
+    pub other_pages: usize,
+    /// Steps of those files that no person decided after it (should be 0).
+    pub undecided: i64,
+}
+
+/// `MICELYA_CUTS_GIVEN`: the cuts of a file in the shape of the parts
+/// sheet (`files[].sha256`, `pages`, `documents[].first_page`), decided
+/// after `cut_pending` as a person would decide them, page by page from
+/// the second one, with `cut_split_at` and `cut_join_with_previous`: the
+/// cut asks the model nothing about those files. Only for the tests (the
+/// chain N of the trial of the structure, P-484).
+pub(crate) fn apply_given_cuts(base: &DocBase) -> Option<GivenCuts> {
+    let path = std::env::var("MICELYA_CUTS_GIVEN").ok()?;
+    let sheet: Value = serde_json::from_str(&std::fs::read_to_string(path.trim()).unwrap()).unwrap();
+    let mut done = GivenCuts::default();
+    for file in sheet["files"].as_array().into_iter().flatten() {
+        let hash = file["sha256"].as_str().unwrap_or_default().to_lowercase();
+        if file["pages"].as_u64() == Some(1) {
+            continue;
+        }
+        let pages: Option<u32> = base
+            .conn()
+            .query_row("SELECT max(after_page) + 1 FROM cut_step WHERE resource_hash = ?1", [&hash], |row| row.get(0))
+            .unwrap();
+        let Some(pages) = pages else {
+            done.missing += 1;
+            continue;
+        };
+        if file["pages"].as_u64().is_some_and(|p| p != u64::from(pages)) {
+            done.other_pages += 1;
+            continue;
+        }
+        let starts: BTreeSet<u32> = file["documents"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|d| d["first_page"].as_u64().map(|p| p as u32))
+            .collect();
+        for page in 2..=pages {
+            // A page already decided the same way stays as it is: its
+            // documents are not made again when a run is taken up again.
+            let wanted = if starts.contains(&page) { super::parts::STARTS } else { super::parts::CONTINUES };
+            let kept: Option<String> = base
+                .conn()
+                .query_row(
+                    "SELECT decision FROM cut_decision WHERE resource_hash = ?1 AND page = ?2",
+                    rusqlite::params![hash, page],
+                    |row| row.get(0),
+                )
+                .ok();
+            if kept.as_deref() == Some(wanted) {
+                continue;
+            }
+            if starts.contains(&page) {
+                base.cut_split_at(&hash, page).unwrap();
+            } else {
+                base.cut_join_with_previous(&hash, page).unwrap();
+            }
+            done.pages += 1;
+        }
+        done.undecided += base
+            .conn()
+            .query_row(
+                "SELECT count(*) FROM cut_step s WHERE s.resource_hash = ?1 AND s.after_page >= 1
+                   AND NOT EXISTS (SELECT 1 FROM cut_decision d WHERE d.resource_hash = s.resource_hash AND d.page = s.after_page + 1)",
+                [&hash],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap();
+        done.files += 1;
+    }
+    println!(
+        "cuts given (MICELYA_CUTS_GIVEN): {} files decided page by page ({} pages); not in the base or not cut: {}; with other pages: {}; steps left without a person's word: {}",
+        done.files, done.pages, done.missing, done.other_pages, done.undecided
+    );
+    Some(done)
+}
 
 pub(crate) fn seed_answers(base: &DocBase, files: &str) -> usize {
     let mut put = 0;
@@ -75,138 +163,6 @@ pub(super) fn written_answers(base: &DocBase) -> Value {
     Value::Array(rows.map(|r| r.unwrap()).collect())
 }
 
-/// The decisions of a file as `medir.py` reads them: with the model's
-/// answers (variant B) or the rules only (variant A).
-fn decisions(base: &DocBase, hash: &str, name: &str, pages: u64, with_model: bool) -> Value {
-    let steps = base.cut_steps(hash).unwrap();
-    let mut out = Vec::new();
-    let mut types = BTreeMap::new();
-    for s in &steps {
-        let answered = with_model && s.by_model();
-        let (decision, rule) = if answered {
-            (if s.starts() { "new" } else { "continue" }, "codex")
-        } else {
-            (s.verdict.as_str(), s.rule.as_str())
-        };
-        let ty = if with_model { s.suggested_type().map(str::to_string) } else { s.rule_type.clone() };
-        if s.after == 0 || decision == "new" {
-            types.insert((s.after + 1).to_string(), ty);
-        }
-        if s.after > 0 {
-            out.push(json!({"after": s.after, "decision": decision, "rule": rule}));
-        }
-    }
-    json!({"file": name, "pages": pages, "steps": out, "types": types})
-}
-
-#[test]
-#[ignore = "reads the real folders named in MICELYA_DOCBASE_CHECK"]
-fn the_cutter_over_the_parts_sheet() {
-    let (Ok(folders), Ok(sheet), Ok(out)) =
-        (std::env::var("MICELYA_DOCBASE_CHECK"), std::env::var("MICELYA_CUT_SHEET"), std::env::var("MICELYA_CUT_OUT"))
-    else {
-        println!("MICELYA_DOCBASE_CHECK, MICELYA_CUT_SHEET or MICELYA_CUT_OUT is not set: nothing to measure");
-        return;
-    };
-    let sheet: Value = serde_json::from_str(&std::fs::read_to_string(&sheet).unwrap()).unwrap();
-    let started = std::time::Instant::now();
-    let (_scratch, base) = prepare(&folders);
-    if let Ok(seeds) = std::env::var("MICELYA_ANSWER_SEED") {
-        println!("answers seeded: {}", seed_answers(&base, &seeds));
-    }
-    while base.profile_pending(16).unwrap() > 0 {}
-    let cut_started = std::time::Instant::now();
-    let mut cut = 0;
-    loop {
-        let n = base.cut_pending(16).unwrap();
-        if n == 0 {
-            break;
-        }
-        cut += n;
-    }
-    println!(
-        "base ready in {:.0} s; {cut} PDF cut by the rules in {:.1} s",
-        cut_started.duration_since(started).as_secs_f64(),
-        cut_started.elapsed().as_secs_f64()
-    );
-
-    // The sheet's files, by their hash.
-    let mut sheet_files: Vec<(String, String, u64)> = Vec::new();
-    for f in sheet["files"].as_array().unwrap() {
-        let hash = f["sha256"].as_str().unwrap().to_lowercase();
-        let known: i64 = base.conn().query_row("SELECT count(*) FROM file WHERE hash = ?1", [&hash], |row| row.get(0)).unwrap();
-        if known == 1 {
-            sheet_files.push((hash, f["name"].as_str().unwrap().to_string(), f["pages"].as_u64().unwrap()));
-        }
-    }
-    println!("files of the sheet found: {} of {}", sheet_files.len(), sheet["files"].as_array().unwrap().len());
-    let only: BTreeSet<String> = sheet_files.iter().map(|(h, _, _)| h.clone()).collect();
-    let write = |file: &str, value: Value| {
-        std::fs::create_dir_all(&out).unwrap();
-        std::fs::write(std::path::Path::new(&out).join(file), serde_json::to_string_pretty(&value).unwrap()).unwrap();
-    };
-    let a: Vec<Value> = sheet_files.iter().map(|(h, n, p)| decisions(&base, h, n, *p, false)).collect();
-    write("cortes-a.json", Value::Array(a));
-
-    let mut report = CutAskReport::default();
-    if let Ok(limit) = std::env::var("MICELYA_CUT_ASK") {
-        let config = AskConfig {
-            engine: "codex-cli".into(),
-            model: std::env::var("MICELYA_ASK_MODEL").unwrap_or_default(),
-            reasoning: std::env::var("MICELYA_ASK_REASONING").unwrap_or_default(),
-        };
-        let asker = asker_for(&config).unwrap();
-        report = base.cut_ask_run(asker.as_ref(), limit.trim().parse().unwrap(), Some(&only)).unwrap();
-        println!(
-            "Codex: {} asked, {} failed, {} from the answers kept, {:.0} s; doubtful left without an answer: {}",
-            report.asked, report.failed, report.kept, report.seconds, report.left
-        );
-        for e in report.errors.iter().take(3) {
-            println!("  error: {}", e.chars().take(200).collect::<String>());
-        }
-    }
-    let answered: usize = sheet_files
-        .iter()
-        .map(|(h, _, _)| base.cut_steps(h).unwrap().iter().filter(|s| s.by_model()).count())
-        .sum();
-    let b: Vec<Value> = sheet_files.iter().map(|(h, n, p)| decisions(&base, h, n, *p, true)).collect();
-    let meta = json!({"codex_calls": answered + report.failed, "codex_seconds": report.seconds, "codex_failed": report.failed,
-                      "codex_new": report.asked});
-    write("cortes-b.json", json!({"meta": meta, "files": b}));
-
-    // The other PDFs, rules only: the risk of cutting what is not joined.
-    let others: Vec<String> = {
-        let conn = base.conn();
-        let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM cut_step ORDER BY 1").unwrap();
-        let rows = statement.query_map([], |row| row.get(0)).unwrap();
-        rows.map(|r| r.unwrap()).filter(|h: &String| !only.contains(h)).collect()
-    };
-    let (mut with_cut, mut cuts, mut doubtful, mut even, mut steps) = (0, 0, 0, 0, 0);
-    let mut by_rule: BTreeMap<String, usize> = BTreeMap::new();
-    for h in &others {
-        let s = base.cut_steps(h).unwrap();
-        let new: Vec<_> = s.iter().filter(|s| s.after > 0 && s.verdict == Verdict::New).collect();
-        for n in &new {
-            *by_rule.entry(n.rule.clone()).or_default() += 1;
-        }
-        with_cut += usize::from(!new.is_empty());
-        cuts += new.len();
-        doubtful += s.iter().filter(|s| s.verdict == Verdict::Doubtful).count();
-        even += s.iter().filter(|s| s.rule == super::rules::UNIFORM).count();
-        steps += s.iter().filter(|s| s.after > 0).count();
-    }
-    println!(
-        "other PDFs of two pages or more: {}; with some cut: {with_cut}; cuts: {cuts} {by_rule:?}; steps: {steps}; doubtful: {doubtful}; going on as an even file: {even}",
-        others.len()
-    );
-    if let Ok(path) = std::env::var("MICELYA_ANSWER_SEED_WRITE") {
-        let answers = written_answers(&base);
-        println!("answers about cuts written: {}", answers.as_array().unwrap().len());
-        std::fs::write(path, serde_json::to_string_pretty(&answers).unwrap()).unwrap();
-    }
-    crate::docbase::knowledge::check::save_copy(&base);
-}
-
 /// Makes an empty base of this version at `MICELYA_EMPTY_BASE`, for
 /// `a-la-base-nueva.py` to bring the answers of the earlier base into
 /// (then it is the `MICELYA_DOCBASE_START` of the run below).
@@ -234,20 +190,20 @@ fn parts_report(base: &DocBase, sheet: &Value, when: &str) {
         count("SELECT count(*) FROM document"),
         count("SELECT count(*) FROM appearance"),
         count("SELECT count(*) FROM appearance WHERE selector = 'file'"),
-        count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
-        count("SELECT count(*) FROM appearance WHERE selector <> 'file' AND cut_state = 'proposed'"),
-        count("SELECT count(*) FROM appearance WHERE selector <> 'file' AND cut_state = 'confirmed'"),
+        count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*'"),
+        count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*' AND cut_state = 'proposed'"),
+        count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*' AND cut_state = 'confirmed'"),
     );
     println!(
         "joined files {} · included versions {} (of them, twins of another version {}) · versions read {} (included {})",
-        count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
-        count("SELECT count(DISTINCT version_id) FROM appearance WHERE selector <> 'file'"),
+        count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector GLOB 'pages:*'"),
+        count("SELECT count(DISTINCT version_id) FROM appearance WHERE selector GLOB 'pages:*'"),
         count(
-            "SELECT count(DISTINCT a.version_id) FROM appearance a WHERE a.selector <> 'file'
+            "SELECT count(DISTINCT a.version_id) FROM appearance a WHERE a.selector GLOB 'pages:*'
              AND (SELECT count(*) FROM appearance b WHERE b.version_id = a.version_id) > 1"
         ),
         count("SELECT count(*) FROM knowledge_extraction WHERE state = 'done'"),
-        count("SELECT count(*) FROM knowledge_extraction k WHERE state = 'done' AND EXISTS (SELECT 1 FROM appearance a WHERE a.version_id = k.version_id AND a.selector <> 'file')"),
+        count("SELECT count(*) FROM knowledge_extraction k WHERE state = 'done' AND EXISTS (SELECT 1 FROM appearance a WHERE a.version_id = k.version_id AND a.selector GLOB 'pages:*')"),
     );
     drop(conn);
     let (mut expected, mut found, mut exact, mut files) = (0, 0, 0, 0);
@@ -369,74 +325,4 @@ fn the_parts_over_the_whole_folder() {
         std::fs::write(&path, serde_json::to_string_pretty(&written_answers(&base)).unwrap()).unwrap();
         println!("answers about cuts written: {path}");
     }
-}
-
-/// How many doubtful steps the thread that asks the model takes by itself
-/// and how many wait for a person to ask (D-606, D-622), by group: the
-/// files of the parts sheet (`MICELYA_CUT_SHEET`), the other files a rule
-/// cuts and those of one document. On a copy of a base (`MICELYA_CUT_BASE`:
-/// it is changed, keep it outside the repository) it counts them with the
-/// answers kept, and then without the answers about cuts, every PDF cut
-/// again as the app cuts before any answer. Asks nothing.
-#[test]
-#[ignore = "changes the copy of a base named in MICELYA_CUT_BASE"]
-fn the_questions_the_cutter_would_ask() {
-    let (Ok(path), Ok(sheet)) = (std::env::var("MICELYA_CUT_BASE"), std::env::var("MICELYA_CUT_SHEET")) else {
-        println!("MICELYA_CUT_BASE or MICELYA_CUT_SHEET is not set: nothing to measure");
-        return;
-    };
-    let sheet: Value = serde_json::from_str(&std::fs::read_to_string(&sheet).unwrap()).unwrap();
-    let in_sheet: BTreeSet<String> =
-        sheet["files"].as_array().into_iter().flatten().filter_map(|f| f["sha256"].as_str().map(str::to_string)).collect();
-    let base = DocBase::open(std::path::Path::new(&path)).unwrap();
-    let count = |when: &str| {
-        // The connection is let go before the base counts on its own.
-        let rows: Vec<(String, bool, i64, i64, i64, i64)> = {
-        let conn = base.conn();
-        let mut statement = conn
-            .prepare(
-                "SELECT resource_hash, max(verdict = 'new' AND after_page > 0), count(*) - 1, sum(rule = 'uniform'),
-                        sum(verdict = 'doubtful' AND question IS NOT NULL),
-                        sum(verdict = 'doubtful' AND model_says IS NULL AND question IS NOT NULL)
-                 FROM cut_step GROUP BY resource_hash HAVING max(after_page) >= 1",
-            )
-            .unwrap();
-        let rows = statement
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)))
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
-        rows
-        };
-        println!("--- {when}: group · files · steps · even · doubtful · without an answer · asked by itself · waiting for a person");
-        let groups: [(&str, Box<dyn Fn(&(String, bool, i64, i64, i64, i64)) -> bool>); 3] = [
-            ("sheet", Box::new(|r| in_sheet.contains(&r.0))),
-            ("other compound", Box::new(|r| !in_sheet.contains(&r.0) && r.1)),
-            ("one document", Box::new(|r| !in_sheet.contains(&r.0) && !r.1)),
-        ];
-        for (name, of) in groups.iter() {
-            let rows: Vec<_> = rows.iter().filter(|r| of(r)).collect();
-            let sum = |f: &dyn Fn(&(String, bool, i64, i64, i64, i64)) -> i64| rows.iter().map(|r| f(r)).sum::<i64>();
-            let by_itself = sum(&|r| if r.1 { r.5 } else { 0 });
-            println!(
-                "   {name} · {} · {} · {} · {} · {} · {by_itself} · {}",
-                rows.len(),
-                sum(&|r| r.2),
-                sum(&|r| r.3),
-                sum(&|r| r.4),
-                sum(&|r| r.5),
-                sum(&|r| r.5) - by_itself
-            );
-        }
-        let questions = base.cut_questions().unwrap();
-        println!("   all: asked by itself {} · waiting for a person {}", questions.by_itself, questions.on_request);
-    };
-    count("with the answers kept");
-    {
-        let conn = base.conn();
-        conn.execute("DELETE FROM model_answer WHERE task = ?1", [CUT_TASK]).unwrap();
-        conn.execute("DELETE FROM cut_step", []).unwrap();
-    }
-    while base.cut_pending(16).unwrap() > 0 {}
-    count("cut again without the answers about cuts (the order of the app)");
 }

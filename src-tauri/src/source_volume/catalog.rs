@@ -42,6 +42,8 @@ pub(crate) fn normalized_words(text: &str) -> Vec<String> {
         if trimmed.starts_with(RECOGNIZED_MARKER_START) || is_page_heading(trimmed) {
             continue;
         }
+        // The mark of a line read with low confidence is not a word of it.
+        let trimmed = super::bands::without_mark(trimmed);
         let mut word = String::new();
         for c in trimmed.chars().flat_map(char::to_lowercase) {
             match unaccented(c) {
