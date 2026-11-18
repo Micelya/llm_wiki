@@ -15,7 +15,7 @@ fn the_attention_view_gets_doubts_joins_by_identifier_and_progress() {
     let attention = base.knowledge_attention(&Visible::All).unwrap();
     assert_eq!(attention.status.documents, 6);
     assert_eq!(attention.status.pending, 0);
-    assert!(attention.status.doubts > 0, "a DNI that differs by one digit is a doubt");
+    assert!(attention.status.doubts > 0, "a name without a legal form, against two companies, is a doubt");
     // The DNI joined two ways of writing the person, read just now.
     let joined = attention.identifier_joins.iter().find(|j| j.kind == "persona").expect("a join by identifier");
     assert!(joined.names.len() >= 2 && joined.identifiers.iter().any(|i| i.contains("22.222.222")), "{joined:?}");

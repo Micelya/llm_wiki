@@ -22,6 +22,7 @@ struct Raw {
     closers: Phrases,
     types: RawTypes,
     ask: AskCatalog,
+    zones: ZonesCatalog,
 }
 
 /// The rule of the even file: whether it is on, the share of width or
@@ -77,6 +78,34 @@ pub struct AskCatalog {
     pub types: BTreeMap<String, String>,
 }
 
+/// The cut over the reading by zones (`by_zones`): the rules that decide
+/// for good (`rule|gives`), the windows of pages of each question, the
+/// function words a document does not end on, how each rule is named in
+/// the hints and the question, with its placeholders.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZonesCatalog {
+    pub version: String,
+    pub finals: Vec<String>,
+    pub pages: u32,
+    pub overlap: u32,
+    pub text_max: usize,
+    pub nexos: Vec<String>,
+    pub hints: BTreeMap<String, String>,
+    pub prompt: String,
+    pub annex: Annex,
+    pub signature_only_max_words: usize,
+}
+
+/// A page that only announces an annex (D-724): the words it starts with
+/// and the most words it may have.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Annex {
+    pub words: Vec<String>,
+    pub max_words: usize,
+}
+
 pub struct Patterns {
     pub page_of: Regex,
     pub document_code: Regex,
@@ -95,6 +124,7 @@ pub struct CutCatalog {
     pub machine_zone_type: String,
     pub types: Vec<(String, Vec<String>)>,
     pub ask: AskCatalog,
+    pub zones: ZonesCatalog,
 }
 
 pub fn catalog() -> &'static CutCatalog {
@@ -118,6 +148,7 @@ pub fn catalog() -> &'static CutCatalog {
             machine_zone_type: raw.types.machine_zone,
             types: raw.types.rules.into_iter().map(|(id, phrases)| (id, folded(phrases))).collect(),
             ask: raw.ask,
+            zones: raw.zones,
         }
     })
 }

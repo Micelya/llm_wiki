@@ -30,6 +30,7 @@ pub mod bridge;
 pub mod chat_files;
 pub mod commands;
 pub mod cut;
+pub mod failures;
 #[cfg(test)]
 mod field_check;
 mod identity;
@@ -37,23 +38,36 @@ pub mod graph;
 pub mod knowledge;
 pub mod labels;
 pub mod origins;
-mod page_shapes;
+pub(crate) mod page_shapes;
+pub mod process;
 pub mod progress;
 pub mod query;
 pub mod questions;
+pub mod reading_quality;
 pub mod recognize;
+#[cfg(test)]
+mod look_writes_nothing;
+pub mod safe_words;
+#[cfg(test)]
+mod check_forms;
 pub mod search;
 pub mod services;
 mod scan;
 mod schema;
 pub mod similar;
+pub(crate) mod structure;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod text;
+pub mod thresholds;
 pub mod tree;
 pub mod upgrade;
+pub mod vectors;
+#[cfg(test)]
+mod vectors_tests;
+pub mod watch;
 pub mod work_origin;
-mod worker;
+
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -107,6 +121,8 @@ pub struct DocBase {
     conn: Mutex<Connection>,
     /// What the engine is doing now and the last error of the model (in memory).
     engine: progress::EngineState,
+    /// What the loop of the process keeps between its turns (in memory).
+    process: Mutex<process::run::Memory>,
     /// Where the text recognized from scans is kept page by page, beside
     /// the database (`recognize.rs`).
     recognized: PathBuf,
@@ -211,9 +227,16 @@ impl DocBase {
         let base = Self {
             conn: Mutex::new(conn),
             engine: progress::EngineState::default(),
+            process: Mutex::default(),
             recognized,
         };
         labels::adopt_conventions(&base)?;
+        // Once per base: a reader of the scans left as Codex goes back to
+        // the one of this computer, with a notice (D-775, point 1).
+        services::reader_back_to_local_once(&base.conn())?;
+        // Once per base: the texts of the simple scan are read again by
+        // zones, with their bands (E1 of 2 nov, point 7).
+        recognize::simple_scans_read_again_once(&base.conn())?;
         Ok(base)
     }
 

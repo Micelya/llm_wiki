@@ -63,6 +63,9 @@ impl DocBase {
             .origin(origin_id)?
             .ok_or_else(|| "Ese origen ya no existe".to_string())?;
 
+        // The sweep stands for what the folder held when it started listing:
+        // a change heard after that is newer than it (`origin.changed_at`).
+        let started = now_ms();
         // Listing can take long on a network or cloud folder: no lock here.
         let listed = LocalFolderProvider::new(origin.root())
             .list()
@@ -106,7 +109,7 @@ impl DocBase {
             _ => {
                 tx.execute(
                     "UPDATE origin SET reachable = 0, last_scan_at = ?1 WHERE id = ?2",
-                    params![now, origin_id],
+                    params![started, origin_id],
                 )
                 .map_err(sql_err)?;
                 tx.commit().map_err(sql_err)?;
@@ -197,7 +200,7 @@ impl DocBase {
         .map_err(sql_err)?;
         tx.execute(
             "UPDATE origin SET reachable = 1, last_scan_at = ?1 WHERE id = ?2",
-            params![now, origin_id],
+            params![started, origin_id],
         )
         .map_err(sql_err)?;
         tx.commit().map_err(sql_err)?;
@@ -237,7 +240,7 @@ pub(crate) fn split(rel_path: &str) -> (String, String, String) {
 /// Whether a file belongs in the inventory. Everything the user could
 /// have put there does; what the system, an editor or the app itself
 /// leaves around does not.
-fn is_inventoried(rel_path: &str) -> bool {
+pub(crate) fn is_inventoried(rel_path: &str) -> bool {
     let mut parts: Vec<&str> = rel_path.split('/').collect();
     let Some(name) = parts.pop() else {
         return false;

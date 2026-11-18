@@ -29,6 +29,10 @@ use crate::docbase::{DocBase, Visible, PRIVATE_DB_FILE};
 #[derive(Debug, Deserialize)]
 struct Answers {
     root: String,
+    /// The roots a pair's side names with `a_root` and `b_root` (the new
+    /// sheet: the folder and the exam); without one, `root`.
+    #[serde(default)]
+    roots: BTreeMap<String, String>,
     #[serde(default)]
     pairs: Vec<AnswerPair>,
     #[serde(default)]
@@ -50,6 +54,24 @@ struct AnswerPair {
     measurable: bool,
     #[serde(default)]
     note: Option<String>,
+    #[serde(default)]
+    a_root: Option<String>,
+    #[serde(default)]
+    b_root: Option<String>,
+    /// The pair served to design a rule: it is not an independent
+    /// measurement, and is told apart (D-676).
+    #[serde(default)]
+    used_for_rule: bool,
+}
+
+/// The sheet in two: the pairs no rule was designed with, and those that
+/// were (D-676).
+fn split_by_rule(answers: Answers) -> (Answers, Answers) {
+    let (for_rules, independent): (Vec<AnswerPair>, Vec<AnswerPair>) = answers.pairs.into_iter().partition(|p| p.used_for_rule);
+    (
+        Answers { root: answers.root.clone(), roots: answers.roots.clone(), pairs: independent, documents: answers.documents },
+        Answers { root: answers.root, roots: answers.roots, pairs: for_rules, documents: Vec::new() },
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -350,7 +372,15 @@ not compared (no text yet, or too little): {}", rows.len());
 MICELYA_SIMILAR_ANSWERS is not set or not readable: no comparison with the answer sheet");
         return;
     };
-    against_the_sheet(&base, &answers, true);
+    let (independent, for_rules) = split_by_rule(answers);
+    if !for_rules.pairs.is_empty() {
+        println!("\n== the pairs no rule was designed with: {} (D-676) ==", independent.pairs.len());
+    }
+    against_the_sheet(&base, &independent, true);
+    if !for_rules.pairs.is_empty() {
+        println!("\n== apart: the pairs used to design a rule, {} (not an independent measurement) ==", for_rules.pairs.len());
+        against_the_sheet(&base, &for_rules, true);
+    }
 }
 
 #[derive(Default)]
@@ -712,8 +742,9 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
             unknown.push(format!("relation '{}' (pair {number})", answer.relation));
             continue;
         };
-        let a = seen.resolve(&answers.root, &answer.a, answer.a_selector.as_deref());
-        let b = seen.resolve(&answers.root, &answer.b, answer.b_selector.as_deref());
+        let root_of = |side: &Option<String>| side.as_ref().and_then(|r| answers.roots.get(r)).unwrap_or(&answers.root);
+        let a = seen.resolve(root_of(&answer.a_root), &answer.a, answer.a_selector.as_deref());
+        let b = seen.resolve(root_of(&answer.b_root), &answer.b, answer.b_selector.as_deref());
         let (Some(a), Some(b)) = (a, b) else {
             coverage.not_in_base.push(number);
             continue;
@@ -918,7 +949,7 @@ fn similar_documents_of_the_included_documents() {
             let mut statement = conn
                 .prepare(
                     "SELECT a.resource_hash, a.selector, m.marks FROM appearance a
-                     JOIN document_marks m ON m.version_id = a.version_id WHERE a.selector <> 'file'",
+                     JOIN document_marks m ON m.version_id = a.version_id WHERE a.selector GLOB 'pages:*'",
                 )
                 .unwrap();
             let rows: Vec<(String, String, String)> =
@@ -974,8 +1005,8 @@ fn similar_documents_of_the_included_documents() {
             "versions {} · compared {} · cut files {} · parts {} · versions only in uncertain cuts {} · pairs {}",
             count("SELECT count(*) FROM version"),
             count("SELECT count(*) FROM similar_signature WHERE length(shingles) > 0"),
-            count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
-            count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
+            count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector GLOB 'pages:*'"),
+            count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*'"),
             count(&format!("SELECT count(*) FROM version v WHERE {}", crate::docbase::cut::parts::only_uncertain_sql("v.id"))),
             count("SELECT count(*) FROM similar_pair"),
         );
@@ -991,7 +1022,7 @@ fn similar_documents_of_the_included_documents() {
                 drop(conn);
                 hashes.iter().map(|h| base.cut_steps(h).unwrap().iter().filter(|s| s.uncertain()).count()).sum::<usize>()
             },
-            count("SELECT count(*) FROM appearance WHERE selector <> 'file' AND uncertain = 1"),
+            count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*' AND uncertain = 1"),
             count(&format!("SELECT count(*) FROM similar_pair p WHERE {}", super::store::uncertain_pair_sql("p"))),
             count(&format!(
                 "SELECT count(DISTINCT principal) FROM similar_group_member m WHERE {}",
@@ -1006,7 +1037,7 @@ fn similar_documents_of_the_included_documents() {
             let conn = base.conn();
             let mut statement = conn
                 .prepare(
-                    "SELECT a.resource_hash, EXISTS (SELECT 1 FROM appearance p WHERE p.resource_hash = a.resource_hash AND p.selector <> 'file')
+                    "SELECT a.resource_hash, EXISTS (SELECT 1 FROM appearance p WHERE p.resource_hash = a.resource_hash AND p.selector GLOB 'pages:*')
                      FROM appearance a WHERE a.selector = 'file' AND a.uncertain = 1",
                 )
                 .unwrap();
@@ -1023,7 +1054,7 @@ fn similar_documents_of_the_included_documents() {
         // The parts of each cut file, by its hash.
         let parts: Vec<(String, i64)> = {
             let conn = base.conn();
-            let mut statement = conn.prepare("SELECT resource_hash, version_id FROM appearance WHERE selector <> 'file'").unwrap();
+            let mut statement = conn.prepare("SELECT resource_hash, version_id FROM appearance WHERE selector GLOB 'pages:*'").unwrap();
             let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
             rows
         };
@@ -1091,7 +1122,7 @@ fn similar_documents_of_the_included_documents() {
     report("as it is: cuts as the base makes them, the uncertain marked");
     let cut: Vec<String> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM appearance WHERE selector <> 'file'").unwrap();
+        let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM appearance WHERE selector GLOB 'pages:*'").unwrap();
         let rows = statement.query_map([], |row| row.get(0)).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
         rows
     };
@@ -1138,9 +1169,10 @@ const GENERIC: &[&str] = &[
 /// Words the program uses for its own reasons that a case happens to share:
 /// the vendors and models it talks to (a search provider, the model of the
 /// reading), ordinary English words of the tests brought from the original
-/// project, and a letter of the Greek alphabet. They say nothing about a
-/// case.
-const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota"];
+/// project, a letter of the Greek alphabet, and "cap" (a limit, in the
+/// program; a term of an investment agreement, in a file name of the test
+/// folder). They say nothing about a case.
+const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota", "cap"];
 
 /// Words of the names of public bodies (courts, registries, the official
 /// gazette, public banks, the bar), common words of the trade: an

@@ -529,13 +529,6 @@ pub fn identifier_value(value: &str) -> String {
     value.chars().filter(|c| c.is_alphanumeric() && !matches!(c, 'º' | 'ª')).flat_map(char::to_lowercase).collect()
 }
 
-/// Whether two sets of values of one kind of strong identifier have one
-/// that is the same: equal, or written with more or fewer characters
-/// (`written_otherwise`).
-pub fn same_identifier(a: &std::collections::BTreeSet<String>, b: &std::collections::BTreeSet<String>) -> bool {
-    a.iter().any(|x| b.iter().any(|y| x == y || written_otherwise(x, y)))
-}
-
 /// Whether two values of a strong identifier are the same one written with
 /// more or fewer characters (D-436): one holds the other whole, and the
 /// shorter has six digits or more. A tax number written without the digits
@@ -545,12 +538,6 @@ pub fn same_identifier(a: &std::collections::BTreeSet<String>, b: &std::collecti
 pub fn written_otherwise(a: &str, b: &str) -> bool {
     let (short, long) = if a.chars().count() <= b.chars().count() { (a, b) } else { (b, a) };
     short != long && short.chars().filter(|c| c.is_ascii_digit()).count() >= 6 && long.contains(short)
-}
-
-/// Whether two different identifiers of the same kind may be one misread
-/// (a scanned digit): one character of difference in values of six or more.
-pub fn misread(a: &str, b: &str) -> bool {
-    a != b && a.chars().count().min(b.chars().count()) >= 6 && distance(a, b, 1) <= 1
 }
 
 /// The name an entity is named by, among the principal names of its groups
@@ -919,9 +906,11 @@ mod tests {
     fn identifiers_compare_by_letters_and_digits() {
         assert_eq!(identifier_value("30-11111111-1"), "30111111111");
         assert_eq!(identifier_value("22.222.222"), "22222222");
-        assert!(misread("22222222", "22222223"));
-        assert!(!misread("22222222", "22223333"));
-        assert!(!misread("12345", "12346"), "too short to tell");
+        // How two numbers of a kind meet: `numbers.rs` (E5 of 2 nov).
+        let v = Vocabulary::builtin();
+        assert_eq!(super::super::numbers::same_number(&v, "dni", "22222222", "22222223"), super::super::numbers::Match::Near);
+        assert_eq!(super::super::numbers::same_number(&v, "dni", "22222222", "22223333"), super::super::numbers::Match::Other);
+        assert_eq!(super::super::numbers::same_number(&v, "dni", "12345", "12346"), super::super::numbers::Match::Other, "too short to tell");
         assert_eq!(distance("ejemplo", "ejenplo", 2), 1);
         assert!(typo("ejemplo", "ejemplp"));
         assert!(!typo("uno", "una"));

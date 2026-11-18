@@ -925,3 +925,76 @@ fn the_notes_and_queries_of_the_old_wiki_come_into_the_base_once() {
     base.knowledge_delete_note(orphans[0].id).unwrap();
     assert!(base.knowledge_orphan_notes().unwrap().is_empty());
 }
+
+/// Cuts a file of three pages in two documents, page 1 and pages 2 and 3,
+/// as a cut leaves its steps (D-560); its hash, its whole version and its
+/// path in the origin.
+fn cut_in_two(base: &DocBase, nth: usize) -> (i64, String) {
+    let (hash, whole, rel): (String, i64, String) = base
+        .conn()
+        .query_row(
+            "SELECT f.hash, f.version_id, l.rel_path FROM location l JOIN file f ON f.hash = l.file_hash
+             WHERE l.name = 'acuerdo.txt' ORDER BY length(l.rel_path) LIMIT 1 OFFSET ?1",
+            [nth as i64],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    for (after, verdict) in [(0, "new"), (1, "new"), (2, "continue")] {
+        base.conn()
+            .execute(
+                "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, rules_version, text_stamp, created_at)
+                 VALUES (?1, ?2, ?3, 'r', 'v', 1, 1)",
+                rusqlite::params![hash, after, verdict],
+            )
+            .unwrap();
+    }
+    (whole, rel)
+}
+
+/// A document cut from a file (D-667) has no file of its own: the pages
+/// list it by the file's name and its pages, quote it by the file's name
+/// (the page of a quote is the file's) and link it to the page of the
+/// whole file, which is in `sources:`; no page of its own is made. Two of
+/// two files that would read the same say where their file is. The
+/// questions keep the name they had (P-518).
+#[test]
+fn a_document_cut_from_a_file_is_named_by_its_file_and_its_pages() {
+    let one = format!("## Page 1\n\n{A}\n\n## Page 2\n\n{B}\n\n## Page 3\n\nHoja final del acuerdo, sin otros datos.");
+    let other = "## Page 1\n\nDOC-D. Otra nota de Persona Dos, DNI 22.222.222, sobre el mismo contrato y sus pagos.\n\n\
+## Page 2\n\nHoja de firmas.\n\n## Page 3\n\nHoja final de la nota.";
+    let (_dir, base) = base_with(&[("acuerdo.txt", &one), ("otra/acuerdo.txt", other)]);
+    let (whole, rel) = cut_in_two(&base, 0);
+    let (other_whole, other_rel) = cut_in_two(&base, 1);
+    assert_eq!(base.cut_parts_pending(10).unwrap(), 2);
+    while base.similar_step(10).unwrap() > 0 {}
+    let asker = model();
+    read(&base, &asker);
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert!(!report.skipped, "{report:?}");
+    let origin = base.origins(&Visible::All).unwrap()[0].name.clone();
+    let stem = |content: i64| -> String {
+        let path: String =
+            base.conn().query_row("SELECT path FROM knowledge_page WHERE entity_id = ?1", [format!("doc-{content}")], |row| row.get(0)).unwrap();
+        path.rsplit('/').next().unwrap().trim_end_matches(".md").to_string()
+    };
+    let (page, other_page) = (stem(whole), stem(other_whole));
+    let pages = entity_pages(&base);
+    let person = page_of(&pages, "Persona Dos");
+    // In its list: the file and its pages, linked to the page of the file;
+    // the first page is in both files, so each says where its file is.
+    assert!(person.contains(&format!("[[{page}|acuerdo.txt, pág. 1 ({origin}/{rel})]] — parte")), "{person}");
+    assert!(person.contains(&format!("[[{page}|acuerdo.txt, págs. 2-3]] — firmante")), "{person}");
+    assert!(person.contains(&format!("[[{other_page}|acuerdo.txt, pág. 1 ({origin}/{other_rel})]] — remitente")), "{person}");
+    assert!(!person.contains("\n-  — ") && !person.contains("(, "), "{person}");
+    // In a quote: the file, and the page of the file.
+    let paid = note_after(person, "$ 5.000");
+    assert!(paid.contains(&format!("«a favor de Ejemplo Uno S.A. por $ 5.000» ([[{page}|acuerdo.txt]], p. 2)")), "{paid}");
+    // In `sources:`, the files; no page for each document cut from them.
+    let sources = person.lines().find(|l| l.starts_with("sources: ")).unwrap();
+    assert!(sources.contains(&format!("{origin}/{rel}")) && sources.contains(&format!("{origin}/{other_rel}")), "{sources}");
+    assert_eq!(pages_in(&base, "wiki/sources").len(), 2);
+    // The questions say the name they said: none for a document cut.
+    let asked = asker.asked.lock().unwrap();
+    assert!(asked.iter().filter(|q| is_knowledge(q)).all(|q| q.contains("Archivo: «»")), "{asked:?}");
+    assert!(asked.iter().any(|q| is_synthesis(q) && q.contains("Persona Dos") && q.contains("» ()")), "{asked:?}");
+}

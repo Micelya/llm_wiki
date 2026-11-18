@@ -56,6 +56,44 @@ const MONTHS: &[&str] = &[
 
 const CURRENCIES: &[&str] = &["usd", "ars", "u$s", "us$", "eur", "pesos", "dolares", "dollars"];
 
+/// Months as a stamp shortens them ("21 abr. 2025"), and the words of a
+/// date or a time that are not a figure: they only count inside a block
+/// that may be a stamp (`is_stamp`).
+const MONTHS_SHORT: &[&str] = &[
+    "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "sept", "set", "oct", "nov", "dic", "jan", "apr", "aug",
+    "dec",
+];
+const TIME_WORDS: &[&str] = &["de", "del", "am", "pm", "a.m", "p.m", "h", "hs", "hrs"];
+
+/// Whether these tokens are only a name with a date or a time, as a
+/// signing service stamps a signature ("Ana Gómez (21 abr. 2025 12:06
+/// ART)", P-485). A capital letter at the start of a line counts here as
+/// a name: the stamp starts one.
+fn is_stamp(prepared: &Prepared, raws: &[usize]) -> bool {
+    let (mut name, mut when) = (false, false);
+    for &r in raws {
+        let raw = &prepared.raws[r];
+        if raw.text.is_empty() {
+            continue;
+        }
+        let lower = raw.text.to_lowercase();
+        let kind = classify(raw);
+        let capitalized = raw.text.chars().all(char::is_alphabetic) && raw.text.chars().next().is_some_and(char::is_uppercase);
+        if matches!(kind, Kind::Date | Kind::Number) || MONTHS.contains(&lower.as_str()) || MONTHS_SHORT.contains(&lower.as_str()) {
+            when = true;
+        } else if kind == Kind::Name || capitalized {
+            name = true;
+        } else if !TIME_WORDS.contains(&lower.as_str()) {
+            return false;
+        }
+    }
+    name && when
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
 /// The kind of thing a token of the original text is.
 pub fn classify(raw: &Raw) -> Kind {
     let token = raw.text.as_str();
@@ -211,6 +249,12 @@ pub struct Changes {
     /// (a CUIT for another CUIT), by the kinds involved.
     pub swaps: BTreeMap<Kind, usize>,
     pub examples: Vec<Example>,
+    /// Blocks only the first has, and only the second, made only of a name
+    /// with a date or a time: the stamp of a signing service (P-485).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub stamps_a: usize,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub stamps_b: usize,
 }
 
 impl Changes {
@@ -300,6 +344,12 @@ pub fn summarize(a: &Prepared, b: &Prepared, ops: &[Op]) -> Changes {
 
                 let raws_a = raws_of(a, ra);
                 let raws_b = raws_of(b, rb);
+                if rb.is_empty() && is_stamp(a, &raws_a) {
+                    changes.stamps_a += 1;
+                }
+                if ra.is_empty() && is_stamp(b, &raws_b) {
+                    changes.stamps_b += 1;
+                }
                 let kinds_a: Vec<Kind> = raws_a.iter().map(|&r| classify(&a.raws[r])).collect();
                 let kinds_b: Vec<Kind> = raws_b.iter().map(|&r| classify(&b.raws[r])).collect();
                 let mut per_kind: BTreeMap<Kind, (usize, usize)> = BTreeMap::new();
@@ -464,6 +514,23 @@ mod tests {
         let pb = Prepared::new(&pages(b), &[], &[]);
         let (ia, ib) = intern(pa.words.iter().map(|w| w.key.as_str()), pb.words.iter().map(|w| w.key.as_str()));
         summarize(&pa, &pb, &align(&ia, &ib))
+    }
+
+    #[test]
+    fn a_block_only_one_has_with_a_name_and_a_date_is_a_stamp() {
+        // P-485: invented text; the stamp a signing service adds by a signature.
+        let text = "El presente acuerdo se firma en dos ejemplares de un mismo tenor y a un solo efecto.\n\nFirma de la parte:";
+        let changes = compare(text, &format!("{text}\nPersona Nueve (21 abr. 2025 12:06 ART)"));
+        assert_eq!((changes.stamps_a, changes.stamps_b, changes.hunks), (0, 1, 1));
+        let changes = compare(&format!("{text}\nPersona Nueve 21 de abril de 2025"), text);
+        assert_eq!((changes.stamps_a, changes.stamps_b), (1, 0));
+        // A clause added is not a stamp, nor a date alone, nor a name alone.
+        assert_eq!(compare(text, &format!("{text}\nLas partes constituyen domicilio en la ciudad.")).stamps_b, 0);
+        assert_eq!(compare(text, &format!("{text}\n21/04/2025")).stamps_b, 0);
+        assert_eq!(compare(text, &format!("{text}\nPersona Nueve")).stamps_b, 0);
+        // Nor a name with a date that replaces something the other has.
+        let other = compare(&format!("{text}\nPersona Diez (3 may. 2024)"), &format!("{text}\nPersona Nueve (21 abr. 2025)"));
+        assert_eq!((other.stamps_a, other.stamps_b), (0, 0));
     }
 
     #[test]

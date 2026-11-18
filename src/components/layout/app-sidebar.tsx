@@ -27,6 +27,8 @@ export function menuItemOf(view: View): View | null {
     case "identity-doubts":
     case "program-requests":
       return "attention"
+    case "reading-quality":
+      return "documents"
     case "search":
       return null
     default:

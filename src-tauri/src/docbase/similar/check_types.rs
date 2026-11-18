@@ -169,10 +169,15 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
             .unwrap(),
         ),
         Ok("local") => Some(
-            recognition::recognizer_for(
-                &crate::docbase::services::local_recognition_engine().expect("the engine of this computer is not available"),
-            )
-            .unwrap(),
+            {
+                use crate::source_volume::recognition_local;
+                assert!(recognition_local::unavailable().is_none(), "the engine of this computer is not available");
+                recognition::recognizer_for(&RecognitionConfig {
+                    engine: recognition_local::ENGINE.into(),
+                    model: recognition_local::catalog().model_set.clone(),
+                })
+                .unwrap()
+            },
         ),
         _ => None,
     };
@@ -224,7 +229,12 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
         waiting.len(),
         counting.calls.get()
     );
-    while base.similar_step(16).unwrap() > 0 {}
+    // `MICELYA_IN_ORDER`: the similar documents wait for the cuts and their
+    // documents, as in the app's worker (D-666); the test that runs them
+    // in order looks for them after.
+    if std::env::var("MICELYA_IN_ORDER").is_err() {
+        while base.similar_step(16).unwrap() > 0 {}
+    }
     (scratch, base)
 }
 

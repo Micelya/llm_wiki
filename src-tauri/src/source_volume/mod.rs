@@ -7,8 +7,11 @@
 //! left with the wiki (W6).
 
 pub mod asking;
+// The text with its bands: firm, approximate (marked) and discarded (D-668).
+pub mod bands;
 pub mod catalog;
 pub mod file_hash;
+pub mod layout_local;
 // The shape of each page of a PDF, which decides what is recognized (P-320).
 pub mod page_shape;
 pub mod page_print;

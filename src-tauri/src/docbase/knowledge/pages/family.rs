@@ -85,6 +85,9 @@ impl Families {
 /// not), with the name of each of their files (`<origin>/<path inside
 /// it>`), the joined copies a person passed over included: they are
 /// versions too. Every origin counts, mounted in a wiki or not (D-402).
+/// Read from the structure of each file (D-718): its one document; a file
+/// of several keeps the identity of the whole file, the page of its parts
+/// until each one has its own (P-527).
 fn identities(base: &DocBase) -> Result<BTreeMap<i64, Vec<String>>, String> {
     let mut out: BTreeMap<i64, Vec<String>> = BTreeMap::new();
     let conn = base.conn();
@@ -92,7 +95,8 @@ fn identities(base: &DocBase) -> Result<BTreeMap<i64, Vec<String>>, String> {
         let mount = origin.name.as_str();
         let mut statement = conn
             .prepare(&format!(
-                "SELECT l.rel_path, f.version_id FROM location l JOIN file f ON f.hash = l.file_hash
+                "SELECT l.rel_path, coalesce(s.version_id, f.version_id) FROM location l JOIN file f ON f.hash = l.file_hash
+                 LEFT JOIN appearance s ON s.resource_hash = f.hash AND s.selector = 'all'
                  WHERE l.origin_id = ?1 AND l.kind = 'file' AND f.version_id IS NOT NULL AND NOT {} ORDER BY l.rel_path",
                 crate::docbase::excluded_sql!()
             ))
@@ -137,7 +141,11 @@ pub(super) fn families(base: &DocBase, vocabulary: &Vocabulary) -> Result<Famili
             .map_err(sql_err)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)?
     };
-    let contents: Vec<i64> = identities.keys().copied().collect();
+    // A document of a type of low confidence has no page of its own: the
+    // page is information derived from it (D-769, E3 of 2 nov). It is found,
+    // opened and seen in the base.
+    let low = crate::docbase::safe_words::low_confidence(&base.conn())?;
+    let contents: Vec<i64> = identities.keys().copied().filter(|c| !low.contains(c)).collect();
     let mut parent: HashMap<i64, i64> = contents.iter().map(|c| (*c, *c)).collect();
     fn find(parent: &mut HashMap<i64, i64>, x: i64) -> i64 {
         let mut at = x;
@@ -235,6 +243,27 @@ fn type_name(conn: &Connection, content: i64) -> Result<Option<String>, String> 
     }))
 }
 
+/// The documents a file of several includes, in order: (version, first
+/// page, last page). None for a file of one document.
+fn parts_of(conn: &Connection, whole: i64) -> Result<Vec<(i64, u32, u32)>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT a.version_id, a.selector FROM appearance a JOIN file f ON f.hash = a.resource_hash
+             WHERE f.version_id = ?1 AND a.selector GLOB 'pages:*' ORDER BY a.position",
+        )
+        .map_err(sql_err)?;
+    let rows = statement.query_map([whole], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (version, selector) = row.map_err(sql_err)?;
+        let pages = selector.strip_prefix("pages:").and_then(|r| r.split_once('-')).and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?)));
+        if let Some((first, last)) = pages {
+            out.push((version, first, last));
+        }
+    }
+    Ok(out)
+}
+
 /// The data of a document as the base keeps it: (field, value), in order.
 fn data_of(conn: &Connection, content: i64) -> Result<Vec<(String, String)>, String> {
     let row: Option<String> =
@@ -290,7 +319,9 @@ fn parties_of(vocabulary: &Vocabulary, record: &Record, content: i64) -> String 
         not.extend(to);
         let between = named(&roles.between, &not);
         match between.len() {
-            1 => parts.push(format!("{} {}", words.word("docTitleFrom"), between[0])),
+            // One party alone is not who the document is from (E6 of 2
+            // nov): the title says it is with it, without a direction.
+            1 => parts.push(format!("{} {}", words.word("docTitleWith"), between[0])),
             2 => parts.push(format!("{} {}", words.word("docTitleBetween"), and(&between))),
             _ => {}
         }
@@ -497,7 +528,8 @@ fn text_words(conn: &Connection, content: i64) -> Result<Vec<String>, String> {
         .query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
-    Ok(quote::words(&body.unwrap_or_default()))
+    // A version says a quote only in its firm text (D-668, E1 of 2 nov).
+    Ok(quote::words(&crate::source_volume::bands::firm(&body.unwrap_or_default())))
 }
 
 /// How a relation reads: "es el ejemplar firmado de" for one with a
@@ -618,6 +650,62 @@ pub(super) fn render_document(
         }
     }
 
+    // A file of several documents (P-591, etapa P): each one with its
+    // pages in the file, its type and what its one reading summed up,
+    // from what the base already has: no question. A part of low
+    // confidence says only so: what it says is only for queries (D-769).
+    let parts = parts_of(conn, principal)?;
+    if !parts.is_empty() {
+        let low = crate::docbase::safe_words::low_confidence(conn)?;
+        out.push_str(&format!("## {}\n\n", words.word("docParts")));
+        for (part, first, last) in &parts {
+            let pages = if first == last {
+                format!("{} {first}", words.word("docPartPage"))
+            } else {
+                format!("{} {first}–{last}", words.word("docPartPages"))
+            };
+            let mut line = format!("- **{pages}**");
+            let mut points: Vec<super::super::extract::SummaryPoint> = Vec::new();
+            if low.contains(part) {
+                line.push_str(&format!(" — {}", words.word("docPartLow")));
+            } else {
+                if let Some(kind) = type_name(conn, *part)? {
+                    line.push_str(&format!(" · {kind}"));
+                }
+                let summary: Option<(Option<String>, String)> = conn
+                    .query_row("SELECT topic, points FROM knowledge_summary WHERE version_id = ?1", [part], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()
+                    .map_err(sql_err)?;
+                match summary {
+                    Some((topic, said)) => {
+                        if let Some(topic) = topic.map(|t| localized_dates(vocabulary, &one_line(&t))).filter(|t| !t.is_empty()) {
+                            line.push_str(&format!(" — {topic}"));
+                        }
+                        points = serde_json::from_str(&said).unwrap_or_default();
+                    }
+                    None => {
+                        let read: bool = conn
+                            .query_row(
+                                "SELECT EXISTS (SELECT 1 FROM knowledge_extraction WHERE version_id = ?1 AND state = 'done')",
+                                [part],
+                                |row| row.get(0),
+                            )
+                            .map_err(sql_err)?;
+                        if !read {
+                            line.push_str(&format!(" — {}", words.word("docPartUnread")));
+                        }
+                    }
+                }
+            }
+            out.push_str(&line);
+            out.push('\n');
+            for point in points {
+                out.push_str(&format!("  - {}\n", localized_dates(vocabulary, &one_line(&point.text))));
+            }
+        }
+        out.push_str(&format!("\n*{}*\n\n", words.word("docPartsNote")));
+    }
+
     // The data of its type, each with the versions that have it.
     let mut data: BTreeMap<(String, String), BTreeSet<i64>> = BTreeMap::new();
     let mut order: Vec<(String, String)> = Vec::new();
@@ -704,7 +792,7 @@ pub(super) fn render_document(
     }
     if !lines.is_empty() {
         out.push_str(&format!("## {}\n\n{}\n", words.word("docSummary"), lines.concat()));
-    } else if summaries.is_empty() {
+    } else if summaries.is_empty() && parts.is_empty() {
         out.push_str(&format!("{}\n\n", words.word("docPending")));
     }
 

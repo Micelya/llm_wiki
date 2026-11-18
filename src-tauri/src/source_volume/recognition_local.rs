@@ -12,10 +12,12 @@
 //! development build, in `src-tauri/ocr`. Without them the engine is not
 //! available: it says so (`unavailable`) and the app goes on.
 //!
-//! RapidOCR says how sure it is of each line: a line below the catalog's
-//! `minLineConfidence` (`resources/catalog/local-recognition.json`) does
-//! not enter the text, so handwriting read badly is not taken for text
-//! (D-518). Handwriting is not transcribed here: it is asked of a provider.
+//! RapidOCR says how sure it is of each line. The base reads each page by
+//! zones with it (`docbase/structure`, E1 of 2 nov): each line takes its
+//! band with the thresholds of the configuration of the base (D-668,
+//! D-722), and a line below the low one does not enter the text, so
+//! handwriting read badly is not taken for text (D-518). Handwriting is
+//! not transcribed here: it is asked of a provider.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -46,8 +48,8 @@ const RUNTIME_FILE: &str = "libonnxruntime.so";
 #[serde(rename_all = "camelCase")]
 pub struct LocalCatalog {
     pub model_set: String,
+    #[cfg_attr(not(test), allow(dead_code))]
     pub long_side_px: u32,
-    pub min_line_confidence: f32,
 }
 
 pub fn catalog() -> &'static LocalCatalog {
@@ -55,11 +57,15 @@ pub fn catalog() -> &'static LocalCatalog {
     PARSED.get_or_init(|| serde_json::from_str(CATALOG).expect("the catalog of the local reading is valid"))
 }
 
-/// One line as the engine read it, with how sure it is (0 to 1).
+/// One line as the engine read it, with how sure it is (0 to 1) and its
+/// box in the pixels of the image it read (left, top, right, bottom): the
+/// reading by zones puts each line in the zone that holds it
+/// (`docbase/structure`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReadLine {
     pub text: String,
     pub score: f32,
+    pub bbox: [i64; 4],
 }
 
 /// The folders where the models and the library may be, in order.
@@ -126,8 +132,9 @@ pub fn unavailable() -> Option<String> {
     ocr_dir().err()
 }
 
-/// ONNX Runtime opened once per process, from the library in `dir`.
-fn open_runtime(dir: &Path) -> Result<(), String> {
+/// ONNX Runtime opened once per process, from the library in `dir`; the
+/// model of zones (`layout_local`) runs on it too.
+pub(crate) fn open_runtime(dir: &Path) -> Result<(), String> {
     static OPENED: OnceLock<Result<(), String>> = OnceLock::new();
     OPENED
         .get_or_init(|| {
@@ -161,7 +168,7 @@ pub fn start_in(dir: &Path) -> Result<RapidOcr, String> {
 
 /// Threads of the engine: half the processors, up to four, so the app
 /// stays responsive while it reads.
-fn threads() -> usize {
+pub(crate) fn threads() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get() / 2).clamp(1, 4)
 }
 
@@ -169,7 +176,7 @@ fn threads() -> usize {
 /// starting it again for every page would cost more than reading it.
 static ENGINE_LOADED: OnceLock<Result<Mutex<RapidOcr>, String>> = OnceLock::new();
 
-fn engine() -> Result<MutexGuard<'static, RapidOcr>, String> {
+pub(crate) fn engine() -> Result<MutexGuard<'static, RapidOcr>, String> {
     let loaded = ENGINE_LOADED.get_or_init(|| ocr_dir().and_then(|dir| start_in(&dir)).map(Mutex::new));
     match loaded {
         // A page that panicked half-way leaves the engine as it was.
@@ -180,7 +187,8 @@ fn engine() -> Result<MutexGuard<'static, RapidOcr>, String> {
 
 /// The lines of the image at `image`, top to bottom, each with its
 /// confidence; an image larger than the catalog's long side is scaled
-/// down first.
+/// down first. The measurements read this way (the base reads by zones).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn read_lines(ocr: &mut RapidOcr, image: &Path) -> Result<Vec<ReadLine>, String> {
     let picture = image::open(image).map_err(|error| format!("The image '{}' could not be opened: {error}", image.display()))?;
     let long_side = catalog().long_side_px.max(1);
@@ -189,13 +197,31 @@ pub fn read_lines(ocr: &mut RapidOcr, image: &Path) -> Result<Vec<ReadLine>, Str
     } else {
         picture
     };
-    let output = ocr.run_image(&picture.to_rgb8()).map_err(|error| format!("The engine of this computer failed: {error:#}"))?;
-    Ok(output.lines.into_iter().map(|line| ReadLine { text: line.text, score: line.score }).collect())
+    read_picture(ocr, &picture.to_rgb8())
+}
+
+/// The lines of a picture already drawn, each with its confidence and its
+/// box (the smallest upright rectangle around what the engine found,
+/// truncated to whole pixels as the scripts of N did).
+pub fn read_picture(ocr: &mut RapidOcr, picture: &image::RgbImage) -> Result<Vec<ReadLine>, String> {
+    let output = ocr.run_image(picture).map_err(|error| format!("The engine of this computer failed: {error:#}"))?;
+    Ok(output
+        .lines
+        .into_iter()
+        .map(|line| {
+            let xs = line.bbox.points.iter().map(|p| p[0]);
+            let ys = line.bbox.points.iter().map(|p| p[1]);
+            let (x0, x1) = xs.fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+            let (y0, y1) = ys.fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+            ReadLine { text: line.text, score: line.score, bbox: [x0 as i64, y0 as i64, x1 as i64, y1 as i64] }
+        })
+        .collect())
 }
 
 /// The text of the lines whose confidence reaches `threshold`, one per
 /// row. A page with lines but none sure enough says `[ilegible]`, so the
 /// screens offer it to another engine; a page without any line is blank.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn text_of(lines: &[ReadLine], threshold: f32) -> String {
     let kept: Vec<&str> = lines.iter().filter(|line| line.score >= threshold).map(|line| line.text.trim()).filter(|text| !text.is_empty()).collect();
     if kept.is_empty() && !lines.is_empty() {
@@ -204,7 +230,18 @@ pub fn text_of(lines: &[ReadLine], threshold: f32) -> String {
     kept.join("\n")
 }
 
-/// Reads with the engine of this computer, one page at a time.
+/// What reads a page drawn as a picture by zones (E1 of 2 nov): its zones,
+/// by the model of zones, and its lines with their confidence and box, by
+/// the reader. The one of this computer is `LocalRecognizer`; the tests
+/// give stand-ins.
+pub trait PageByZones {
+    fn zones(&self, picture: &image::RgbImage) -> Result<Vec<super::layout_local::Zone>, String>;
+    fn lines(&self, picture: &image::RgbImage) -> Result<Vec<ReadLine>, String>;
+}
+
+/// Reads with the engine of this computer, one page at a time, by zones
+/// (`by_zones`): the base reads each page with the thresholds of its
+/// configuration (`docbase/structure`).
 pub struct LocalRecognizer;
 
 impl LocalRecognizer {
@@ -219,15 +256,35 @@ impl Default for LocalRecognizer {
     }
 }
 
+impl PageByZones for LocalRecognizer {
+    fn zones(&self, picture: &image::RgbImage) -> Result<Vec<super::layout_local::Zone>, String> {
+        let mut model = super::layout_local::model()?;
+        super::layout_local::zones(&mut model, picture)
+    }
+
+    fn lines(&self, picture: &image::RgbImage) -> Result<Vec<ReadLine>, String> {
+        let mut ocr = engine()?;
+        read_picture(&mut ocr, picture)
+    }
+}
+
 impl TextRecognizer for LocalRecognizer {
     fn engine_id(&self) -> String {
         format!("{ENGINE}:{}", catalog().model_set)
     }
 
+    /// An image read whole by zones, with the thresholds by default: the
+    /// base never reads this way (it reads by `by_zones`, with the
+    /// thresholds of its configuration); the measurements do.
     fn recognize(&self, image: &Path) -> Result<String, String> {
-        let mut ocr = engine()?;
-        let lines = read_lines(&mut ocr, image)?;
-        Ok(text_of(&lines, catalog().min_line_confidence))
+        let defaults = crate::docbase::thresholds::Thresholds::default();
+        let bands = crate::docbase::structure::page::Bands { high: defaults.high, low: defaults.low };
+        let page = crate::docbase::structure::reader::read_image(image, bands, None, self)?;
+        Ok(crate::docbase::structure::reader::marked_text(&page))
+    }
+
+    fn by_zones(&self) -> Option<&dyn PageByZones> {
+        Some(self)
     }
 }
 
@@ -240,7 +297,7 @@ mod tests {
     }
 
     fn line(text: &str, score: f32) -> ReadLine {
-        ReadLine { text: text.into(), score }
+        ReadLine { text: text.into(), score, bbox: [0, 0, 10, 10] }
     }
 
     #[test]
@@ -258,7 +315,9 @@ mod tests {
     fn the_catalog_says_how_to_read() {
         let catalog = catalog();
         assert!(model_set_by_name(&catalog.model_set).is_some());
-        assert!((0.0..=1.0).contains(&catalog.min_line_confidence));
+        // The threshold of the lines is not here: it is the one of the
+        // configuration of the base (E1 of 2 nov).
+        assert!(!CATALOG.contains("minLineConfidence"));
         assert!(catalog.long_side_px >= 1000);
         assert_eq!(LocalRecognizer::new().engine_id(), format!("rapidocr-onnx:{}", catalog.model_set));
     }
@@ -286,10 +345,15 @@ mod tests {
         }
         let mut ocr = start_in(&dir).unwrap();
         let lines = read_lines(&mut ocr, &fixture("pagina-prueba.png")).unwrap();
-        let text = text_of(&lines, catalog().min_line_confidence);
+        let text = text_of(&lines, crate::docbase::thresholds::Thresholds::default().low as f32);
         assert!(text.contains("CONTRATO DE PRUEBA"), "{text}");
         assert!(text.contains("1.284.650,75"), "{text}");
         assert!(text.contains("03/11/2026"), "{text}");
         assert!(lines.iter().all(|line| (0.0..=1.0).contains(&line.score)));
+        // Each line has its box, inside the page and from the top down.
+        assert!(lines.iter().all(|line| line.bbox[0] <= line.bbox[2] && line.bbox[1] <= line.bbox[3] && line.bbox[0] >= 0));
+        let title = lines.iter().find(|line| line.text.contains("CONTRATO DE PRUEBA")).unwrap();
+        let amount = lines.iter().find(|line| line.text.contains("1.284.650,75")).unwrap();
+        assert!(title.bbox[1] < amount.bbox[1], "{title:?} {amount:?}");
     }
 }

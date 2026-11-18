@@ -428,7 +428,7 @@ describe("the scans in «En curso» (P-242)", () => {
     useAiServicesStore.setState({ services: NO_SERVICES })
     const html = renderToStaticMarkup(<StageLine stage={scans} scope={{}} engineChosen initialOpen initialItems={items} />)
     const shown = text(html)
-    expect(shown).toContain("Falta elegir el motor que reconoce escaneos: en Ajustes → Servicios de IA, elegí uno para «Reconocer escaneos».")
+    expect(shown).toContain("La base no puede leer escaneos con el lector elegido: en Ajustes → Servicios de IA → «Reconocer escaneos», elegí otro (el de esta computadora es el de por omisión).")
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Reconocer todos<\/button>/)
     // Without an engine, the documents have no button to recognize them.
     expect(shown).not.toContain("Reconocer Abrir")

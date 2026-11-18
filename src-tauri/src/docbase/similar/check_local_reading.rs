@@ -37,7 +37,7 @@ use sha2::{Digest, Sha256};
 use crate::docbase::testing::TempDir;
 use crate::source_volume::page_shape::profile_pdf;
 use crate::source_volume::recognition::{render_page, UNREADABLE};
-use crate::source_volume::recognition_local::{catalog, development_dir, read_lines, start_in, text_of, ReadLine};
+use crate::source_volume::recognition_local::{development_dir, read_lines, start_in, text_of, ReadLine};
 
 const THRESHOLDS: [f32; 9] = [0.0, 0.5, 0.7, 0.8, 0.85, 0.9, 0.93, 0.95, 0.97];
 
@@ -250,7 +250,8 @@ fn the_engine_of_this_computer_against_the_sheets_and_the_folder() {
     let total = to_read.len();
     let step = total.div_ceil(max_pages.max(1)).max(1);
     let sample: Vec<(usize, u32)> = to_read.iter().copied().step_by(step).take(max_pages).collect();
-    let threshold = catalog().min_line_confidence;
+    // The low threshold by default of the configuration (E1 of 2 nov).
+    let threshold = crate::docbase::thresholds::Thresholds::default().low as f32;
     let (mut with_text, mut unreadable, mut blank, mut failed) = (0, 0, 0, 0);
     let (mut drawn_s, mut read_s, mut slowest) = (0.0, 0.0, 0.0f64);
     // At each threshold: the lines that enter, and the pages left with none.

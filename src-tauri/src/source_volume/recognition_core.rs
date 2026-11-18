@@ -428,9 +428,18 @@ fn page_reading(result: &ReadingResult) -> PageReading {
     if lines.is_empty() {
         // No lines: Textract could not read it (Core does not say so otherwise).
         let text = if result.text.trim().is_empty() { UNREADABLE.to_string() } else { result.text.trim().to_string() };
-        return PageReading { text, doubtful: Vec::new(), read_by };
+        return PageReading { text, doubtful: Vec::new(), read_by, lines: Vec::new() };
     }
     let text = lines.iter().map(|line| line.text.trim()).collect::<Vec<_>>().join("\n");
+    // How sure it is of each line: of its least sure word, for the bands of
+    // the base (D-668, E1 of 2 nov). A line without words is taken as sure.
+    let percents = lines
+        .iter()
+        .map(|line| {
+            let least = line.words.iter().filter(|w| !w.text.trim().is_empty()).map(|w| unit(w.confidence)).fold(1.0_f64, f64::min);
+            (least * 100.0).floor().clamp(0.0, 100.0) as u8
+        })
+        .collect();
     let doubtful = lines
         .iter()
         .enumerate()
@@ -445,7 +454,7 @@ fn page_reading(result: &ReadingResult) -> PageReading {
                 })
         })
         .collect();
-    PageReading { text, doubtful, read_by }
+    PageReading { text, doubtful, read_by, lines: percents }
 }
 
 #[cfg(test)]

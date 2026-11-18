@@ -43,8 +43,14 @@ use super::types::{self, RelationDef};
 /// the text is compared without what its format adds (D-521). `similar-5`:
 /// a part of a cut file reads the seal of its file as context, and a
 /// signing certificate of the same file passes its signatures to the part
-/// it certifies (D-607).
-pub const ENGINE: &str = "similar-5";
+/// it certifies (D-607). `similar-6`: the stamp of a signing service in a
+/// sealed file is a party's signature, and the rules of the type take
+/// different data down to the same template, use each document's own
+/// datum and need a stage's data (P-485). `similar-7`: the scanned text
+/// that follows the fields of a form is compared (E3 of 2 nov), and each
+/// document keeps its share of safe words with its signature
+/// (`safe_words.rs`).
+pub const ENGINE: &str = "similar-7";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";
@@ -289,6 +295,135 @@ pub enum Decision {
     Undo,
 }
 
+/// What `note_failure` writes down for the signature of a document.
+const SIGN_STAGE: &str = "similar";
+
+/// A version `c`, its text `d` and its signature `s`, with `unsigned_where`.
+const UNSIGNED_FROM: &str = "version c
+     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+     LEFT JOIN similar_signature s ON s.version_id = c.id";
+
+/// SQL over `UNSIGNED_FROM`: the signature of the version is missing, or
+/// was made over another text or by another engine than `?1`, and its
+/// signing did not fail over this text with a failure that holds
+/// (`note_failure`). Only a document is compared (D-718): never a whole
+/// file as such; each part of one of several is, with its own text (D-560).
+fn unsigned_where() -> String {
+    format!(
+        "{} AND NOT {failed}",
+        unsigned_or_failed_where(),
+        failed = super::super::cut::failed_sql(SIGN_STAGE, "c.id", "d.created_at || '|' || ?1")
+    )
+}
+
+/// SQL over `UNSIGNED_FROM`: as `unsigned_where`, also when its signing
+/// failed. What waits for it (D-717).
+fn unsigned_or_failed_where() -> String {
+    format!(
+        "c.state = 'processed'
+         AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
+         AND {document}",
+        document = super::super::cut::parts::is_document_sql("c.id"),
+    )
+}
+
+/// How many documents are still to sign, `free` (an SQL condition over the
+/// version `c`) saying which count: the step of the signature (A1 of 2 nov).
+pub(crate) fn unsigned_left(conn: &Connection, free: &str) -> Result<usize, String> {
+    let unsigned: i64 = conn
+        .query_row(&format!("SELECT count(*) FROM {UNSIGNED_FROM} WHERE {} AND {free}", unsigned_or_failed_where()), [engine_id()], |row| row.get(0))
+        .map_err(sql_err)?;
+    Ok(unsigned.max(0) as usize)
+}
+
+/// How many documents are marked to measure again (`similar_dirty`),
+/// `free` (an SQL condition over the version `c`) saying which count.
+pub(crate) fn dirty_left(conn: &Connection, free: &str) -> Result<usize, String> {
+    let dirty: i64 = conn
+        .query_row(
+            &format!("SELECT count(*) FROM similar_dirty x WHERE {}", free.replace("c.id", "x.version_id")),
+            [],
+            |row| row.get(0),
+        )
+        .map_err(sql_err)?;
+    Ok(dirty.max(0) as usize)
+}
+
+/// What the base knows now that the key data come from, in a few counts:
+/// when it is the one written down at the last check, no key datum changed.
+fn key_data_now(conn: &Connection) -> Result<String, String> {
+    conn.query_row(
+        "SELECT (SELECT count(*) || ':' || coalesce(max(id), 0) || ':' || count(entity_id) || ':' || coalesce(max(entity_id), '')
+                 FROM knowledge_mention)
+             || '|' || (SELECT count(*) FROM knowledge_identifier)
+             || '|' || (SELECT count(*) || ':' || coalesce(max(id), 0) FROM knowledge_evidence)
+             || '|' || (SELECT count(*) || ':' || coalesce(max(computed_at), 0) FROM document_data)
+             || '|' || (SELECT count(*) || ':' || count(merged_into) || ':' || coalesce(max(updated_at), 0) FROM knowledge_entity)",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(sql_err)
+}
+
+/// The documents measured with other key data than the ones they have now,
+/// not yet marked to measure again (R-15). Reads only: the step of the
+/// similar documents counts them from the base, in the same moment an
+/// answer changes them (A1 of 2 nov; it closes the gap, E4).
+/// `now` is `key_data_now`: when it is the one of the last check, none.
+pub(crate) fn stale_by_key_data(conn: &Connection, now: &str) -> Result<Vec<i64>, String> {
+    Ok(stale_with_prints(conn, now)?.into_iter().map(|(content_id, _, _)| content_id).collect())
+}
+
+/// The same, each with the print of the key data it was measured with and
+/// the one it has now: the loop tells a document that goes back with key
+/// data it never had (the process going on: a reading, an answer) from one
+/// that goes back with key data it already had (a circle, D-774, point 2).
+pub(crate) fn stale_with_prints(conn: &Connection, now: &str) -> Result<Vec<(i64, String, String)>, String> {
+    let then: Option<String> = conn
+        .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [KEY_DATA_SETTING], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?;
+    if then.as_deref() == Some(now) {
+        return Ok(Vec::new());
+    }
+    let measured: Vec<(i64, String)> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT k.version_id, k.print FROM similar_key_data k
+                 WHERE k.version_id NOT IN (SELECT version_id FROM similar_dirty)",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        rows
+    };
+    if measured.is_empty() {
+        return Ok(Vec::new());
+    }
+    let current = key_data::load_all(conn, None)?;
+    let empty = KeyData::default().print();
+    Ok(measured
+        .into_iter()
+        .filter_map(|(content_id, was)| {
+            let now = current.get(&content_id).map(KeyData::print).unwrap_or_else(|| empty.clone());
+            (now != was).then_some((content_id, was, now))
+        })
+        .collect())
+}
+
+/// `stale_by_key_data` with what the base knows now.
+pub(crate) fn stale_by_key_data_now(conn: &Connection) -> Result<Vec<i64>, String> {
+    stale_by_key_data(conn, &key_data_now(conn)?)
+}
+
+/// `stale_with_prints` with what the base knows now.
+pub(crate) fn stale_with_prints_now(conn: &Connection) -> Result<Vec<(i64, String, String)>, String> {
+    stale_with_prints(conn, &key_data_now(conn)?)
+}
+
 impl DocBase {
     /// One small piece of the similar-documents work. Returns how much was
     /// done (0: nothing pending).
@@ -337,8 +472,9 @@ impl DocBase {
     }
 
     /// Uncounts and drops the signatures of contents that went away, and
-    /// those of the version of a whole file that now has included parts:
-    /// its parts are compared instead (D-560). What was proposed with it
+    /// those of a version that is no longer a document (D-718), as the
+    /// version of a whole file that now has two or more: its parts are
+    /// compared instead (D-560). What was proposed with it
     /// goes too; a person's decision stays.
     fn similar_forget_orphans(&self) -> Result<usize, String> {
         let mut conn = self.conn();
@@ -347,8 +483,8 @@ impl DocBase {
             let mut statement = tx
                 .prepare(&format!(
                     "SELECT s.version_id, s.shingles FROM similar_signature s
-                     WHERE s.version_id NOT IN (SELECT id FROM version) OR {}",
-                    super::super::cut::parts::has_included_sql("s.version_id")
+                     WHERE s.version_id NOT IN (SELECT id FROM version) OR NOT {}",
+                    super::super::cut::parts::is_document_sql("s.version_id")
                 ))
                 .map_err(sql_err)?;
             let rows = statement
@@ -391,7 +527,16 @@ impl DocBase {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         save_signature(&tx, &signed, &engine_id())?;
+        save_safe_words(&tx, content_id, &body, &engine_id())?;
         tx.commit().map_err(sql_err)
+    }
+
+    /// The versions the search of similar documents has still to sign, or
+    /// sign again: the reading waits for it, as it waits for the type,
+    /// which needs it (D-666). One whose signature failed waits too
+    /// (D-717): it is not read without it. Asks nothing.
+    pub(crate) fn waiting_for_similar(&self) -> Result<BTreeSet<i64>, String> {
+        waiting_for_similar_in(&self.conn())
     }
 
     /// Signs up to `limit` contents whose signature is missing or stale.
@@ -404,16 +549,12 @@ impl DocBase {
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT c.id, d.body, d.created_at, fd.body
-                     FROM version c
-                     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+                     FROM {UNSIGNED_FROM}
                      LEFT JOIN derivative fd ON fd.version_id = c.id AND fd.kind = 'fields'
-                     LEFT JOIN similar_signature s ON s.version_id = c.id
-                     WHERE c.state = 'processed'
-                       AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
-                       AND NOT {}
+                     WHERE {unsigned}
                      ORDER BY c.id
                      LIMIT ?2",
-                    super::super::cut::parts::has_included_sql("c.id")
+                    unsigned = unsigned_where()
                 ))
                 .map_err(sql_err)?;
             let rows = statement
@@ -432,23 +573,28 @@ impl DocBase {
             jobs
         };
         // The signatures of each file a part is cut from, read once.
-        let mut of_file: HashMap<String, Vec<PdfSignature>> = HashMap::new();
+        let mut of_file: HashMap<String, (Vec<PdfSignature>, Vec<SignaturesError>)> = HashMap::new();
         // And what the catalog reads in each of its parts.
         let mut readings_of: HashMap<String, Vec<Vec<Mark>>> = HashMap::new();
         for (content_id, body, text_at, fields, paths, cut_from) in &jobs {
-            let signatures = read_signatures(paths);
+            let (signatures, mut unread) = read_signatures(paths);
             let mut context = Vec::new();
             for file in cut_from {
-                let found = of_file.entry(file.hash.clone()).or_insert_with(|| read_signatures(&file.paths));
+                let (found, errors) = of_file.entry(file.hash.clone()).or_insert_with(|| read_signatures(&file.paths));
                 context.extend(found.iter().filter(|s| !context.contains(*s)).cloned().collect::<Vec<_>>());
+                unread.extend(errors.iter().cloned());
             }
+            // Digital signatures that could not be read are written down
+            // (D-714): in use or in the cloud, the signature of the
+            // document waits for them; broken, it goes on without them.
+            let mut signatures_waiting = self.note_signatures_read(paths, cut_from, &unread)?;
             // What the other parts of its files say of it (D-607).
             let mut certified = Vec::new();
             let mut given: Vec<String> = Vec::new();
             for file in cut_from {
                 let context = &of_file[&file.hash];
                 let readings = readings_of.entry(file.hash.clone()).or_insert_with(|| {
-                    file.parts.iter().map(|(_, text, has_fields)| sign_reading(text, *has_fields, &[], context).marks).collect()
+                    file.parts.iter().map(|(_, text, has_fields)| sign_reading(text, *has_fields, &[], &context.0).marks).collect()
                 });
                 let parts: Vec<attest::Part<'_>> = file
                     .parts
@@ -465,10 +611,26 @@ impl DocBase {
                 given.extend(found.gives.into_iter().filter(|kind| !given.contains(kind)).collect::<Vec<_>>());
             }
             let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures, &context, (certified, given));
-            let mut conn = self.conn();
-            let tx = conn.transaction().map_err(sql_err)?;
-            save_signature(&tx, &signed, &engine)?;
-            tx.commit().map_err(sql_err)?;
+            // One document at a time: a signature that fails is written
+            // down and the others go on (D-488); that document waits for
+            // it (D-717): it is neither typed nor read.
+            let mut saved = || -> Result<(), String> {
+                if let Some(error) = signatures_waiting.take() {
+                    return Err(error);
+                }
+                let mut conn = self.conn();
+                let tx = conn.transaction().map_err(sql_err)?;
+                save_signature(&tx, &signed, &engine)?;
+                save_safe_words(&tx, *content_id, body, &engine)?;
+                tx.commit().map_err(sql_err)
+            };
+            match saved() {
+                Ok(()) => super::super::cut::note_success(&self.conn(), SIGN_STAGE, &content_id.to_string())?,
+                Err(error) => {
+                    let basis = format!("{text_at}|{engine}");
+                    super::super::cut::note_failure(&self.conn(), SIGN_STAGE, &content_id.to_string(), &basis, &error)?;
+                }
+            }
         }
         Ok(jobs.len())
     }
@@ -606,50 +768,12 @@ impl DocBase {
     /// datum of the archive each time). Returns how many it left to measure.
     fn similar_key_data_check(&self) -> Result<usize, String> {
         let conn = self.conn();
-        let now: String = conn
-            .query_row(
-                "SELECT (SELECT count(*) || ':' || coalesce(max(id), 0) || ':' || count(entity_id) || ':' || coalesce(max(entity_id), '')
-                         FROM knowledge_mention)
-                     || '|' || (SELECT count(*) FROM knowledge_identifier)
-                     || '|' || (SELECT count(*) || ':' || coalesce(max(id), 0) FROM knowledge_evidence)
-                     || '|' || (SELECT count(*) || ':' || coalesce(max(computed_at), 0) FROM document_data)
-                     || '|' || (SELECT count(*) || ':' || count(merged_into) || ':' || coalesce(max(updated_at), 0) FROM knowledge_entity)",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(sql_err)?;
-        let then: Option<String> = conn
-            .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [KEY_DATA_SETTING], |row| row.get(0))
-            .optional()
-            .map_err(sql_err)?;
-        if then.as_deref() == Some(now.as_str()) {
-            return Ok(0);
-        }
-        let measured: Vec<(i64, String)> = {
-            let mut statement = conn
-                .prepare(
-                    "SELECT k.version_id, k.print FROM similar_key_data k
-                     WHERE k.version_id NOT IN (SELECT version_id FROM similar_dirty)",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(sql_err)?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(sql_err)?;
-            rows
-        };
-        let current = key_data::load_all(&conn, None)?;
-        let empty = KeyData::default().print();
+        let now = key_data_now(&conn)?;
+        let stale = stale_by_key_data(&conn, &now)?;
         let at = now_ms();
-        let mut stale = 0;
-        for (content_id, print) in measured {
-            let print_now = current.get(&content_id).map(KeyData::print).unwrap_or_else(|| empty.clone());
-            if print_now != print {
-                conn.execute("INSERT OR REPLACE INTO similar_dirty (version_id, since) VALUES (?1, ?2)", params![content_id, at])
-                    .map_err(sql_err)?;
-                stale += 1;
-            }
+        for content_id in &stale {
+            conn.execute("INSERT OR REPLACE INTO similar_dirty (version_id, since) VALUES (?1, ?2)", params![content_id, at])
+                .map_err(sql_err)?;
         }
         conn.execute("DELETE FROM similar_key_data WHERE version_id NOT IN (SELECT id FROM version)", [])
             .map_err(sql_err)?;
@@ -658,7 +782,7 @@ impl DocBase {
             params![KEY_DATA_SETTING, now],
         )
         .map_err(sql_err)?;
-        Ok(stale)
+        Ok(stale.len())
     }
 
     /// Pass 3: families against a principal document (R-14), from the
@@ -1141,6 +1265,14 @@ fn sign(
     }
 }
 
+/// The share of safe words of a document goes with its signature, made of
+/// the same text (E3 of 2 nov): the step of the signature keeps both, and
+/// its condition is the condition of both.
+fn save_safe_words(tx: &Transaction<'_>, content_id: i64, body: &str, engine: &str) -> Result<(), String> {
+    let words = crate::docbase::safe_words::measure(tx, content_id, body)?;
+    crate::docbase::safe_words::save(tx, content_id, &words, engine)
+}
+
 fn save_signature(tx: &Transaction<'_>, signed: &Signed, engine: &str) -> Result<(), String> {
     let old: Option<Vec<u8>> = tx
         .query_row("SELECT shingles FROM similar_signature WHERE version_id = ?1", [signed.content_id], |row| row.get(0))
@@ -1275,7 +1407,7 @@ struct CutFrom {
 fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, String> {
     let hashes: Vec<String> = {
         let mut statement = conn
-            .prepare("SELECT DISTINCT resource_hash FROM appearance WHERE version_id = ?1 AND selector <> 'file' ORDER BY 1")
+            .prepare("SELECT DISTINCT resource_hash FROM appearance WHERE version_id = ?1 AND selector GLOB 'pages:*' ORDER BY 1")
             .map_err(sql_err)?;
         let rows = statement.query_map([content_id], |row| row.get(0)).map_err(sql_err)?;
         rows.collect::<Result<_, _>>().map_err(sql_err)?
@@ -1287,7 +1419,7 @@ fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, St
                 "SELECT a.version_id, d.body, fd.version_id IS NOT NULL FROM appearance a
                  JOIN derivative d ON d.version_id = a.version_id AND d.kind = 'text'
                  LEFT JOIN derivative fd ON fd.version_id = a.version_id AND fd.kind = 'fields'
-                 WHERE a.resource_hash = ?1 AND a.selector <> 'file'
+                 WHERE a.resource_hash = ?1 AND a.selector GLOB 'pages:*'
                  ORDER BY a.position, a.id",
             )
             .map_err(sql_err)?;
@@ -1302,9 +1434,15 @@ fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, St
     Ok(out)
 }
 
-/// The digital signatures of these PDF files, each once.
-fn read_signatures(paths: &[(String, PathBuf)]) -> Vec<PdfSignature> {
+/// A file whose digital signatures could not be read: its hash and the
+/// error, with what Windows says of it.
+type SignaturesError = (String, String);
+
+/// The digital signatures of these PDF files, each once, and the files
+/// whose signatures could not be read.
+fn read_signatures(paths: &[(String, PathBuf)]) -> (Vec<PdfSignature>, Vec<SignaturesError>) {
     let mut signatures = Vec::new();
+    let mut errors = Vec::new();
     for (file, path) in paths {
         match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path, Some(file))) {
             Ok(found) => {
@@ -1314,10 +1452,47 @@ fn read_signatures(paths: &[(String, PathBuf)]) -> Vec<PdfSignature> {
                     }
                 }
             }
-            Err(error) => eprintln!("[docbase] signatures of '{}': {error}", path.display()),
+            Err(error) => {
+                eprintln!("[docbase] signatures of '{}': {error}", path.display());
+                // A file that is not there is the sweep's to notice.
+                if path.exists() {
+                    errors.push((file.clone(), crate::docbase::failures::pdf_error_detail(path, error)));
+                }
+            }
         }
     }
-    signatures
+    (signatures, errors)
+}
+
+impl DocBase {
+    /// Writes down the digital signatures that could not be read, and
+    /// resolves those of the files that were read. Returns the error that
+    /// makes the signature of the document wait: a transient one.
+    fn note_signatures_read(
+        &self,
+        paths: &[(String, PathBuf)],
+        cut_from: &[CutFrom],
+        unread: &[SignaturesError],
+    ) -> Result<Option<String>, String> {
+        use crate::docbase::failures::{self, About, Class, Failure, DIGITAL_SIGNATURES_STAGE};
+        let conn = self.conn();
+        let mut waiting = None;
+        for (hash, error) in unread {
+            let recorded = failures::record(&conn, &Failure::new(DIGITAL_SIGNATURES_STAGE, About::File(hash.clone()), error))?;
+            // In use by another program or in the cloud: the signature
+            // waits. Broken, encrypted or not there: it goes on without
+            // them, as before, with the failure written down.
+            let passing = ["file-locked", "cloud-not-downloaded"].contains(&failures::classify(error).code);
+            if recorded.class == Class::Transient && passing && waiting.is_none() {
+                waiting = Some(error.clone());
+            }
+        }
+        let files = paths.iter().map(|(hash, _)| hash).chain(cut_from.iter().map(|f| &f.hash));
+        for hash in files.filter(|h| !unread.iter().any(|(u, _)| u == *h)) {
+            failures::resolve(&conn, DIGITAL_SIGNATURES_STAGE, &About::File(hash.clone()))?;
+        }
+        Ok(waiting)
+    }
 }
 
 fn pdf_paths_where(conn: &Connection, filter: &str, value: &dyn rusqlite::ToSql) -> Result<Vec<(String, PathBuf)>, String> {
@@ -1782,4 +1957,14 @@ mod tests {
             pending.pairs, pending.same_document_pairs, pending.groups
         );
     }
+}
+
+/// `DocBase::waiting_for_similar`, over a connection: read-only, for the
+/// count of the step of the reading too (arreglo 1 of the small test of 2
+/// nov).
+pub(crate) fn waiting_for_similar_in(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    let mut statement =
+        conn.prepare(&format!("SELECT c.id FROM {UNSIGNED_FROM} WHERE {}", unsigned_or_failed_where())).map_err(sql_err)?;
+    let rows = statement.query_map(params![engine_id()], |row| row.get(0)).map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
 }

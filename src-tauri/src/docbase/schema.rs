@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -251,6 +251,211 @@ WHERE model_says IS NOT NULL AND question IS NOT NULL;
 DELETE FROM cut_applied;
 ";
 
+/// The cut over the reading by zones (`cut/by_zones`, D-668): the windows
+/// of pages asked about a file (`cut_window`), each one question with its
+/// key and its text, and the hints of the rules of each step
+/// (`cut_step.hints`, JSON). They go with their file.
+const V7: &str = "
+CREATE TABLE cut_window (
+    resource_hash  TEXT NOT NULL REFERENCES file (hash) ON DELETE CASCADE,
+    first_page     INTEGER NOT NULL CHECK (first_page >= 1),
+    last_page      INTEGER NOT NULL,
+    part_first     INTEGER NOT NULL,
+    part_last      INTEGER NOT NULL,
+    window_no      INTEGER NOT NULL CHECK (window_no >= 1),
+    windows        INTEGER NOT NULL,
+    question       TEXT NOT NULL,
+    prompt         TEXT NOT NULL,
+    created_at     INTEGER NOT NULL,
+    PRIMARY KEY (resource_hash, first_page)
+) WITHOUT ROWID;
+CREATE INDEX cut_window_by_question ON cut_window (question);
+ALTER TABLE cut_step ADD COLUMN hints TEXT;
+";
+
+/// The record of failures (`failures.rs`, D-714): one row per failure of
+/// a step over one thing, with its cause, class, reach, attempts and
+/// times. The keys `failed:<step>:<item>` of the settings, which kept only
+/// the step and what it was done over, come into it and are not written
+/// any more: their cause was never kept, so they are tried again once
+/// (transient, due now) to learn it.
+const V8: &str = "
+CREATE TABLE failure (
+    id            INTEGER PRIMARY KEY,
+    stage         TEXT NOT NULL,
+    item_kind     TEXT NOT NULL CHECK (item_kind IN ('file', 'version', 'span', 'engine', 'origin', 'thread')),
+    item          TEXT NOT NULL,
+    file_hash     TEXT REFERENCES file (hash) ON DELETE CASCADE,
+    version_id    INTEGER REFERENCES version (id) ON DELETE CASCADE,
+    basis         TEXT,
+    cause         TEXT NOT NULL,
+    message       TEXT NOT NULL,
+    class         TEXT NOT NULL CHECK (class IN ('transient', 'permanent', 'unknown')),
+    scope         TEXT NOT NULL CHECK (scope IN ('item', 'engine')),
+    engine        TEXT,
+    attempt       INTEGER NOT NULL DEFAULT 1 CHECK (attempt >= 1),
+    answer_hash   TEXT,
+    same_answers  INTEGER NOT NULL DEFAULT 0,
+    first_at      INTEGER NOT NULL,
+    last_at       INTEGER NOT NULL,
+    next_at       INTEGER,
+    state         TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'resolved', 'person')),
+    indicator     INTEGER NOT NULL DEFAULT 0 CHECK (indicator IN (0, 1)),
+    to_diagnose   INTEGER NOT NULL DEFAULT 0 CHECK (to_diagnose IN (0, 1))
+);
+CREATE UNIQUE INDEX failure_open ON failure (stage, item_kind, item) WHERE state <> 'resolved';
+CREATE INDEX failure_by_file ON failure (file_hash) WHERE state <> 'resolved';
+CREATE INDEX failure_by_version ON failure (version_id) WHERE state <> 'resolved';
+INSERT INTO failure (stage, item_kind, item, file_hash, version_id, basis, cause, message, class, scope,
+                     first_at, last_at, next_at, state)
+SELECT k.stage,
+       CASE WHEN k.stage = 'similar' THEN 'version' ELSE 'file' END,
+       k.item,
+       CASE WHEN k.stage <> 'similar' AND EXISTS (SELECT 1 FROM file f WHERE f.hash = k.item) THEN k.item END,
+       CASE WHEN k.stage = 'similar' AND EXISTS (SELECT 1 FROM version v WHERE v.id = CAST(k.item AS INTEGER))
+            THEN CAST(k.item AS INTEGER) END,
+       k.basis, 'before-record',
+       'Failed before the app kept the causes of its failures: tried again to learn it.',
+       'transient', 'item', k.now, k.now, k.now, 'open'
+FROM (SELECT substr(key, 8, instr(substr(key, 8), ':') - 1) AS stage,
+             substr(key, 8 + instr(substr(key, 8), ':')) AS item,
+             value AS basis,
+             CAST(strftime('%s', 'now') AS INTEGER) * 1000 AS now
+      FROM docbase_setting WHERE substr(key, 1, 7) = 'failed:' AND instr(substr(key, 8), ':') > 1) k;
+DELETE FROM docbase_setting WHERE substr(key, 1, 7) = 'failed:';
+";
+
+/// Two levels, file and document (D-718): every file has a structure of
+/// 1 to n documents, written the same way whatever n is: the appearances
+/// of its documents (`selector` other than `file`). A file of one document
+/// has one, `all` (from its first page to its last, whatever the file: a
+/// PDF of one page or of many, a Word, an image, an email), with the
+/// version of the file: the document keeps its version, its type, its
+/// reading and its answers. A file of 2 or more documents (a «documento
+/// compuesto») has one `pages:<from>-<to>` per part, as before. The
+/// appearance `file` stays: it is the file itself, its print and its exact
+/// copies. The table is made again to let `all` in; the files that have
+/// no structure get theirs, and every new file is born with it (the cutter
+/// changes it into its parts when it finds several, `cut/parts.rs`).
+const V9: &str = "
+DROP TRIGGER file_appears;
+DROP TRIGGER file_moves;
+CREATE TABLE appearance_v9 (
+    id             INTEGER PRIMARY KEY,
+    version_id     INTEGER NOT NULL REFERENCES version (id) ON DELETE CASCADE,
+    resource_hash  TEXT NOT NULL REFERENCES file (hash) ON DELETE CASCADE,
+    selector       TEXT NOT NULL CHECK (selector IN ('file', 'all')
+                       OR (selector GLOB 'pages:[1-9]*-[1-9]*' AND substr(selector, 7) NOT GLOB '*[^0-9-]*')),
+    position       INTEGER NOT NULL,
+    cut_by         TEXT CHECK (cut_by IN ('rule', 'model', 'person')),
+    cut_state      TEXT NOT NULL CHECK (cut_state IN ('proposed', 'confirmed')),
+    created_at     INTEGER NOT NULL,
+    uncertain      INTEGER NOT NULL DEFAULT 0 CHECK (uncertain IN (0, 1)),
+    UNIQUE (resource_hash, selector),
+    CHECK ((selector = 'file') = (cut_by IS NULL)),
+    CHECK (selector <> 'file' OR cut_state = 'confirmed')
+);
+INSERT INTO appearance_v9 (id, version_id, resource_hash, selector, position, cut_by, cut_state, created_at, uncertain)
+    SELECT id, version_id, resource_hash, selector, position, cut_by, cut_state, created_at, uncertain FROM appearance;
+DROP TABLE appearance;
+ALTER TABLE appearance_v9 RENAME TO appearance;
+CREATE INDEX appearance_by_version ON appearance (version_id);
+
+INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at)
+    SELECT f.version_id, f.hash, 'all', 1, 'rule', 'confirmed',
+           coalesce((SELECT w.uncertain FROM appearance w WHERE w.resource_hash = f.hash AND w.selector = 'file'), 0),
+           CAST(strftime('%s', 'now') AS INTEGER) * 1000
+    FROM file f
+    WHERE NOT EXISTS (SELECT 1 FROM appearance p WHERE p.resource_hash = f.hash AND p.selector <> 'file');
+
+CREATE TRIGGER file_appears AFTER INSERT ON file BEGIN
+    INSERT OR IGNORE INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, created_at)
+        VALUES (NEW.version_id, NEW.hash, 'file', 1, NULL, 'confirmed', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+    INSERT OR IGNORE INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, created_at)
+        VALUES (NEW.version_id, NEW.hash, 'all', 1, 'rule', 'confirmed', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+END;
+
+CREATE TRIGGER file_moves AFTER UPDATE OF version_id ON file BEGIN
+    UPDATE appearance SET version_id = NEW.version_id WHERE resource_hash = NEW.hash AND selector IN ('file', 'all');
+END;
+";
+
+/// The pieces of the structure and the mark of an annex (D-724, points 2
+/// and 3; 3b of 2 nov). A page that only announces an annex is a piece of
+/// its file (`structure_piece`), not a document: it has no version, type
+/// nor entities, and it is joined to the part before it and to the one
+/// after it, when they are there. The part that comes after it is an annex
+/// (`appearance.annex`). Every cut file has its parts made again.
+const V10: &str = "
+ALTER TABLE appearance ADD COLUMN annex INTEGER NOT NULL DEFAULT 0 CHECK (annex IN (0, 1));
+CREATE TABLE structure_piece (
+    resource_hash  TEXT NOT NULL REFERENCES file (hash) ON DELETE CASCADE,
+    page           INTEGER NOT NULL CHECK (page >= 1),
+    kind           TEXT NOT NULL CHECK (kind IN ('annex-announcement')),
+    joins_previous INTEGER NOT NULL CHECK (joins_previous IN (0, 1)),
+    joins_next     INTEGER NOT NULL CHECK (joins_next IN (0, 1)),
+    PRIMARY KEY (resource_hash, page)
+);
+DELETE FROM cut_applied;
+";
+
+/// The watcher (A3 of 2 nov): when something last changed in the folder of
+/// an origin, as the watcher heard it or a person asked to process it again
+/// («Volver a procesar»). Its inventory is incomplete while this is not
+/// older than its last sweep (`last_scan_at`). Null: nothing heard.
+const V11: &str = "
+ALTER TABLE origin ADD COLUMN changed_at INTEGER;
+";
+
+/// The vectors (C1 of 2 nov): one per version that is a document, kept in
+/// the base (C0 of 2 nov measured why here and not in another base: one
+/// transaction writes, deletes or replaces it together with the rest). The
+/// model and its numbers it was made with, the print (SHA-256) of the text
+/// it was made from and the time of that text, the vector (little-endian
+/// `f32`s; null for a document without text) and when it was made. A copy
+/// is the same version, so it has the same vector; another model makes
+/// every one stale. It goes with its version.
+const V12: &str = "
+CREATE TABLE version_vector (
+    version_id  INTEGER PRIMARY KEY REFERENCES version (id) ON DELETE CASCADE,
+    model       TEXT NOT NULL,
+    dimension   INTEGER NOT NULL CHECK (dimension >= 1),
+    text_hash   TEXT NOT NULL,
+    text_at     INTEGER NOT NULL,
+    vector      BLOB,
+    computed_at INTEGER NOT NULL
+);
+CREATE INDEX version_vector_by_text ON version_vector (text_hash, model, dimension);
+";
+
+/// The vectors as a signal of the type (C2 of 2 nov).
+/// - `type_doubt`: the doubtful mark of a type the model gave against its 3
+///   very close neighbours, that share another type (`similar/hint.rs`): the
+///   type it got, the one of the neighbours, and the neighbours with their
+///   likeness (JSON). It goes with its version, and when its type changes.
+/// - `type_control_answer`: the answers to the question of the type asked
+///   without the hint, only to measure it (D-805): kept apart, the process
+///   never reads them, so they change no type.
+const V13: &str = "
+CREATE TABLE type_doubt (
+    version_id     INTEGER PRIMARY KEY REFERENCES version (id) ON DELETE CASCADE,
+    doc_type       TEXT NOT NULL,
+    neighbour_type TEXT NOT NULL,
+    neighbours     TEXT NOT NULL,
+    computed_at    INTEGER NOT NULL
+);
+CREATE TABLE type_control_answer (
+    version_id     INTEGER NOT NULL REFERENCES version (id) ON DELETE CASCADE,
+    question       TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    engine         TEXT NOT NULL,
+    prompt         TEXT NOT NULL,
+    answer         TEXT NOT NULL,
+    asked_at       INTEGER NOT NULL,
+    PRIMARY KEY (version_id, question, engine)
+);
+";
+
 /// The version of a base: 0 for one just created.
 pub fn version(conn: &Connection) -> Result<i64, String> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(sql_err)
@@ -357,8 +562,9 @@ mod tests {
         .unwrap();
         migrate(&mut conn).unwrap();
         assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
+        // The file itself and its one document (D-718).
         let appearances: i64 = conn.query_row("SELECT count(*) FROM appearance", [], |row| row.get(0)).unwrap();
-        assert_eq!(appearances, 1);
+        assert_eq!(appearances, 2);
         conn.execute_batch(
             "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, rules_version, text_stamp, created_at)
                 VALUES ('h1', 0, 'new', 'start', 'r', 1, 1), ('h1', 1, 'doubtful', 'none', 'r', 1, 1);",
@@ -425,12 +631,61 @@ mod tests {
         migrate(&mut conn).unwrap();
         assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
         let count = |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
-        assert_eq!(count("SELECT count(*) FROM appearance WHERE uncertain = 0"), 1);
+        assert_eq!(count("SELECT count(*) FROM appearance WHERE uncertain = 0 AND selector = 'file'"), 1);
         assert_eq!(count("SELECT count(*) FROM cut_step WHERE model_confidence = 'low' AND after_page = 1"), 1);
         assert_eq!(count("SELECT count(*) FROM cut_step WHERE model_confidence IS NULL"), 3);
         assert_eq!(count("SELECT count(*) FROM cut_applied"), 0);
         assert!(conn.execute("UPDATE appearance SET uncertain = 2", []).is_err());
         assert!(conn.execute("UPDATE cut_step SET model_confidence = 'quizas'", []).is_err());
+    }
+
+    /// A base at version 8 (D-718): each file without a structure gets its
+    /// one document, with the version of the file and the mark of its cut;
+    /// a cut file keeps its parts and gets none; no version, answer, type,
+    /// reading or appearance is lost, and a new file is born with its one
+    /// document.
+    #[test]
+    fn version_9_gives_each_file_its_structure_and_loses_no_answer() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        build_at(&mut conn, 8);
+        conn.execute_batch(
+            "INSERT INTO version (id, state, first_seen_at) VALUES (1, 'processed', 1), (2, 'processed', 1), (3, 'processed', 1), (4, 'processed', 1);
+             INSERT INTO file (hash, version_id, size) VALUES ('suelto', 1, 10), ('cortado', 2, 10);
+             UPDATE appearance SET uncertain = 1 WHERE resource_hash = 'suelto';
+             INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at)
+                VALUES (3, 'cortado', 'pages:1-2', 1, 'rule', 'proposed', 0, 1), (4, 'cortado', 'pages:3-4', 2, 'model', 'proposed', 1, 1);
+             INSERT INTO model_answer (question, task, prompt_version, engine, version_id, prompt, answer, asked_at)
+                VALUES ('q1', 'type', '1', 'motor', 1, 'p', 'a', 1), ('q3', 'type', '1', 'motor', 3, 'p', 'a', 1),
+                       ('k4', 'knowledge', '1', 'motor', 4, 'p', 'a', 1);
+             INSERT INTO document_type (version_id, doc_type, source, basis, computed_at)
+                VALUES (1, 'contrato', 'model', 'b1', 1), (3, 'acuerdo', 'model', 'b3', 1), (4, 'contrato', 'model', 'b4', 1);
+             INSERT INTO knowledge_extraction (version_id, state, basis, prompt_version, vocabulary, text_hash, text_at, extracted_at)
+                VALUES (1, 'done', 'b', 'p', 'v', 't1', 1, 1), (3, 'done', 'b', 'p', 'v', 't3', 1, 1), (4, 'done', 'b', 'p', 'v', 't4', 1, 1);",
+        )
+        .unwrap();
+        let count = |conn: &Connection, sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
+        let kept = ["version", "document", "model_answer", "document_type", "knowledge_extraction"];
+        let before: Vec<i64> = kept.iter().map(|t| count(&conn, &format!("SELECT count(*) FROM {t}"))).collect();
+        let appearances = count(&conn, "SELECT count(*) FROM appearance");
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
+        let after: Vec<i64> = kept.iter().map(|t| count(&conn, &format!("SELECT count(*) FROM {t}"))).collect();
+        assert_eq!(after, before);
+        assert_eq!(count(&conn, "SELECT count(*) FROM appearance"), appearances + 1);
+        assert_eq!(count(&conn, "SELECT version_id FROM appearance WHERE resource_hash = 'suelto' AND selector = 'all' AND uncertain = 1"), 1);
+        assert_eq!(count(&conn, "SELECT count(*) FROM appearance WHERE resource_hash = 'cortado' AND selector = 'all'"), 0);
+        assert_eq!(count(&conn, "SELECT count(*) FROM appearance WHERE resource_hash = 'cortado' AND uncertain = 1"), 1);
+        assert_eq!(count(&conn, "SELECT count(*) FROM pragma_foreign_key_check"), 0);
+        conn.execute_batch(
+            "INSERT INTO version (id, state, first_seen_at) VALUES (5, 'pending', 1);
+             INSERT INTO file (hash, version_id, size) VALUES ('nuevo', 5, 10);",
+        )
+        .unwrap();
+        assert_eq!(count(&conn, "SELECT count(*) FROM appearance WHERE resource_hash = 'nuevo' AND version_id = 5"), 2);
+        assert!(conn
+            .execute("INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, created_at) VALUES (5, 'nuevo', 'todo', 1, 'rule', 'confirmed', 1)", [])
+            .is_err());
     }
 
     #[test]
@@ -505,12 +760,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(ints("SELECT document_id FROM version WHERE id = 12"), vec![12]);
-        assert_eq!(ints("SELECT version_id FROM appearance WHERE resource_hash = 'h4'"), vec![12]);
+        // The file itself and its one document (D-718), which move together.
+        assert_eq!(ints("SELECT version_id FROM appearance WHERE resource_hash = 'h4'"), vec![12, 12]);
         conn.execute_batch("UPDATE file SET version_id = 9 WHERE version_id = 12; DELETE FROM version WHERE id = 12;").unwrap();
-        assert_eq!(ints("SELECT version_id FROM appearance WHERE resource_hash = 'h4'"), vec![9]);
+        assert_eq!(ints("SELECT version_id FROM appearance WHERE resource_hash = 'h4'"), vec![9, 9]);
         assert_eq!(ints("SELECT id FROM document ORDER BY id"), vec![4, 9]);
         conn.execute("DELETE FROM file WHERE hash = 'h2'", []).unwrap();
-        assert_eq!(ints("SELECT count(*) FROM appearance"), vec![3]);
+        assert_eq!(ints("SELECT count(*) FROM appearance"), vec![6]);
         // The prevailing version is one of the document's; a cut of pages
         // says who made it, the whole file does not.
         assert!(conn.execute("UPDATE document SET prevailing_version_id = 9 WHERE id = 4", []).is_err());

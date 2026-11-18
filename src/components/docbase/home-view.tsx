@@ -97,8 +97,12 @@ export function HomeView() {
           {data && data.health.origins > 0 && (
             <Panel title={words.archive.health}>
               <MetricList>
-                <MetricRow label="Documentos distintos">{formatCount(data.health.documents)}</MetricRow>
-                <MetricRow label="Archivos en el inventario">{formatCount(data.health.locations)}</MetricRow>
+                {/* One rule for every screen (P-593): each part of a file of
+                    several documents is one, a copy is the same document. */}
+                <MetricRow label="Documentos (cada parte de un compuesto cuenta como uno)">{formatCount(data.health.documents)}</MetricRow>
+                <MetricRow label="Archivos distintos, en sus lugares">
+                  {`${formatCount(data.health.files ?? 0)} en ${formatCount(data.health.places ?? data.health.locations)}`}
+                </MetricRow>
                 <MetricRow
                   label="Procesados"
                   below={processed !== null && <Meter share={processed / 100} label="Procesados" className="mt-2" />}

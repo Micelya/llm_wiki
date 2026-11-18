@@ -38,6 +38,8 @@ struct StoredPart {
     doubtful: Vec<DoubtfulWord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     read_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    lines: Vec<u8>,
 }
 
 pub struct RecognizedStore {
@@ -91,6 +93,7 @@ impl RecognizedStore {
             text: entry.text.clone(),
             doubtful: entry.doubtful.clone(),
             read_by: entry.read_by.clone(),
+            lines: entry.lines.clone(),
         };
         let json = serde_json::to_string_pretty(&stored).map_err(|e| e.to_string())?;
         let path = self.part_file(part);
@@ -105,6 +108,7 @@ impl RecognizedStore {
             text: stored.text,
             doubtful: stored.doubtful,
             read_by: stored.read_by,
+            lines: stored.lines,
         })
     }
 
@@ -112,6 +116,32 @@ impl RecognizedStore {
         match part {
             Part::Page(page) => self.dir.join(format!("page-{page}.json")),
             Part::Image => self.dir.join("image.json"),
+        }
+    }
+
+    /// The reading by zones of a part kept here (`zones-page-N.json`,
+    /// `zones-image.json`), when it was made with `basis` (the recipe and
+    /// the thresholds, `docbase::structure::basis`): the step of the scans
+    /// and the step of the zones read a page once and share it (E1 of
+    /// 2 nov). Another basis does not count.
+    pub fn zones(&self, part: Part, basis: &str) -> Option<serde_json::Value> {
+        let raw = fs::read_to_string(self.zones_file(part)).ok()?;
+        let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+        (value["receta"].as_str() == Some(basis)).then_some(value)
+    }
+
+    /// Keeps the reading by zones of a part.
+    pub fn put_zones(&self, part: Part, reading: &serde_json::Value) -> Result<(), String> {
+        fs::create_dir_all(&self.dir).map_err(|e| format!("Failed to create '{}': {e}", self.dir.display()))?;
+        let path = self.zones_file(part);
+        let json = serde_json::to_string(reading).map_err(|e| e.to_string())?;
+        fs::write(&path, json).map_err(|e| format!("Failed to write '{}': {e}", path.display()))
+    }
+
+    fn zones_file(&self, part: Part) -> PathBuf {
+        match part {
+            Part::Page(page) => self.dir.join(format!("zones-page-{page}.json")),
+            Part::Image => self.dir.join("zones-image.json"),
         }
     }
 }

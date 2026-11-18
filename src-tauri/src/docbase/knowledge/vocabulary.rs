@@ -76,7 +76,7 @@ pub struct Vocabulary {
 
 /// Whether a way of writing, in lowercase, is a web address
 /// ("www.ejemplo.com.ar"): where to find someone, not who.
-fn is_web(lower: &str) -> bool {
+pub(crate) fn is_web(lower: &str) -> bool {
     lower.starts_with("www.")
         || lower.starts_with("http")
         || (!lower.contains(char::is_whitespace)
@@ -144,6 +144,76 @@ pub struct IdentityWords {
     /// How a person is named by what most of its documents write (D-516).
     #[serde(default)]
     pub person_name: PersonNameRule,
+    /// How the numbers of the strong identifiers are compared (`numbers.rs`,
+    /// E5 of 2 nov): their common form, what the reader confuses, the check
+    /// digit and the labels. The caps of the names are in the base's
+    /// configuration (`thresholds.rs`), not here.
+    #[serde(default)]
+    pub numbers: NumberWords,
+}
+
+/// How the numbers of the strong identifiers are compared (E5 of 2 nov).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NumberWords {
+    pub about: String,
+    /// A letter the reader takes for a digit, and that digit.
+    pub misread: std::collections::BTreeMap<String, String>,
+    /// The shape of each kind of identifier: "cifras" or "tomo-y-folio".
+    /// A kind without one is compared as written (`names::identifier_value`).
+    pub shapes: std::collections::BTreeMap<String, String>,
+    /// The check digit of a kind (the CUIT's).
+    pub check_digits: std::collections::BTreeMap<String, CheckDigit>,
+    /// A number that holds another inside (a person's CUIT holds the DNI).
+    pub holds: Vec<Holds>,
+    /// Labels of a kind besides the identifier's own ("le" of the DNI).
+    pub labels: std::collections::BTreeMap<String, Vec<String>>,
+    /// The least digits of a number that is joined with the tolerance or
+    /// held whole by another.
+    pub min_digits: usize,
+    /// The least digits of a volume and a folio together, to be near.
+    pub min_group_digits: usize,
+}
+
+impl Default for NumberWords {
+    fn default() -> Self {
+        Self {
+            about: String::new(),
+            misread: Default::default(),
+            shapes: Default::default(),
+            check_digits: Default::default(),
+            holds: Vec::new(),
+            labels: Default::default(),
+            min_digits: 6,
+            min_group_digits: 4,
+        }
+    }
+}
+
+/// A check digit: the last digit of a number of `weights.len() + 1` digits
+/// is `modulo` less the weighted sum of the others, modulo `modulo` (with
+/// `modulo` as 0 and 10 as `if_ten`).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckDigit {
+    pub weights: Vec<u32>,
+    pub modulo: u32,
+    pub if_ten: u32,
+    /// The least digits of a shorter number held whole by one of this kind
+    /// to be the same (written without its prefix).
+    pub contained_from: usize,
+}
+
+/// A number of kind `id` and `length` digits holds one of kind `holds`:
+/// its digits from `from` to `to` (the middle of a CUIT is the DNI).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Holds {
+    pub id: String,
+    pub holds: String,
+    pub length: usize,
+    pub from: usize,
+    pub to: usize,
 }
 
 /// A person is named by what most of its documents write (D-516): with
@@ -390,6 +460,26 @@ pub struct ReadingRules {
     /// Words there can be between the label of a form and its value.
     #[serde(default = "sixty")]
     pub label_window: usize,
+    /// How many words before a colon make the label of a form ("Apellido
+    /// y Nombre del Padre:"): the words of a label of another person
+    /// (`other_person_labels`) or of a parent (`filiation.labels`) are
+    /// looked for among them (E6 of 2 nov).
+    #[serde(default = "four")]
+    pub form_label_words: usize,
+    /// The roles of a mention that say it sends the document ("remitente"):
+    /// its quote has to say so too, with one of `sender_cues` right before
+    /// the name, or the same entity signs the document; if not, the role is
+    /// in doubt and becomes `doubtful_sender_role` (E6 of 2 nov).
+    #[serde(default)]
+    pub sender_roles: Vec<String>,
+    #[serde(default)]
+    pub sender_cues: Vec<String>,
+    #[serde(default)]
+    pub doubtful_sender_role: String,
+    /// How many words before the quote of a value its subject can be named
+    /// for the value to be the subject's without doubt (E6 of 2 nov).
+    #[serde(default)]
+    pub subject_window: usize,
     /// Predicates whose object, when the quote does not name it, may be
     /// the organization the text names last before the quote, within
     /// `objectWindow` words (a signature block, "X S.A., representada por
@@ -491,6 +581,12 @@ pub struct Filiation {
     /// How many words before the filiation the child can be named.
     #[serde(default)]
     pub window: usize,
+    /// By language, beginnings of the words of a label of a form that holds
+    /// a parent («Apellido y Nombre del Padre:», «Madre:»): the name under
+    /// it is the parent, even when the quote does not say «hijo de» (E6 of
+    /// 2 nov).
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 impl Filiation {
@@ -505,6 +601,14 @@ impl Filiation {
     pub fn other_words(&self) -> Vec<Vec<String>> {
         self.others.values().flatten().map(|c| super::quote::words(c)).filter(|w| !w.is_empty()).collect()
     }
+
+    pub fn label_words(&self) -> Vec<String> {
+        self.labels.values().flatten().map(|c| super::quote::words(c).join(" ")).filter(|w| !w.is_empty()).collect()
+    }
+}
+
+fn four() -> usize {
+    4
 }
 
 fn sixty() -> usize {
@@ -792,6 +896,18 @@ pub struct Predicate {
     /// doubtful (D-434).
     #[serde(default)]
     pub contradicted_by: Option<Contradiction>,
+    /// A relation that cannot be said both ways between the same two
+    /// (A represents B and B represents A): said both ways, the two are in
+    /// conflict (E6 of 2 nov).
+    #[serde(default)]
+    pub one_way: bool,
+    /// The generations from the subject down to the object of a kinship
+    /// (a parent 1, a grandparent 2, an uncle 1): two relations between the
+    /// same two people, each with a generation and given the other way
+    /// round (A parent of B, B grandparent of A), are in conflict (E6 of 2
+    /// nov).
+    #[serde(default)]
+    pub generation: u8,
     /// A relation with the matter of the document (being the person whose
     /// succession it is): when the reading gives no matter as its object
     /// (none, or the person herself), the object is the matter of the
@@ -827,6 +943,14 @@ impl Contradiction {
             }
         })
     }
+}
+
+/// Whether a relation said from A to B (`ahead`) and another one said from
+/// B to A (`back`) cannot both be true (E6 of 2 nov): the same relation
+/// that goes one way only, or two kinships that each put the other one
+/// generations below (A parent of B and B parent or grandparent of A).
+pub fn backwards_contradict(ahead: &Predicate, back: &Predicate) -> bool {
+    (ahead.id == back.id && (ahead.one_way || ahead.generation > 0)) || (ahead.generation > 0 && back.generation > 0)
 }
 
 /// Whether a name (normalized words) has one of `list` (each one word or
@@ -1003,6 +1127,21 @@ impl Vocabulary {
     /// standard ("Ley 123", "Norma ABC"), for an organization. The check of
     /// a reading drops such a mention (but a mail address, which still
     /// says whose contact it is); the screens and the pages show none.
+    /// The legal forms that close a name ("Ejemplo S.A."), each with its
+    /// ways of writing as normalized words: a quote that differs from the
+    /// text only in one of them is the text (P-480). The forms written
+    /// before a name ("Fundación …") are left out: their words are words
+    /// of any text.
+    pub fn closing_legal_forms(&self) -> Vec<(String, Vec<String>)> {
+        self.identity
+            .legal_forms
+            .iter()
+            .filter(|form| !form.before)
+            .flat_map(|form| form.variants.iter().map(move |v| (form.id.clone(), super::quote::words(v))))
+            .filter(|(_, words)| !words.is_empty())
+            .collect()
+    }
+
     pub fn not_named(&self, kind: &str, text: &str) -> Option<&'static str> {
         if self.is_reference(kind) {
             return None;

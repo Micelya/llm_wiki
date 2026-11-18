@@ -71,6 +71,9 @@ pub struct DocumentHit {
     pub found_by: Vec<String>,
     /// The entities named in the question that appear in it.
     pub entities: Vec<String>,
+    /// Of a type of low confidence: why (E6 of 2 nov). It is found, and
+    /// shown marked: what it says is only for queries.
+    pub low_confidence: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -523,6 +526,7 @@ impl DocBase {
                 snippet,
                 found_by: why,
                 entities: entities_of.remove(&content).unwrap_or_default(),
+                low_confidence: super::safe_words::mark_of(&conn, content)?,
             });
         }
         let mut names = BTreeMap::new();

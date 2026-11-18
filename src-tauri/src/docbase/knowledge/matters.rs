@@ -122,13 +122,15 @@ struct Link {
     reason: (String, String),
 }
 
-/// The documents read by the layer that count (not left out), with the
-/// fingerprint of their text, in an order that depends only on the texts.
+/// The documents read by the layer that count (not left out, nor of a
+/// type of low confidence: D-769, E3 of 2 nov), with the fingerprint of
+/// their text, in an order that depends only on the texts.
 fn documents(conn: &Connection) -> Result<Vec<(i64, String)>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT k.version_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {}",
+            "SELECT k.version_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {} AND NOT {}",
             changes::active_content("k.version_id"),
+            crate::docbase::safe_words::low_sql("k.version_id", crate::docbase::safe_words::limit(conn)?),
         ))
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
@@ -354,6 +356,9 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             for row in rows {
                 let (content, body) = row.map_err(sql_err)?;
                 let Some(&i) = index.get(&content) else { continue };
+                // Only a number of the firm text puts a document in a
+                // matter (D-668, E1 of 2 nov).
+                let body = crate::source_volume::bands::firm(&body);
                 for token in body.split(|c: char| c.is_whitespace() || ",;()[]«»\"'".contains(c)) {
                     let digits = digits_of(token);
                     if digits.len() >= rules.min_digits && known.contains(&digits) {
@@ -985,6 +990,8 @@ fn document_text(vocabulary: &Vocabulary, view: &DocumentView) -> String {
         out.push_str(&format!("- {}: {} («{}»)\n", vocabulary.predicate_label(predicate), one_line(object), one_line(quote_text)));
     }
     if let Some(body) = &view.body {
+        // How it starts, in its firm text (D-668, E1 of 2 nov).
+        let body = crate::source_volume::bands::firm(body);
         let opening: Vec<&str> = body.split_whitespace().filter(|w| !w.starts_with("##")).take(OPENING_WORDS).collect();
         out.push_str(&format!("- Empieza así: «{}»\n", opening.join(" ")));
     }
@@ -1213,7 +1220,10 @@ impl crate::docbase::DocBase {
             let cached = crate::docbase::similar::classify::cached_answer(&self.conn(), &question.key, engine.as_deref())?;
             let answer = match (cached, asker) {
                 (Some(answer), _) => Some(answer),
-                (None, Some(asker)) if !stopped && report.asked < max_questions => {
+                // A question whose failure holds waits (P-533).
+                (None, Some(asker))
+                    if !stopped && report.asked < max_questions && !self.question_held(question.task, question.content_id, &question.key) =>
+                {
                     report.asked += 1;
                     match crate::docbase::similar::classify::ask_and_keep(self, asker, &question) {
                         Ok(answer) => Some(answer),

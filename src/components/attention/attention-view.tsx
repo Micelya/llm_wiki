@@ -282,12 +282,14 @@ export function ActionButton({
   }
 
   const danger = action.kind === "run" && action.danger
+  const disabled = action.kind === "run" ? action.disabled : undefined
   return (
     <Button
       size={small ? "xs" : "sm"}
       variant={danger ? "ghost" : look ?? (primary ? "default" : "outline")}
       className={danger ? "text-err hover:text-err" : undefined}
-      disabled={busy}
+      disabled={busy || disabled !== undefined}
+      title={disabled}
       onClick={() => void run()}
     >
       {busy && <Loader2 className="animate-spin" />}

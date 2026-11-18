@@ -124,8 +124,9 @@ export function DetailTabs({
     <div className="flex h-full flex-col">
       <header className="shrink-0 border-b bg-background px-10 pt-[18px]">
         <Crumbs back={back} onBack={onBack} current={current} />
-        <div className="mt-2.5 flex items-end justify-between gap-6">
-          <div className="min-w-0 flex-1">
+        {/* A long title keeps its width: the buttons go below it rather than squeeze it (F4, row 7). */}
+        <div className="mt-2.5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div className="min-w-[min(100%,28rem)] flex-1">
             {kicker && <Kicker>{kicker}</Kicker>}
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">{title}</div>
             {facts && <div className="mt-1.5 text-sm text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">{facts}</div>}

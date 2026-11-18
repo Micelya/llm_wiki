@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { useAiServicesStore } from "@/stores/ai-services-store"
 import { NO_SERVICES } from "@/lib/ai-services"
+import type { EnginesCatalog } from "@/commands/docbase"
+import catalog from "../../src-tauri/resources/catalog/ai-engines.json"
 import { scansWaiting } from "@/components/docbase/background-reading-panel"
 import { progress } from "@/lib/progress/progress.fixtures"
 import {
@@ -28,10 +30,13 @@ describe("the engine that recognizes scans", () => {
     recognizeWith("codex-cli", "modelo-de-prueba")
     expect(getRecognitionConfig()).toEqual({ engine: "codex-cli", model: "modelo-de-prueba" })
     expect(recognitionEngineId(getRecognitionConfig())).toBe("codex-cli:modelo-de-prueba")
+    // With the catalog read: a reader the base cannot run is none; none chosen is the one of this computer (D-764).
+    useAiServicesStore.setState({ catalog: catalog as EnginesCatalog })
     recognizeWith("otro-motor", "otro")
     expect(getRecognitionConfig()).toBeNull()
     useAiServicesStore.setState({ services: NO_SERVICES })
-    expect(getRecognitionConfig()).toBeNull()
+    expect(getRecognitionConfig()).toEqual({ engine: "rapidocr-onnx", model: "ppocrv6-small" })
+    useAiServicesStore.setState({ catalog: null })
     expect(recognitionEngineId(null)).toBeNull()
     expect(recognitionEngineId({ engine: "codex-cli", model: " " })).toBe("codex-cli")
     // Micelya Core, with the model the registry saves it with (as `engine_id` in Rust).

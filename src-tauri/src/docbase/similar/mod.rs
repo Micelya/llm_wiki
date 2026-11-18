@@ -53,6 +53,7 @@ pub mod classify;
 pub mod data;
 pub mod format;
 pub mod generate;
+pub mod hint;
 pub mod key_data;
 pub mod marks;
 pub mod minhash;
@@ -65,6 +66,8 @@ pub mod template;
 mod tests;
 #[cfg(test)]
 mod tests_types;
+#[cfg(test)]
+mod tests_hint;
 pub mod text;
 pub mod types;
 

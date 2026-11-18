@@ -56,6 +56,11 @@ pub struct PageReading {
     pub doubtful: Vec<DoubtfulWord>,
     /// The model that read it, as its provider says (`textract-1.0`).
     pub read_by: Option<String>,
+    /// How sure the engine is of each line of `text`, in percent (the
+    /// least sure of its words), when it says so (Micelya Core): the base
+    /// gives each line its band with it (D-668, E1 of 2 nov). Empty: the
+    /// engine does not say.
+    pub lines: Vec<u8>,
 }
 
 pub trait TextRecognizer {
@@ -88,6 +93,14 @@ pub trait TextRecognizer {
                 break;
             }
         }
+    }
+
+    /// How this engine reads a page by zones, when it does (the one of this
+    /// computer, E1 of 2 nov): the text of each page is then its reading by
+    /// zones, with its bands (`docbase::structure`), and the step of the
+    /// zones does not read that page again. `None`: it reads the text alone.
+    fn by_zones(&self) -> Option<&dyn super::recognition_local::PageByZones> {
+        None
     }
 }
 
@@ -332,11 +345,28 @@ pub struct RecognizedPage {
     pub doubtful: Vec<DoubtfulWord>,
     /// The model that read it, as its provider says.
     pub read_by: Option<String>,
+    /// How sure the engine is of each line, in percent, when it says so
+    /// (`PageReading::lines`).
+    pub lines: Vec<u8>,
 }
 
 impl RecognizedPage {
     fn of(engine_id: String, reading: PageReading) -> Self {
-        Self { engine_id, text: reading.text.trim().to_string(), doubtful: reading.doubtful, read_by: reading.read_by }
+        Self { engine_id, text: reading.text.trim().to_string(), doubtful: reading.doubtful, read_by: reading.read_by, lines: reading.lines }
+    }
+
+    /// The text of the page with its bands (D-668), by the confidence of
+    /// each line, with the thresholds `low` and `high` of the base: the
+    /// reading of an engine that gives no zones but says how sure it is
+    /// (Micelya Core). The text as it is when the engine does not say.
+    pub fn banded(&self, low: f64, high: f64) -> String {
+        let lines: Vec<&str> = self.text.lines().collect();
+        if self.lines.is_empty() || self.lines.len() != lines.len() {
+            return self.text.clone();
+        }
+        let bands: Vec<&str> =
+            self.lines.iter().map(|p| super::bands::band_of(Some(f64::from(*p) / 100.0), low, high)).collect();
+        super::bands::marked_text(lines.into_iter().zip(bands))
     }
 }
 

@@ -473,3 +473,24 @@ fn the_summary_is_kept_with_the_reading_and_points_at_its_evidence() {
         .unwrap();
     assert_eq!(mentions, 2);
 }
+
+#[test]
+fn a_quote_that_differs_only_in_the_closing_legal_form_is_kept() {
+    // P-480: the model writes the form the text leaves out, or the other way
+    // around; another form is another organization and is still dropped.
+    let text = "Ejemplo Siete, con domicilio en Calle Tres 300, y Ejemplo Ocho S.R.L., con domicilio en Calle Cuatro 400.";
+    let reading = read(
+        text,
+        serde_json::json!({
+            "menciones": [
+                mention("a", "organizacion", "Ejemplo Siete S.A.", "parte", "Ejemplo Siete S.A., con domicilio en Calle Tres 300", serde_json::json!([])),
+                mention("b", "organizacion", "Ejemplo Ocho", "parte", "y Ejemplo Ocho, con domicilio en Calle Cuatro 400", serde_json::json!([])),
+                mention("c", "organizacion", "Ejemplo Ocho S.A.", "parte", "Ejemplo Ocho S.A., con domicilio en Calle Cuatro 400", serde_json::json!([])),
+            ],
+            "afirmaciones": []
+        }),
+    );
+    let kept: Vec<&str> = reading.mentions.iter().map(|m| m.written.as_str()).collect();
+    assert_eq!(kept, ["Ejemplo Siete S.A.", "Ejemplo Ocho"], "{:?}", reading.discarded);
+    assert_eq!(reasons(&reading), [("mention".to_string(), "cita-no-encontrada".to_string())]);
+}

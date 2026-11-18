@@ -265,12 +265,12 @@ describe("the recognition of a scan, on the screen of its document (P-242)", () 
     expect(shown).toContain("Reintentar")
   })
 
-  it("says how to choose an engine when the model chosen cannot read images, and does not offer the button", () => {
+  it("does not ask to choose an engine: the one of the configuration reads it (D-721)", () => {
     useAiServicesStore.setState({ services: NO_SERVICES })
     base.answers.document = scan()
     const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />)
-    expect(text(html)).toContain("Falta elegir el motor que reconoce escaneos")
-    expect(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>).)*Reconocer el texto/.test(html)).toBe(true)
+    expect(text(html)).not.toContain("Falta elegir el motor que reconoce escaneos")
+    expect(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>).)*Reconocer el texto/.test(html)).toBe(false)
   })
 
   it("says which engine recognized the text and when, and the pages it could not read", () => {
@@ -289,11 +289,11 @@ describe("the recognition of a scan, on the screen of its document (P-242)", () 
     expect(shown).not.toContain("Reconocer de nuevo")
   })
 
-  it("offers to read it again only when another engine is chosen", () => {
+  it("does not offer to read it again with another engine: the person does not choose it (D-721)", () => {
     base.answers.document = documentDetail({ textEngine: "codex-cli:otro-modelo", text: "Texto de prueba." })
     const shown = text(renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />))
     expect(shown).toContain("Texto reconocido por Codex (otro-modelo)")
-    expect(shown).toContain("Reconocer de nuevo con Codex (modelo-de-prueba)")
+    expect(shown).not.toContain("Reconocer de nuevo")
   })
 })
 

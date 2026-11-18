@@ -146,6 +146,9 @@ pub struct DocumentDetail {
     /// When it is a document a joined file includes: which one and its
     /// pages; the rest of the detail (where, the hash) is of that file.
     pub part: Option<PartOf>,
+    /// Of a type of low confidence: why (E6 of 2 nov). Its reading exists,
+    /// and is shown marked: it is only for queries.
+    pub low_confidence: Option<String>,
 }
 
 /// Where a document included in a joined file is in it.
@@ -174,8 +177,12 @@ pub struct Health {
     pub unreachable_origins: i64,
     /// Files in the inventory, cloud shortcuts included.
     pub locations: i64,
-    /// Distinct documents among the files already read.
+    /// The documents, by the one rule of what a document is (`totals`):
+    /// the same figure «En curso» says.
     pub documents: i64,
+    /// Distinct files read (by their bytes), and the places they are in.
+    pub files: i64,
+    pub places: i64,
     /// Locations by `DocumentRow::state`.
     pub by_state: BTreeMap<String, i64>,
     /// Locations whose document is also somewhere else.
@@ -288,17 +295,20 @@ impl DocBase {
             health.by_state.insert(state, count);
         }
 
-        let (documents, words): (i64, i64) = conn
+        let words: i64 = conn
             .query_row(
                 &format!(
-                    "SELECT count(*), coalesce(sum(word_count), 0) FROM version
+                    "SELECT coalesce(sum(word_count), 0) FROM version
                      WHERE id IN (SELECT version_id FROM ({sql}) WHERE version_id IS NOT NULL)"
                 ),
                 params_from_iter(bound.clone()),
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| row.get(0),
             )
             .map_err(sql_err)?;
-        health.documents = documents;
+        let totals = totals(&conn, visible)?;
+        health.documents = totals.documents;
+        health.files = totals.files;
+        health.places = totals.places;
         health.words = words;
         let unread = super::page_shapes::unread_scans(&conn, &self.recognized, &sql, &bound)?;
         health.unread_scan_pages = unread.pages;
@@ -541,6 +551,10 @@ impl DocBase {
             locations,
             generated,
             part: None,
+            low_confidence: match row.content_id {
+                Some(content_id) => super::safe_words::mark_of(&conn, content_id)?,
+                None => None,
+            },
             row,
         }))
     }
@@ -604,6 +618,7 @@ impl DocBase {
         detail.text_engine = text.as_ref().map(|(_, engine, _)| engine.clone());
         detail.text_at = text.map(|(.., at)| at);
         detail.generated = None;
+        detail.low_confidence = super::safe_words::mark_of(&conn, version_id)?;
         detail.part = Some(PartOf {
             ordinal: ordinal as i64 + 1,
             count: parts.len() as i64,
@@ -679,6 +694,45 @@ impl DocBase {
 /// The query behind every document row: one row per visible location,
 /// or just `only` when given. Copies are counted among what is visible:
 /// a copy the caller cannot see does not exist for them.
+/// The figures every screen says the same way (F.1 of 1 nov; P-573, P-593):
+/// - **places:** each file in each folder, not excluded;
+/// - **files:** the distinct files among them, by their bytes, once read;
+/// - **documents:** what a document is, the one rule of the structure
+///   (`cut::parts::is_document_sql`): each part of a file of several
+///   documents, or the file itself when it is one; the text of a whole file
+///   of several documents is not one more, and a copy is the same document.
+///   A file of 3 parts is 3 documents, not 4.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Totals {
+    pub places: i64,
+    pub files: i64,
+    pub documents: i64,
+    /// Of the documents, those with a type now.
+    pub typed: i64,
+}
+
+pub(crate) fn totals(conn: &Connection, visible: &Visible) -> Result<Totals, String> {
+    let (condition, bound) = visible.condition("l.origin_id");
+    let places = format!(
+        "SELECT l.file_hash FROM location l WHERE l.kind = 'file' AND NOT {} AND {condition}",
+        super::excluded_sql!()
+    );
+    conn.query_row(
+        &format!(
+            "SELECT (SELECT count(*) FROM ({places})),
+                    (SELECT count(DISTINCT file_hash) FROM ({places}) WHERE file_hash IS NOT NULL),
+                    (SELECT count(DISTINCT a.version_id) FROM appearance a
+                      WHERE a.selector <> 'file' AND a.resource_hash IN (SELECT file_hash FROM ({places}))),
+                    (SELECT count(DISTINCT a.version_id) FROM appearance a JOIN document_type t ON t.version_id = a.version_id
+                      WHERE a.selector <> 'file' AND a.resource_hash IN (SELECT file_hash FROM ({places})))"
+        ),
+        params_from_iter(bound.iter().chain(bound.iter()).chain(bound.iter()).chain(bound.iter()).cloned()),
+        |row| Ok(Totals { places: row.get(0)?, files: row.get(1)?, documents: row.get(2)?, typed: row.get(3)? }),
+    )
+    .map_err(sql_err)
+}
+
 pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Value>) {
     let (visible_l, bound_l) = visible.condition("l.origin_id");
     let (visible_l2, bound_l2) = visible.condition("l2.origin_id");
@@ -703,10 +757,9 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                 ) END AS copies,
                 dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed,
                 dt.proposed_name AS doc_type_name,
-                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector <> 'file') AS included,
+                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector GLOB 'pages:*') AS included,
                 (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.uncertain = 1
-                    AND (a.selector <> 'file' OR NOT EXISTS (SELECT 1 FROM appearance p
-                                                             WHERE p.resource_hash = a.resource_hash AND p.selector <> 'file'))) AS unconfirmed_cuts
+                    AND a.selector <> 'file') AS unconfirmed_cuts
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash

@@ -53,41 +53,12 @@ pub fn stage_of_task(task: &str) -> &'static str {
 /// rejected), `connection` (no connection, or no answer in time) or
 /// `other`.
 pub fn error_kind(message: &str) -> &'static str {
-    let message = message.to_lowercase();
-    let any = |words: &[&str]| words.iter().any(|w| message.contains(w));
-    if any(&["usage limit", "hit your limit", "rate limit", "rate_limit", "429", "quota", "too many requests"]) {
-        "limit"
-    } else if any(&[
-        "401",
-        "403",
-        "unauthorized",
-        "forbidden",
-        "api key",
-        "api_key",
-        "invalid key",
-        "authentication",
-        "not logged in",
-        "log in",
-        "login",
-        "credential",
-    ]) {
-        "key"
-    } else if any(&[
-        "connection",
-        "network",
-        "timed out",
-        "timeout",
-        "dns",
-        "could not resolve",
-        "error sending request",
-        "offline",
-        "unreachable",
-        "did not answer within",
-        "stream disconnected",
-    ]) {
-        "connection"
-    } else {
-        "other"
+    // The class comes from the only function that classifies (D-714).
+    match super::failures::classify(message).code {
+        "rate-limit" => "limit",
+        "credential" => "key",
+        "no-connection" | "timeout" => "connection",
+        _ => "other",
     }
 }
 
@@ -138,6 +109,10 @@ pub(crate) struct EngineNow {
     /// The stage whose questions wait for a person: the round passed its
     /// cap, or a person left them for later (D-484).
     pub auto_held: Option<&'static str>,
+    /// The last question the thread asked by itself about a doubtful step
+    /// of a cut failed: the reading does not wait for those answers until
+    /// one comes (`cut::waiting_for_cut_answers`, D-488).
+    pub cut_asking_failed: bool,
     /// When the round began: the last round's end, or the app's opening.
     /// The questions the base keeps from then on are the round's (D-606).
     pub round_since: i64,
@@ -239,6 +214,12 @@ impl EngineState {
     /// The stage whose questions wait for a person; `None`: none waits.
     pub(crate) fn auto_held(&self, stage: Option<&'static str>) {
         self.with(|now| now.auto_held = stage);
+    }
+
+    /// Whether the last question about a doubtful step of a cut, asked by
+    /// the thread by itself, failed.
+    pub(crate) fn cut_asking_failed(&self, failed: bool) {
+        self.with(|now| now.cut_asking_failed = failed);
     }
 
     /// The round of automatic questions ended: nothing left to ask.
@@ -650,7 +631,7 @@ fn all_members(conn: &Connection, facts: &Facts) -> Result<Vec<Members>, String>
         similar_members(conn, facts)?,
         types_members(conn, facts)?,
         templates_members(conn, facts)?,
-        reading_members(facts, &standings)?,
+        reading_members(facts, &standings, &super::safe_words::reasons(conn)?)?,
         resolve,
         matters_members(conn, facts, &read, &waiting_resolution, resolving)?,
         pages_members(conn, facts, resolving)?,
@@ -760,8 +741,13 @@ fn recognition_state(facts: &Facts, members: &Members, error: bool) -> &'static 
         "paused"
     } else if error {
         "error"
-    } else if requested || facts.reading_on || super::services::local_recognition_engine().is_some() {
-        // The engine of this computer reads with the reading off (D-558).
+    } else if requested
+        || facts.reading_on
+        || facts.recognizer.as_deref().is_some_and(|id| super::services::is_local(id.split(':').next().unwrap_or(id)))
+    {
+        // The reader chosen in Ajustes (E2 of 2 nov): the one of this
+        // computer reads with the reading off (D-775); `recognizer` is it
+        // only while its models are there.
         "running"
     } else {
         "paused"
@@ -769,17 +755,21 @@ fn recognition_state(facts: &Facts, members: &Members, error: bool) -> &'static 
 }
 
 /// Each document with text, compared with the others: copies, versions
-/// and documents of the same template.
+/// and documents of the same template. Only documents, by the one rule of
+/// every screen (`cut::parts::is_document_sql`, P-593): the whole text of
+/// a file of several documents is never compared, and counting it left
+/// this stage fixed short of its end (101 of 136 in the run of 1 nov).
 fn similar_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
     let mut statement = conn
-        .prepare(
+        .prepare(&format!(
             "SELECT c.id,
                     s.version_id IS NOT NULL AND s.text_at = d.created_at AND s.engine = ?1
                     AND NOT EXISTS (SELECT 1 FROM similar_dirty sd WHERE sd.version_id = c.id)
              FROM version c JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
              LEFT JOIN similar_signature s ON s.version_id = c.id
-             WHERE c.state = 'processed'",
-        )
+             WHERE c.state = 'processed' AND {}",
+            super::cut::parts::is_document_sql("c.id")
+        ))
         .map_err(sql_err)?;
     let rows = statement
         .query_map([super::similar::store::engine_id()], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)))
@@ -804,15 +794,17 @@ fn types_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
                     EXISTS (SELECT 1 FROM document_data dd WHERE dd.version_id = s.version_id AND dd.question IS NOT NULL
                             AND NOT EXISTS (SELECT 1 FROM model_answer a WHERE a.question = dd.question AND (?1 IS NULL OR a.engine = ?1)))
              FROM similar_signature s JOIN version c ON c.id = s.version_id AND c.state = 'processed'
-             WHERE s.words >= ?2",
+             WHERE coalesce(c.word_count, 0) >= ?2",
         )
         .map_err(sql_err)?;
     let rows = statement
         .query_map(
-            rusqlite::params![facts.answering, super::similar::classify::MIN_TYPE_WORDS],
+            rusqlite::params![facts.answering, super::safe_words::ASKED_WORDS],
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, bool>(2)?)),
         )
         .map_err(sql_err)?;
+    // The data of a document of a type of low confidence are looked for
+    // too (E6 of 2 nov, over E3).
     let mut members = Members::new("documents");
     for row in rows {
         let (content, typed, data_waiting) = row.map_err(sql_err)?;
@@ -844,7 +836,14 @@ fn templates_members(conn: &Connection, facts: &Facts) -> Result<Members, String
 }
 
 /// Each document read by the model to know whom it names.
-fn reading_members(facts: &Facts, standings: &[super::knowledge::extract::Standing]) -> Result<Members, String> {
+/// A document of a type of low confidence is read like the others, and
+/// shown with its mark and reason (`low`, D-769; E6 of 2 nov over E3): its
+/// reading is only for queries.
+fn reading_members(
+    facts: &Facts,
+    standings: &[super::knowledge::extract::Standing],
+    low: &BTreeMap<i64, String>,
+) -> Result<Members, String> {
     let mut members = Members::new("documents");
     let (mut outdated, mut requested) = (0, 0);
     for standing in standings.iter().filter(|s| facts.active.contains(&s.content_id)) {
@@ -853,6 +852,10 @@ fn reading_members(facts: &Facts, standings: &[super::knowledge::extract::Standi
             Some(reading) if reading.current => FAILED,
             _ => PENDING,
         };
+        if let Some(why) = low.get(&standing.content_id) {
+            members.items.push((Key::Content(standing.content_id), status, Some(why.clone())));
+            continue;
+        }
         // Read with another version of the question or another model, kept
         // as they are (D-465); and asked by a person to read again (D-432).
         if let Some(reading) = &standing.reading {

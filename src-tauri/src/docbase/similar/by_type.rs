@@ -7,13 +7,22 @@
 //! - **different data, different documents:** two letters that share the
 //!   postal form but claim different invoices are two letters, however
 //!   much text they share. A relation that makes them one document is
-//!   taken down to the rule's (`same-template`).
+//!   taken down to the rule's (`same-template`) when they share as much
+//!   text as a template's documents do (`SHARE_MUCH`), and to `similar`
+//!   when they share less (P-485).
 //! - **stage pairs:** the preview of a letter and the letter as sent,
 //!   with the same data, are `preview`, even when the preview's watermark
 //!   could not be read.
 //! - **shared data:** the delivery receipt and the letter with the same
 //!   shipment number; the signing certificate and the document with the
 //!   same signing process. Proposed even when their texts share nothing.
+//!   The value shared is each one's own (the first in reading order, of
+//!   its form or its heading), not a number one of them cites (P-485).
+//!
+//! A stage needs its data (`stage_data` of the type, P-485): a letter the
+//! model says was sent but without a shipment number is not sent yet, and
+//! is taken as the stage before, unless a mark of the document shows the
+//! stage it was said to be in.
 //!
 //! What the general rule already resolved is left alone: a rule only
 //! acts on the relations it names. A decision of a person is never
@@ -28,6 +37,7 @@ use serde::{Deserialize, Serialize};
 use super::super::{now_ms, sql_err, DocBase};
 use super::classify::{load_docs, read_data, read_types};
 use super::data::comparable;
+use super::propose::{RECOGNIZED_TOLERANCE, SHARE_MUCH};
 use super::text;
 use super::types::{self, Catalog, RelationRule};
 
@@ -127,9 +137,33 @@ fn load_known(conn: &Connection, catalog: &Catalog) -> Result<HashMap<i64, Known
             let entry = known.data.entry(datum.field.clone()).or_insert_with(|| (BTreeSet::new(), datum.value.clone()));
             entry.0.insert(comparable(&datum.value));
         }
+        let shown: Vec<&str> = doc.marks.iter().filter_map(|m| m.stage.as_deref()).collect();
+        settle_stage(catalog, &mut known, &shown);
         out.insert(id, known);
     }
     Ok(out)
+}
+
+/// A stage needs its data (P-485): the stage the model said, unless the
+/// type says it needs a datum the document does not have; then the latest
+/// earlier stage whose data it has. A stage a mark of the document shows
+/// (`shown`) is verified and stays.
+fn settle_stage(catalog: &Catalog, known: &mut Known, shown: &[&str]) {
+    let Some(doc_type) = known.own.as_deref().and_then(|t| catalog.doc_type(t)) else { return };
+    let Some(said) = known.stage.as_deref() else { return };
+    if shown.contains(&said) {
+        return;
+    }
+    let data = &known.data;
+    known.stage = doc_type.stage_with_data(said, |field| data.get(field).is_some_and(|(values, _)| !values.is_empty()));
+}
+
+/// The part of the shorter document found in the other, as the general
+/// rule weighs it: text read from images gets its slack (`propose.rs`).
+fn shared_part(cover: f64, evidence: &str) -> f64 {
+    let evidence: serde_json::Value = serde_json::from_str(evidence).unwrap_or_default();
+    let recognized = ["a", "b"].iter().any(|side| evidence["recognized"][side].as_bool() == Some(true));
+    cover + if recognized { RECOGNIZED_TOLERANCE } else { 0.0 }
 }
 
 fn rules_of<'a>(catalog: &'a Catalog, doc_type: &str, kind: &'a str) -> impl Iterator<Item = &'a RelationRule> + 'a {
@@ -137,8 +171,9 @@ fn rules_of<'a>(catalog: &'a Catalog, doc_type: &str, kind: &'a str) -> impl Ite
 }
 
 /// What the rules of the types say of `a` and `b`, given what was
-/// measured (`None`: nothing).
-fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Option<&str>) -> Option<Verdict> {
+/// measured (`None`: nothing) and the part of the text they share
+/// (`shared_part`).
+fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Option<&str>, share: f64) -> Option<Verdict> {
     let shared: Vec<&String> = a.1.kinds.intersection(&b.1.kinds).collect();
 
     // A part of the same file that certifies the other (`attest.rs`).
@@ -156,17 +191,24 @@ fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Opti
         }
     }
 
-    // Different data: different documents.
+    // Different data: different documents. Sharing as much text as a
+    // template's documents do, they are still of the same template; with
+    // less, only similar (P-485).
     if let Some(measured) = measured {
         for doc_type in &shared {
-            for rule in rules_of(catalog, doc_type, "different-data").filter(|r| closeness(measured) < closeness(&r.relation)) {
+            for rule in rules_of(catalog, doc_type, "different-data") {
+                let relation =
+                    if share < SHARE_MUCH && closeness(&rule.relation) < closeness("similar") { "similar" } else { rule.relation.as_str() };
+                if closeness(measured) >= closeness(relation) {
+                    continue;
+                }
                 for field in &rule.data {
                     let (Some((va, wa)), Some((vb, wb))) = (a.1.data.get(field), b.1.data.get(field)) else { continue };
                     if va.is_empty() || vb.is_empty() || va == vb {
                         continue;
                     }
                     return Some(Verdict {
-                        relation: rule.relation.clone(),
+                        relation: relation.to_string(),
                         subject: None,
                         rule: rule.id.clone(),
                         certainty: None,
@@ -175,7 +217,9 @@ fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Opti
                             words(doc_type),
                             words(field)
                         ),
-                        evidence: serde_json::json!({ "type": doc_type, "field": field, "values": [wa, wb], "measured": measured }),
+                        evidence: serde_json::json!({
+                            "type": doc_type, "field": field, "values": [wa, wb], "measured": measured, "share": share
+                        }),
                     });
                 }
             }
@@ -243,15 +287,17 @@ fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Opti
                         continue;
                     }
                     let mut values = Vec::new();
-                    let share = !rule.data.is_empty()
+                    // Each one's own value: the first, of its form or its
+                    // heading; a number one of them cites is a reference.
+                    let same = !rule.data.is_empty()
                         && rule.data.iter().all(|field| match (subject.1.data.get(field), other.1.data.get(field)) {
-                            (Some((vs, written)), Some((vo, _))) if !vs.is_disjoint(vo) => {
+                            (Some((_, written)), Some((_, other_written))) if comparable(written) == comparable(other_written) => {
                                 values.push(written.clone());
                                 true
                             }
                             _ => false,
                         });
-                    if !share {
+                    if !same {
                         continue;
                     }
                     return Some(Verdict {
@@ -320,6 +366,8 @@ struct Stored {
     measured: Option<Measured>,
     rule: Option<String>,
     current: Measured,
+    /// The part of the shorter one found in the other, as measured.
+    cover: f64,
 }
 
 impl DocBase {
@@ -332,7 +380,7 @@ impl DocBase {
             let mut statement = conn
                 .prepare(
                     "SELECT a, b, relation, subject, origin, measured, type_rule, certainty, description, suggested_source,
-                            evidence, evidence_hash
+                            evidence, evidence_hash, cover
                      FROM similar_pair WHERE state = 'proposed'",
                 )
                 .map_err(sql_err)?;
@@ -356,6 +404,7 @@ impl DocBase {
                             evidence: row.get(10)?,
                             evidence_hash: row.get(11)?,
                         },
+                        cover: row.get::<_, Option<f64>>(12)?.unwrap_or(0.0),
                     })
                 })
                 .map_err(sql_err)?
@@ -386,11 +435,13 @@ impl DocBase {
                 (Some(_), "type") => None,
                 (Some(_), _) => pair.measured.clone(),
             };
+            let share = base.as_ref().map(|m| shared_part(pair.cover, &m.evidence)).unwrap_or(0.0);
             let found = verdict(
                 catalog,
                 (pair.a, known.get(&pair.a).unwrap_or(&empty)),
                 (pair.b, known.get(&pair.b).unwrap_or(&empty)),
                 base.as_ref().map(|m| m.relation.as_str()),
+                share,
             );
             match (found, base) {
                 (Some(v), base) => {
@@ -469,7 +520,7 @@ impl DocBase {
             if seen.contains(&(a, b)) || decided.contains(&(a, b)) {
                 continue;
             }
-            let Some(v) = verdict(catalog, (a, &known[&a]), (b, &known[&b]), None) else { continue };
+            let Some(v) = verdict(catalog, (a, &known[&a]), (b, &known[&b]), None, 0.0) else { continue };
             let evidence = serde_json::json!({ "typeRule": { "id": v.rule, "detail": v.evidence } }).to_string();
             let hash = format!("{:016x}", text::fnv1a(evidence.as_bytes()));
             tx.execute(
@@ -516,6 +567,9 @@ impl DocBase {
 mod tests {
     use super::*;
 
+    /// All of the text in common.
+    const ALL: f64 = 1.0;
+
     fn known(own: &str, stage: Option<&str>, data: &[(&str, &str)]) -> Known {
         let mut k = Known { own: Some(own.into()), stage: stage.map(str::to_string), ..Default::default() };
         k.kinds.insert(own.into());
@@ -531,18 +585,24 @@ mod tests {
         let catalog = Catalog::builtin();
         let a = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111")]);
         let b = known("carta-documento", Some("enviada"), &[("facturas", "0003-00002222")]);
-        let v = verdict(&catalog, (1, &a), (2, &b), Some("near-identical")).unwrap();
-        assert_eq!(v.relation, "similar");
-        // The postal form is not a likeness: a shared template goes down too.
-        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("same-template")).unwrap().relation, "similar");
+        // Sharing as much text as a template's documents do, they are two
+        // letters of the same template (P-485)…
+        let v = verdict(&catalog, (1, &a), (2, &b), Some("near-identical"), ALL).unwrap();
+        assert_eq!(v.relation, "same-template");
+        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("contained-in"), 0.86).unwrap().relation, "same-template");
+        // …and a shared template is already as far.
+        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("same-template"), ALL), None);
+        // Sharing less, they are only similar.
+        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("contained-in"), 0.79).unwrap().relation, "similar");
+        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("same-template"), 0.79).unwrap().relation, "similar");
         // A relation never goes up, and one already as far is not touched.
-        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("similar")), None);
+        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("similar"), ALL), None);
         let invoice_a = known("factura", None, &[("numero", "0003-00001111")]);
         let invoice_b = known("factura", None, &[("numero", "0003-00002222")]);
-        assert_eq!(verdict(&catalog, (1, &invoice_a), (2, &invoice_b), Some("same-template")), None);
+        assert_eq!(verdict(&catalog, (1, &invoice_a), (2, &invoice_b), Some("same-template"), ALL), None);
         // Same invoices: nothing to correct.
         let c = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111")]);
-        assert_eq!(verdict(&catalog, (1, &a), (2, &c), Some("near-identical")), None);
+        assert_eq!(verdict(&catalog, (1, &a), (2, &c), Some("near-identical"), ALL), None);
     }
 
     #[test]
@@ -550,11 +610,11 @@ mod tests {
         let catalog = Catalog::builtin();
         let preview = known("carta-documento", Some("vista-previa"), &[("facturas", "0003-00001111")]);
         let sent = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111")]);
-        let v = verdict(&catalog, (1, &sent), (2, &preview), Some("version")).unwrap();
+        let v = verdict(&catalog, (1, &sent), (2, &preview), Some("version"), ALL).unwrap();
         assert_eq!((v.relation.as_str(), v.subject), ("preview", Some(2)));
         // Without the data to compare, nothing is said.
         let bare = known("carta-documento", Some("vista-previa"), &[]);
-        assert_eq!(verdict(&catalog, (1, &sent), (2, &bare), Some("version")), None);
+        assert_eq!(verdict(&catalog, (1, &sent), (2, &bare), Some("version"), ALL), None);
     }
 
     #[test]
@@ -562,12 +622,12 @@ mod tests {
         let catalog = Catalog::builtin();
         let receipt = known("acuse-de-recibo", None, &[("numero-de-envio", "XY123456789AR")]);
         let letter = known("carta-documento", Some("enviada"), &[("numero-de-envio", "XY123456789AR")]);
-        let v = verdict(&catalog, (1, &letter), (2, &receipt), None).unwrap();
+        let v = verdict(&catalog, (1, &letter), (2, &receipt), None, ALL).unwrap();
         assert_eq!((v.relation.as_str(), v.subject), ("delivery-receipt-of", Some(2)));
         let other = known("carta-documento", Some("enviada"), &[("numero-de-envio", "XY999999999AR")]);
-        assert_eq!(verdict(&catalog, (1, &other), (2, &receipt), None), None);
+        assert_eq!(verdict(&catalog, (1, &other), (2, &receipt), None, ALL), None);
         // A relation the measurement already gave is not replaced.
-        assert_eq!(verdict(&catalog, (1, &letter), (2, &receipt), Some("version")), None);
+        assert_eq!(verdict(&catalog, (1, &letter), (2, &receipt), Some("version"), ALL), None);
     }
 
     #[test]
@@ -576,9 +636,53 @@ mod tests {
         let mut agreement = Known::default();
         agreement.certified_by.push((7, "signing-certificate-of".into(), "firmado-segun-su-constancia".into()));
         let certificate = Known::default();
-        let v = verdict(&catalog, (3, &agreement), (7, &certificate), None).unwrap();
+        let v = verdict(&catalog, (3, &agreement), (7, &certificate), None, ALL).unwrap();
         assert_eq!((v.relation.as_str(), v.subject, v.certainty), ("signing-certificate-of", Some(7), Some("high")));
         // Another part of the file is not its certificate.
-        assert_eq!(verdict(&catalog, (3, &agreement), (8, &certificate), None), None);
+        assert_eq!(verdict(&catalog, (3, &agreement), (8, &certificate), None, ALL), None);
+    }
+
+    #[test]
+    fn a_shared_datum_is_each_ones_own_and_not_a_number_cited() {
+        // P-485: the letter's own shipment number is the first in reading
+        // order; the other one is cited in its body.
+        let catalog = Catalog::builtin();
+        let receipt = known("acuse-de-recibo", None, &[("numero-de-envio", "XY123456789AR")]);
+        let citing = known(
+            "carta-documento",
+            Some("enviada"),
+            &[("numero-de-envio", "Q12345ZZ678"), ("numero-de-envio", "XY123456789AR")],
+        );
+        assert_eq!(verdict(&catalog, (1, &citing), (2, &receipt), None, 0.0), None);
+        let own = known("carta-documento", Some("enviada"), &[("numero-de-envio", "XY123456789AR"), ("numero-de-envio", "Q12345ZZ678")]);
+        let v = verdict(&catalog, (1, &own), (2, &receipt), None, 0.0).unwrap();
+        assert_eq!((v.relation.as_str(), v.subject), ("delivery-receipt-of", Some(2)));
+    }
+
+    #[test]
+    fn a_letter_said_sent_without_its_shipment_number_is_not_sent_and_can_be_the_preview() {
+        // P-485: a stage needs its data. The model said "sent", but the
+        // letter has no shipment number and no mark shows it was sent.
+        let catalog = Catalog::builtin();
+        let mut said_sent = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111")]);
+        settle_stage(&catalog, &mut said_sent, &[]);
+        assert_eq!(said_sent.stage.as_deref(), Some("vista-previa"));
+        let draft = known("carta-documento", Some("borrador"), &[("facturas", "0003-00001111")]);
+        let v = verdict(&catalog, (1, &draft), (2, &said_sent), Some("version"), ALL).unwrap();
+        assert_eq!((v.relation.as_str(), v.subject), ("preview", Some(2)));
+
+        // With its shipment number it was sent: no stage pair with a draft.
+        let mut sent = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111"), ("numero-de-envio", "XY123456789AR")]);
+        settle_stage(&catalog, &mut sent, &[]);
+        assert_eq!(sent.stage.as_deref(), Some("enviada"));
+        assert_eq!(verdict(&catalog, (1, &draft), (2, &sent), Some("version"), ALL), None);
+        // A mark that shows it was sent wins over the missing number.
+        let mut marked = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111")]);
+        settle_stage(&catalog, &mut marked, &["enviada"]);
+        assert_eq!(marked.stage.as_deref(), Some("enviada"));
+        // A stage that needs nothing stays as said.
+        let mut received = known("carta-documento", Some("recibida"), &[]);
+        settle_stage(&catalog, &mut received, &[]);
+        assert_eq!(received.stage.as_deref(), Some("recibida"));
     }
 }

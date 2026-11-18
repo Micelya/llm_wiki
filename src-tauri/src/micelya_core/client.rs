@@ -568,6 +568,59 @@ impl CoreClient {
     }
 }
 
+/// The most texts Core takes in one call of vectors: 97 are refused
+/// without calling the model (its message C002).
+pub const EMBED_BATCH: usize = 96;
+
+/// The vectors of some texts (`POST /v1/tenant/inference/embeddings`), in
+/// the order of the texts.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+pub struct Embeddings {
+    /// The model that made them, as Core names it.
+    pub model: String,
+    pub dimensions: usize,
+    #[serde(default)]
+    pub normalized: bool,
+    pub vectors: Vec<Vec<f32>>,
+}
+
+impl CoreClient {
+    /// The vectors of `texts` with `model` and `dimensions` numbers each
+    /// (C1 of 2 nov). `input_type` is `document` for what is kept and
+    /// `query` for what a person asks. They go in calls of at most 96
+    /// texts (`EMBED_BATCH`), one at a time, as Core advises for the work
+    /// of the background; a call that fails for a moment (no answer, the
+    /// limit of use, a 503) is repeated after each wait of `retry_waits`,
+    /// and then its error is the step's, with its class, like any other
+    /// failure of Core. An answer with another number of vectors, or of
+    /// another length, is unexpected. Core keeps neither the texts nor the
+    /// vectors.
+    pub fn embed(&self, model: &str, input_type: &str, texts: &[String], dimensions: usize) -> Result<Vec<Vec<f32>>, CoreError> {
+        let mut out = Vec::with_capacity(texts.len());
+        for batch in texts.chunks(EMBED_BATCH) {
+            let body = serde_json::json!({ "model": model, "inputType": input_type, "texts": batch, "dimensions": dimensions });
+            let answer = self.repeating(|| self.call(Method::POST, "tenant/inference/embeddings", |r| r.json(&body)), |_| {})?;
+            let embeddings: Embeddings = parsed(Side::Api, &answer)?;
+            if embeddings.vectors.len() != batch.len() {
+                return Err(CoreError::Unexpected {
+                    side: Side::Api,
+                    detail: format!("{} vectors for {} texts", embeddings.vectors.len(), batch.len()),
+                });
+            }
+            if let Some(other) = embeddings.vectors.iter().find(|v| v.len() != dimensions) {
+                return Err(CoreError::Unexpected {
+                    side: Side::Api,
+                    detail: format!("a vector of {} numbers, not {dimensions}", other.len()),
+                });
+            }
+            out.extend(embeddings.vectors);
+        }
+        Ok(out)
+    }
+}
+
 /// `text` for a query of an address.
 fn urlencoding(text: &str) -> String {
     text.bytes()
@@ -647,5 +700,26 @@ mod tests {
         assert_eq!(summary(storage), (Some("SignatureDoesNotMatch".to_string()), "No coincide".to_string()));
         assert_eq!(summary("cualquier otra cosa"), (None, String::new()));
         assert_eq!(urlencoding("a b/c"), "a%20b%2Fc");
+    }
+
+    #[test]
+    fn the_vectors_go_96_at_a_time_in_order_and_a_503_is_repeated() {
+        let core = FakeCore::start();
+        let client = CoreClient::new(core.connection(), FakeCore::timing()).unwrap();
+        let texts: Vec<String> = (0..200).map(|n| format!("texto inventado numero {n}")).collect();
+        let vectors = client.embed("modelo-de-prueba", "document", &texts, 8).unwrap();
+        assert_eq!(core.with(|s| s.embedded.clone()), vec![96, 96, 8]);
+        assert_eq!(vectors.len(), 200);
+        assert_eq!(vectors[150], super::super::fake::fake_vector("modelo-de-prueba", &texts[150], 8));
+        // The same text, the same vector.
+        assert_eq!(client.embed("modelo-de-prueba", "document", &texts[..1], 8).unwrap()[0], vectors[0]);
+        // A 503 is a failure of a moment: repeated, then it answers.
+        core.with(|s| s.embed_failures = vec![503]);
+        assert_eq!(client.embed("modelo-de-prueba", "document", &texts[..2], 8).unwrap().len(), 2);
+        // Past its repetitions it is the caller's, transient.
+        core.with(|s| s.embed_failures = vec![503, 503, 503]);
+        let error = client.embed("modelo-de-prueba", "document", &texts[..2], 8).unwrap_err();
+        assert!(error.is_transient() && error.status() == Some(503), "{error:?}");
+        assert!(crate::docbase::failures::classify(&error.message()).class == crate::docbase::failures::Class::Transient);
     }
 }
